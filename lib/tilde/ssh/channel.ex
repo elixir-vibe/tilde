@@ -10,38 +10,57 @@ defmodule Tilde.SSH.Channel do
 
   @behaviour :ssh_server_channel
 
-  alias Tilde.Session
+  alias Tilde.{Session, SessionServer}
   alias Tilde.TUI.{Controller, Keys, Renderer}
 
   defstruct connection_ref: nil,
             channel_id: nil,
             width: 100,
             height: 30,
-            session: nil
+            session: nil,
+            session_server: nil
 
   @type t :: %__MODULE__{
           connection_ref: term(),
           channel_id: term(),
           width: pos_integer(),
           height: pos_integer(),
-          session: Session.t() | nil
+          session: Session.t() | nil,
+          session_server: SessionServer.name() | nil
         }
 
   @impl true
   def init(args) do
     opts = normalize_args(args)
 
+    session_server = Keyword.get(opts, :session_server)
+
+    session =
+      if session_server do
+        SessionServer.get_session(session_server)
+      else
+        Keyword.get_lazy(opts, :session, &Tilde.Live.Demo.demo_session/0)
+      end
+
     {:ok,
      %__MODULE__{
        width: Keyword.get(opts, :width, 100),
        height: Keyword.get(opts, :height, 30),
-       session: Keyword.get_lazy(opts, :session, &Tilde.Live.Demo.demo_session/0)
+       session: session,
+       session_server: session_server
      }}
   end
 
   @impl true
   def handle_msg({:ssh_channel_up, channel_id, connection_ref}, state) do
+    if state.session_server, do: SessionServer.subscribe(state.session_server)
     {:ok, %{state | channel_id: channel_id, connection_ref: connection_ref}}
+  end
+
+  def handle_msg({:tilde_session_updated, _session_id, %Session{} = session}, state) do
+    state = %{state | session: session}
+    render(state)
+    {:ok, state}
   end
 
   def handle_msg(_message, state), do: {:ok, state}
@@ -111,7 +130,20 @@ defmodule Tilde.SSH.Channel do
   @impl true
   def terminate(_reason, _state), do: :ok
 
-  defp apply_keys(%__MODULE__{} = state, keys) do
+  defp apply_keys(%__MODULE__{session_server: nil} = state, keys) do
+    apply_local_keys(state, keys)
+  end
+
+  defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
+    Enum.reduce_while(keys, {:cont, state}, fn key, {:cont, state} ->
+      case SessionServer.apply_key(server, key) do
+        {:cont, session} -> {:cont, {:cont, %{state | session: session}}}
+        {:halt, session} -> {:halt, {:halt, %{state | session: session}}}
+      end
+    end)
+  end
+
+  defp apply_local_keys(%__MODULE__{} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn key, {:cont, state} ->
       case Controller.apply_key(state.session, key) do
         {:cont, session} -> {:cont, {:cont, %{state | session: session}}}

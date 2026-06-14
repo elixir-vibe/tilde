@@ -169,6 +169,24 @@ semantic transcript rendered by LiveView, TUI, and SSH.
 The SSH path has been dogfooded with OpenSSH through tmux. Terminal output uses
 CRLF line endings over SSH so remote terminals return to column zero correctly.
 
+## Mirrored sessions
+
+`Tilde.SessionServer` owns a single semantic `%Tilde.Session{}` process and
+broadcasts `{:tilde_session_updated, session_id, session}` to subscribers.
+Renderers can subscribe to the same server to mirror one session without sharing
+DOM, ANSI, PTY, or terminal state:
+
+```elixir
+{:ok, _pid} = Tilde.SessionServer.start_link(name: :demo, session: Tilde.Live.Demo.demo_session())
+Tilde.SessionServer.subscribe(:demo)
+Tilde.SessionServer.apply_key(:demo, {:text, "h"})
+Tilde.SessionServer.append_event(:demo, Tilde.input_submitted("hello"))
+```
+
+`Tilde.Live.Demo` and `Tilde.SSH.Demo` both default to the package-wide
+`Tilde.SessionServer`, so a demo LiveView and demo SSH channel can observe and
+mutate the same semantic session.
+
 ## Display state
 
 Expansion is renderer state, not content mutation:

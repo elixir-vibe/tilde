@@ -14,18 +14,26 @@ defmodule Tilde.Live.Demo do
 
   import Tilde.Live.Console
 
-  alias Tilde.{Block, Choice, Session}
+  alias Tilde.{Block, Choice, Session, SessionServer}
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, session: demo_session(), input: "", running?: false)}
+    server = SessionServer
+    {:ok, _pid} = SessionServer.ensure_started(server, session: demo_session())
+
+    session =
+      if connected?(socket),
+        do: SessionServer.subscribe(server),
+        else: SessionServer.get_session(server)
+
+    {:ok, assign(socket, session_server: server, session: session, running?: false)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     <style>{Tilde.Live.Styles.css()}</style>
-    <.console session={@session} input={@input} running?={@running?} />
+    <.console session={@session} input={@session.input.value} running?={@running?} />
     <details class="tilde-demo-hooks">
       <summary>Keyboard hook</summary>
       <p class="tilde-muted">
@@ -38,7 +46,10 @@ defmodule Tilde.Live.Demo do
 
   @impl true
   def handle_event("tilde:toggle_expand", %{"id" => id}, socket) do
-    {:noreply, update(socket, :session, &Session.toggle_expand(&1, id))}
+    session =
+      SessionServer.update_session(socket.assigns.session_server, &Session.toggle_expand(&1, id))
+
+    {:noreply, assign(socket, session: session)}
   end
 
   def handle_event(
@@ -46,26 +57,49 @@ defmodule Tilde.Live.Demo do
         %{"block-id" => block_id, "option-id" => option_id},
         socket
       ) do
-    {:noreply, update(socket, :session, &Session.select_choice(&1, block_id, option_id))}
+    session =
+      SessionServer.update_session(
+        socket.assigns.session_server,
+        &Session.select_choice(&1, block_id, option_id)
+      )
+
+    {:noreply, assign(socket, session: session)}
   end
 
   def handle_event("tilde:choice_action", %{"action-id" => action_id}, socket) do
-    session = Session.put_status(socket.assigns.session, "choice", action_id)
+    session =
+      SessionServer.update_session(
+        socket.assigns.session_server,
+        &Session.put_status(&1, "choice", action_id)
+      )
+
     {:noreply, assign(socket, session: session)}
   end
 
   def handle_event("tilde:submit", %{"input" => input}, socket) do
     session =
-      socket.assigns.session
-      |> Session.append_event(Tilde.user_message(input))
-      |> Session.put_status("last input", compact(input))
+      SessionServer.update_session(socket.assigns.session_server, fn session ->
+        session
+        |> Session.append_event(Tilde.input_submitted(input))
+        |> Session.put_status("last input", compact(input))
+      end)
 
-    {:noreply, assign(socket, session: session, input: "")}
+    {:noreply, assign(socket, session: session)}
   end
 
   def handle_event("tilde:interrupt", _params, socket) do
-    session = Session.put_status(socket.assigns.session, "runtime", "interrupted")
+    session =
+      SessionServer.update_session(
+        socket.assigns.session_server,
+        &Session.put_status(&1, "runtime", "interrupted")
+      )
+
     {:noreply, assign(socket, session: session, running?: false)}
+  end
+
+  @impl true
+  def handle_info({:tilde_session_updated, _session_id, %Session{} = session}, socket) do
+    {:noreply, assign(socket, session: session)}
   end
 
   @doc "Returns the static semantic session used by the demo LiveView."

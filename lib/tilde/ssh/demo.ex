@@ -17,12 +17,16 @@ defmodule Tilde.SSH.Demo do
 
   use GenServer
 
-  alias Tilde.SSH.Keys
+  alias Tilde.{SessionServer, SSH.Keys}
 
   @default_port 4022
   @default_password "tilde"
 
-  @type option :: {:port, :inet.port_number()} | {:system_dir, Path.t()} | {:password, String.t()}
+  @type option ::
+          {:port, :inet.port_number()}
+          | {:system_dir, Path.t()}
+          | {:password, String.t()}
+          | {:session_server, SessionServer.name() | nil}
 
   @doc "Starts the demo SSH daemon under a GenServer."
   @spec start_link([option()]) :: GenServer.on_start()
@@ -39,10 +43,12 @@ defmodule Tilde.SSH.Demo do
     port = Keyword.get(opts, :port, @default_port)
     password = Keyword.get(opts, :password, @default_password)
     system_dir = Keyword.get_lazy(opts, :system_dir, &default_system_dir/0)
+    session_server = Keyword.get(opts, :session_server, SessionServer)
 
-    with {:ok, _apps} <- :application.ensure_all_started(:ssh),
+    with {:ok, _server_pid} <- ensure_session_server(session_server),
+         {:ok, _apps} <- :application.ensure_all_started(:ssh),
          {:ok, system_dir} <- Keys.ensure_system_dir(system_dir),
-         {:ok, daemon_ref} <- start_daemon(port, system_dir, password) do
+         {:ok, daemon_ref} <- start_daemon(port, system_dir, password, session_server) do
       {:ok, %{daemon_ref: daemon_ref, port: port, system_dir: system_dir}}
     else
       {:error, reason} -> {:stop, reason}
@@ -59,12 +65,18 @@ defmodule Tilde.SSH.Demo do
 
   def terminate(_reason, _state), do: :ok
 
-  defp start_daemon(port, system_dir, password) do
+  defp ensure_session_server(nil), do: {:ok, self()}
+
+  defp ensure_session_server(server) do
+    SessionServer.ensure_started(server, session: Tilde.Live.Demo.demo_session())
+  end
+
+  defp start_daemon(port, system_dir, password, session_server) do
     :ssh.daemon(port, [
       {:system_dir, String.to_charlist(system_dir)},
       {:auth_methods, ~c"password"},
       {:pwdfun, password_fun(password)},
-      {:ssh_cli, {Tilde.SSH.Channel, [[width: 100]]}},
+      {:ssh_cli, {Tilde.SSH.Channel, [[width: 100, session_server: session_server]]}},
       {:parallel_login, true}
     ])
   end

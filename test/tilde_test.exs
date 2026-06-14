@@ -242,6 +242,35 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
+  test "session server mirrors one semantic session to subscribers" do
+    name = :"tilde_session_server_test_#{System.unique_integer([:positive])}"
+    session = Tilde.session(id: "mirror_test")
+
+    assert {:ok, pid} = Tilde.SessionServer.start_link(name: name, session: session)
+    assert %Session{id: "mirror_test"} = Tilde.SessionServer.subscribe(name)
+
+    updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("from ssh"))
+
+    assert [%Block{role: :user, source: "from ssh"}] = updated.transcript.blocks
+    assert_receive {:tilde_session_updated, "mirror_test", ^updated}
+
+    GenServer.stop(pid)
+  end
+
+  test "session server applies TUI keys for mirrored renderers" do
+    name = :"tilde_session_server_keys_test_#{System.unique_integer([:positive])}"
+    assert {:ok, pid} = Tilde.SessionServer.start_link(name: name, session: Tilde.session())
+
+    assert {:cont, session} = Tilde.SessionServer.apply_key(name, {:text, "h"})
+    assert session.input.value == "h"
+
+    assert {:cont, submitted} = Tilde.SessionServer.apply_key(name, :enter)
+    assert submitted.input.value == ""
+    assert [%Block{role: :user, source: "h"}] = submitted.transcript.blocks
+
+    GenServer.stop(pid)
+  end
+
   test "ssh demo daemon starts with generated host keys" do
     dir =
       Path.join(System.tmp_dir!(), "tilde-ssh-daemon-test-#{System.unique_integer([:positive])}")
