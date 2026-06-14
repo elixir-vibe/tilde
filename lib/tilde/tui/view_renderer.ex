@@ -3,7 +3,7 @@ defmodule Tilde.TUI.ViewRenderer do
   Width-aware ANSI renderer for shared `Tilde.View.Cell` values.
   """
 
-  alias Tilde.TUI.Theme
+  alias Tilde.TUI.{Markdown, Theme}
   alias Tilde.View.Cell
 
   @doc "Renders a cell to terminal text."
@@ -35,6 +35,12 @@ defmodule Tilde.TUI.ViewRenderer do
 
   defp message_lines(%Cell{runs: [_ | _] = runs}),
     do: text_lines(Enum.map_join(runs, & &1.text), 2)
+
+  defp message_lines(%Cell{format: :markdown, source: source}) do
+    source
+    |> Markdown.render_lines()
+    |> Enum.map(&("  " <> &1))
+  end
 
   defp message_lines(%Cell{source: source}), do: text_lines(source, 2)
 

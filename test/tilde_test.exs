@@ -235,6 +235,28 @@ defmodule TildeTest do
     assert html =~ "<code>code</code>"
   end
 
+  test "tui markdown tables render as ASCII grids from MDEx AST" do
+    markdown = """
+    Before
+
+    | surface | renderer |
+    | --- | ---: |
+    | web | LiveView DOM |
+    | ssh | semantic TUI |
+
+    After
+    """
+
+    lines = Tilde.TUI.Markdown.render_lines(markdown)
+
+    assert "Before" in lines
+    assert "+---------+--------------+" in lines
+    assert "| surface |     renderer |" in lines
+    assert "| web     | LiveView DOM |" in lines
+    assert "| ssh     | semantic TUI |" in lines
+    assert "After" in lines
+  end
+
   test "live markdown tables remain semantic HTML with terminal-like styling" do
     block =
       Block.message("msg_1", :assistant, "| name | status |\n| --- | --- |\n| LiveView | ok |")
