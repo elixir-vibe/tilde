@@ -17,12 +17,12 @@ defmodule Tilde.Command do
   @help """
   Available commands:
 
-  /help         Show this help
-  /new [name]   Start an isolated web session
-  /session      Show current session details
-  /clear        Clear this session
-  /compact      Trim older session history
-  /quit         Quit in SSH/TUI; not applicable on web
+  - `/help` — Show this help
+  - `/new [name]` — Start an isolated web session
+  - `/session` — Show current session details
+  - `/clear` — Clear this session
+  - `/compact` — Trim older session history
+  - `/quit` — Quit in SSH/TUI; not applicable on web
   """
 
   @doc "Parses a slash command."
