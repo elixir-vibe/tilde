@@ -38,6 +38,7 @@ defmodule Tilde.MixProject do
       {:jido, "~> 2.3", optional: true},
       {:jido_ai, "~> 2.2", optional: true},
       {:req_llm, "~> 1.16", optional: true},
+      {:hammer, "~> 7.0", optional: true},
       {:phoenix_live_view, "~> 1.0", optional: true},
       {:phoenix_html, "~> 4.0", optional: true},
       {:bandit, "~> 1.0", optional: true},

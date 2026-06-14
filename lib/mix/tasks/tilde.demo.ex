@@ -32,6 +32,7 @@ defmodule Mix.Tasks.Tilde.Demo do
     host = Keyword.get(opts, :host, "localhost")
 
     configure_llm()
+    start_rate_limit()
     configure_endpoint(web_port, host)
     start_pubsub()
     start_session_server()
@@ -56,11 +57,21 @@ defmodule Mix.Tasks.Tilde.Demo do
   defp configure_llm do
     Application.put_env(:tilde, :llm_enabled, true)
 
+    Application.put_env(:tilde, :llm_rate_limit,
+      scope: :global,
+      scale: :timer.seconds(30),
+      limit: 3
+    )
+
     Application.put_env(
       :jido_ai,
       :react_token_secret,
       String.duplicate("tilde_demo_react_secret", 4)
     )
+  end
+
+  defp start_rate_limit do
+    Tilde.RateLimit.ensure_started(clean_period: :timer.minutes(1))
   end
 
   defp configure_endpoint(web_port, host) do

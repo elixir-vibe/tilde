@@ -465,6 +465,52 @@ defmodule TildeTest do
     assert {:ok, _datetime, 0} = DateTime.from_iso8601(timestamp)
   end
 
+  test "session server rate limits public demo LLM submissions" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.StreamingLLMBackend, fn ->
+        rate_limit = [
+          scope: :"test_#{System.unique_integer([:positive])}",
+          scale: :timer.minutes(1),
+          limit: 0
+        ]
+
+        with_application_env(:llm_rate_limit, rate_limit, fn ->
+          assert {:ok, _pid} = Tilde.RateLimit.ensure_started()
+          name = :"tilde_session_server_llm_rate_limit_test_#{System.unique_integer([:positive])}"
+
+          assert {:ok, pid} =
+                   Tilde.SessionServer.start_link(
+                     name: name,
+                     session: Tilde.session(id: "llm_rate_limit")
+                   )
+
+          assert %Session{} = Tilde.SessionServer.subscribe(name)
+
+          Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+
+          assert_receive {:tilde_session_updated, "llm_rate_limit",
+                          %Session{
+                            transcript: %{
+                              blocks: [
+                                %Block{role: :user},
+                                %Block{
+                                  role: :assistant,
+                                  source: "The public demo is busy. Please try again in " <> _rest
+                                }
+                              ]
+                            }
+                          }}
+
+          refute_receive {:tilde_session_updated, "llm_rate_limit",
+                          %Session{statuses: %{"model" => "thinking…"}}},
+                         50
+
+          GenServer.stop(pid)
+        end)
+      end)
+    end)
+  end
+
   test "session server turns LLM backend failures into public assistant messages" do
     with_application_env(:llm_enabled, true, fn ->
       with_application_env(:llm_backend, TildeTest.FailingLLMBackend, fn ->

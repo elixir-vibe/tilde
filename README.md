@@ -214,7 +214,8 @@ config :tilde,
 ```
 
 Without an API key, submissions remain semantic user messages and the demo shows
-a clear configuration message instead of crashing.
+a clear configuration message instead of crashing. The standalone public demo
+uses optional Hammer/ETS rate limiting for LLM submissions.
 
 ## Mirrored sessions
 

@@ -9,7 +9,7 @@ defmodule Tilde.SessionServer do
 
   use GenServer
 
-  alias Tilde.{Event, LLM, Session}
+  alias Tilde.{Event, LLM, RateLimit, Session}
   alias Tilde.TUI.Controller
 
   defstruct session: nil, subscribers: %{}, responding?: false
@@ -193,16 +193,38 @@ defmodule Tilde.SessionServer do
 
   defp maybe_start_llm_response(previous, %__MODULE__{} = state) do
     if LLM.enabled?() and new_input_submitted?(previous, state.session) do
-      server = self()
-      block_id = assistant_block_id(state.session)
-      session = Session.append_event(state.session, Tilde.status_changed("model", "thinking…"))
-
-      broadcast(%{state | session: session})
-      Task.start(fn -> stream_llm_response(server, block_id, session) end)
-      %{state | session: session, responding?: true}
+      maybe_start_rate_limited_llm_response(state)
     else
       state
     end
+  end
+
+  defp maybe_start_rate_limited_llm_response(%__MODULE__{} = state) do
+    case RateLimit.check_llm(state.session) do
+      :ok ->
+        start_llm_response(state)
+
+      {:error, {:rate_limited, retry_after}} ->
+        session =
+          Session.append_event(
+            state.session,
+            Tilde.assistant_done(rate_limit_message(retry_after))
+          )
+
+        state = %{state | session: session}
+        broadcast(state)
+        state
+    end
+  end
+
+  defp start_llm_response(%__MODULE__{} = state) do
+    server = self()
+    block_id = assistant_block_id(state.session)
+    session = Session.append_event(state.session, Tilde.status_changed("model", "thinking…"))
+
+    broadcast(%{state | session: session})
+    Task.start(fn -> stream_llm_response(server, block_id, session) end)
+    %{state | session: session, responding?: true}
   end
 
   defp append_tool_result(%Session{} = session, tool_call_id, status, result) do
@@ -244,6 +266,11 @@ defmodule Tilde.SessionServer do
     do: events |> List.last() |> Map.get(:type)
 
   defp last_event_type(_session), do: nil
+
+  defp rate_limit_message(retry_after) do
+    seconds = retry_after |> div(1_000) |> max(1)
+    "The public demo is busy. Please try again in #{seconds}s."
+  end
 
   defp llm_error_message(:missing_openrouter_api_key),
     do: "The model is not configured yet. Set OPENROUTER_API_KEY to enable assistant replies."
