@@ -14,6 +14,23 @@ defmodule Tilde.Live.Hooks do
     export const TildeHooks = {
       TildeConsole: {
         mounted() {
+          this.shouldStickToBottom = true
+          this.bottomThreshold = 80
+
+          this.isNearBottom = () => {
+            const doc = document.documentElement
+            return window.innerHeight + window.scrollY >= doc.scrollHeight - this.bottomThreshold
+          }
+
+          this.scrollToBottom = () => {
+            window.scrollTo({ top: document.documentElement.scrollHeight })
+          }
+
+          this.stickToBottom = () => {
+            if (!this.shouldStickToBottom) return
+            requestAnimationFrame(this.scrollToBottom)
+          }
+
           this.resizeInput = (textarea) => {
             if (!textarea) return
             textarea.style.height = "auto"
@@ -21,6 +38,14 @@ defmodule Tilde.Live.Hooks do
           }
 
           this.resizeCurrentInput = () => this.resizeInput(this.el.querySelector("textarea[name='input']"))
+
+          this.handleScroll = () => {
+            this.shouldStickToBottom = this.isNearBottom()
+          }
+
+          this.handleSubmit = () => {
+            this.shouldStickToBottom = true
+          }
 
           this.handleInput = (event) => {
             if (event.target && event.target.matches && event.target.matches("textarea[name='input']")) {
@@ -36,6 +61,7 @@ defmodule Tilde.Live.Hooks do
               if (event.shiftKey) return
 
               event.preventDefault()
+              this.shouldStickToBottom = true
               target.form && target.form.requestSubmit()
               return
             }
@@ -51,16 +77,22 @@ defmodule Tilde.Live.Hooks do
             this.pushEvent("tilde:toggle_expand", { id: block.dataset.blockId })
           }
 
+          window.addEventListener("scroll", this.handleScroll, { passive: true })
+          this.el.addEventListener("submit", this.handleSubmit)
           this.el.addEventListener("input", this.handleInput)
           this.el.addEventListener("keydown", this.handleKeydown)
           this.resizeCurrentInput()
+          this.stickToBottom()
         },
 
         updated() {
           this.resizeCurrentInput()
+          this.stickToBottom()
         },
 
         destroyed() {
+          window.removeEventListener("scroll", this.handleScroll)
+          this.el.removeEventListener("submit", this.handleSubmit)
           this.el.removeEventListener("input", this.handleInput)
           this.el.removeEventListener("keydown", this.handleKeydown)
         }
