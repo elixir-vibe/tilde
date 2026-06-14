@@ -5,10 +5,9 @@ defmodule Tilde.Live.ViewRenderer do
 
   use Phoenix.Component
 
-  import Tilde.Live.Choice
   import Tilde.Live.Markdown
   import Tilde.Live.Run
-  import Tilde.Live.Tool
+  import Tilde.Live.Shortcut
 
   alias Tilde.View.Cell
 
@@ -30,18 +29,83 @@ defmodule Tilde.Live.ViewRenderer do
   end
 
   def cell(%{cell: %Cell{kind: :tool}} = assigns) do
-    assigns = assign(assigns, :block, assigns.cell.attrs.block)
+    assigns =
+      assigns
+      |> assign(:view, assigns.cell.attrs.view)
+      |> assign(:body_lines, tool_body_lines(assigns.cell, assigns.cell.attrs.view))
 
     ~H"""
-    <.tool block={@block} />
+    <article
+      id={@cell.id}
+      class={["tilde-block", "tilde-tool", "tilde-tool-#{@view.status}"]}
+      data-block-id={@cell.id}
+      data-expand-key="ctrl+o"
+      tabindex="0"
+    >
+      <header class="tilde-tool-header">
+        <span class="tilde-tool-call">{List.first(@cell.lines)}</span>
+      </header>
+
+      <div :if={@body_lines != []} class="tilde-tool-cell-lines">
+        <div :for={line <- @body_lines} class="tilde-tool-cell-line">{line}</div>
+      </div>
+
+      <footer :if={tool_expandable?(@view)} class="tilde-tool-footer">
+        <span :if={@view.hidden_lines > 0} class="tilde-muted">… {@view.hidden_lines} more lines</span>
+        <button
+          type="button"
+          class="tilde-link-button"
+          phx-click="tilde:toggle_expand"
+          phx-value-id={@cell.id}
+        >
+          <%= if @view.expanded? do %>
+            collapse
+          <% else %>
+            <.shortcut key="ctrl+o" label="expand" />
+          <% end %>
+        </button>
+      </footer>
+    </article>
     """
   end
 
   def cell(%{cell: %Cell{kind: :choice}} = assigns) do
-    assigns = assign(assigns, :block, assigns.cell.attrs.block)
+    assigns =
+      assigns
+      |> assign(:choice, assigns.cell.attrs.choice)
+      |> assign(:question, List.first(assigns.cell.lines) || "")
+      |> assign(:option_lines, Enum.drop(assigns.cell.lines, 1))
 
     ~H"""
-    <.choice block={@block} />
+    <article id={@cell.id} class="tilde-block tilde-choice" data-block-id={@cell.id} tabindex="0">
+      <div class="tilde-choice-question">{@question}</div>
+
+      <div class="tilde-choice-options">
+        <button
+          :for={{option, line} <- Enum.zip(@choice.options, @option_lines)}
+          type="button"
+          class={["tilde-choice-option", option.id in @choice.selected && "is-selected"]}
+          phx-click="tilde:select_choice"
+          phx-value-block-id={@cell.id}
+          phx-value-option-id={option.id}
+        >
+          {line}
+        </button>
+      </div>
+
+      <footer class="tilde-choice-actions">
+        <button
+          :for={action <- @choice.actions}
+          type="button"
+          class={["tilde-action", "tilde-action-#{action.kind}"]}
+          phx-click="tilde:choice_action"
+          phx-value-block-id={@cell.id}
+          phx-value-action-id={action.id}
+        >
+          {action.label}<.shortcut :if={action.key} key={action.key} />
+        </button>
+      </footer>
+    </article>
     """
   end
 
@@ -74,4 +138,13 @@ defmodule Tilde.Live.ViewRenderer do
     <% end %>
     """
   end
+
+  defp tool_body_lines(%Cell{lines: [_header | body]}, view) do
+    if tool_expandable?(view), do: Enum.drop(body, -1), else: body
+  end
+
+  defp tool_body_lines(_cell, _view), do: []
+
+  defp tool_expandable?(%{expanded?: true}), do: true
+  defp tool_expandable?(%{hidden_lines: hidden}), do: hidden > 0
 end

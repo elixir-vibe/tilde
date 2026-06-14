@@ -201,6 +201,8 @@ defmodule Tilde.Live.Styles do
     .tilde-tool-segment-success { color: var(--tilde-success); }
     .tilde-tool-tags, .tilde-tool-suffix { margin-left: var(--tilde-cell); }
     .tilde-tool-metadata { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0 0; }
+    .tilde-tool-cell-lines { margin-top: 0.75rem; display: grid; gap: 0.15rem; white-space: pre-wrap; }
+    .tilde-tool-cell-line { overflow-wrap: anywhere; }
     .tilde-tool-waiting { color: var(--tilde-muted); margin-top: 0.75rem; }
     .tilde-tool-metadata div { display: flex; gap: var(--tilde-cell); }
     .tilde-tool-metadata dt { color: var(--tilde-muted); }

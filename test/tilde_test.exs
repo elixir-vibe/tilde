@@ -946,6 +946,28 @@ defmodule TildeTest do
     assert Enum.map(block.actions, & &1.id) == [:confirm, :cancel]
   end
 
+  test "shared tool view cell drives LiveView and TUI text" do
+    session =
+      Tilde.session()
+      |> Session.append_events([
+        Tilde.tool_started("bash", %{command: "mix test", cwd: "/tmp/app"},
+          tool_call_id: "tool_1"
+        ),
+        Tilde.tool_stream("tool_1", :stdout, "ok\n"),
+        Tilde.tool_done("tool_1", :success, %{exit_code: 0})
+      ])
+
+    [block] = session.transcript.blocks
+    cell = Tilde.View.Builder.block(block)
+    live = render_component(&Tilde.Live.ViewRenderer.cell/1, cell: cell)
+    tui = cell |> Tilde.TUI.ViewRenderer.render(60, ansi: true) |> strip_ansi()
+
+    for line <- cell.lines do
+      assert live =~ line
+      assert tui =~ line
+    end
+  end
+
   test "tool renderer registry customizes semantic call and result views" do
     with_application_env(:tool_renderers, %{"custom_tool" => TildeTest.ToolRenderer}, fn ->
       session =
