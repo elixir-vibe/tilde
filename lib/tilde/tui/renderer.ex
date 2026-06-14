@@ -23,7 +23,7 @@ defmodule Tilde.TUI.Renderer do
     body = render_body(session, width, opts)
 
     if ansi? do
-      [IO.ANSI.home(), IO.ANSI.clear(), erase_scrollback(), terminal_newlines(body), "\r\n"]
+      [IO.ANSI.home(), IO.ANSI.clear(), erase_scrollback(), terminal_newlines(body)]
     else
       [body, "\n"]
     end

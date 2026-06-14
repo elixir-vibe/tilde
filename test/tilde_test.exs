@@ -331,6 +331,7 @@ defmodule TildeTest do
     assert rendered =~ "warning"
     assert rendered =~ "model: demo"
     assert plain =~ "> ▌"
+    refute String.ends_with?(rendered, ["\n", "\r"])
   end
 
   test "tui renderer can render without ANSI for snapshots" do
