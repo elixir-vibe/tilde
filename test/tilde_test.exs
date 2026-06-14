@@ -319,6 +319,7 @@ defmodule TildeTest do
 
     assert rendered =~ IO.ANSI.clear()
     assert rendered =~ IO.ANSI.home()
+    assert rendered =~ "\e[3J"
     assert rendered =~ IO.ANSI.green_background()
     assert rendered =~ "# tilde"
 
@@ -1108,6 +1109,11 @@ defmodule TildeTest do
     live_text = strip_html(live)
     tui = cell |> Tilde.TUI.ViewRenderer.render(60, ansi: true) |> strip_ansi()
 
+    refute live_text =~ "cwd /tmp/app"
+    refute live_text =~ "exit 0"
+    refute tui =~ "cwd /tmp/app"
+    refute tui =~ "exit 0"
+
     for line <- cell.lines do
       text = Tilde.View.Helpers.plain_text(line)
       assert live_text =~ text
@@ -1163,6 +1169,8 @@ defmodule TildeTest do
     assert tool_cell.attrs.template == :source
     assert html =~ "Build a pi-like console"
     assert html =~ "tool_demo_tests"
+    refute html =~ "cwd ~/Development/elixir-vibe/tilde"
+    refute html =~ "exit 0"
     assert html =~ "tilde-tool-success"
     refute html =~ "tilde-tool-status"
     refute html =~ "✓"

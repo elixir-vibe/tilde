@@ -143,7 +143,6 @@ defmodule Tilde.View.Builder do
 
   defp tool_template_lines(view) do
     [
-      metadata_entry(view.metadata_rows),
       waiting_entry(view),
       stream_entries(view),
       hidden_entry(view)
@@ -154,11 +153,6 @@ defmodule Tilde.View.Builder do
 
   defp tool_segment([]), do: nil
   defp tool_segment(segments), do: Enum.map_join(segments, " ", &Map.fetch!(&1, :text))
-
-  defp metadata_entry([]), do: nil
-
-  defp metadata_entry(rows),
-    do: {:metadata, Enum.map_join(rows, "  ", fn {key, value} -> "#{key} #{value}" end)}
 
   defp waiting_entry(%{waiting?: true}), do: {:muted, "Waiting…"}
   defp waiting_entry(_view), do: nil

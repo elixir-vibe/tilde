@@ -23,7 +23,7 @@ defmodule Tilde.TUI.Renderer do
     body = render_body(session, width, opts)
 
     if ansi? do
-      [IO.ANSI.clear(), IO.ANSI.home(), terminal_newlines(body), "\r\n"]
+      [IO.ANSI.home(), IO.ANSI.clear(), erase_scrollback(), terminal_newlines(body), "\r\n"]
     else
       [body, "\n"]
     end
@@ -74,6 +74,10 @@ defmodule Tilde.TUI.Renderer do
     status = Enum.map_join(session.statuses, " · ", fn {key, value} -> "#{key}: #{value}" end)
     if status == "", do: "", else: Theme.muted(status, opts)
   end
+
+  # IO.ANSI does not expose CSI 3J. Full-frame SSH redraws need it so terminal
+  # scrollback does not accumulate duplicate frames after redraw/resize/toggle.
+  defp erase_scrollback, do: "\e[3J"
 
   defp terminal_newlines(iodata) do
     iodata
