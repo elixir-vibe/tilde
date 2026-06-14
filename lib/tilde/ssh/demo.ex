@@ -27,6 +27,7 @@ defmodule Tilde.SSH.Demo do
           | {:system_dir, Path.t()}
           | {:password, String.t()}
           | {:session_server, SessionServer.name() | nil}
+          | {:session_mode, :private | :shared}
 
   @doc "Starts the demo SSH daemon under a GenServer."
   @spec start_link([option()]) :: GenServer.on_start()
@@ -43,12 +44,15 @@ defmodule Tilde.SSH.Demo do
     port = Keyword.get(opts, :port, @default_port)
     password = Keyword.get(opts, :password, @default_password)
     system_dir = Keyword.get_lazy(opts, :system_dir, &default_system_dir/0)
-    session_server = Keyword.get(opts, :session_server, SessionServer)
+    session_server = Keyword.get(opts, :session_server)
+    session_mode = Keyword.get(opts, :session_mode, :private)
 
-    with {:ok, _server_pid} <- ensure_session_server(session_server),
+    with {:ok, _registry_pid} <- Tilde.SessionRegistry.ensure_started(),
+         {:ok, _server_pid} <- ensure_session_server(session_server),
          {:ok, _apps} <- :application.ensure_all_started(:ssh),
          {:ok, system_dir} <- Keys.ensure_system_dir(system_dir),
-         {:ok, daemon_ref} <- start_daemon(port, system_dir, password, session_server) do
+         {:ok, daemon_ref} <-
+           start_daemon(port, system_dir, password, session_server, session_mode) do
       {:ok, %{daemon_ref: daemon_ref, port: port, system_dir: system_dir}}
     else
       {:error, reason} -> {:stop, reason}
@@ -71,12 +75,14 @@ defmodule Tilde.SSH.Demo do
     SessionServer.ensure_started(server, session: Tilde.Live.Demo.demo_session())
   end
 
-  defp start_daemon(port, system_dir, password, session_server) do
+  defp start_daemon(port, system_dir, password, session_server, session_mode) do
     :ssh.daemon(port, [
       {:system_dir, String.to_charlist(system_dir)},
       {:auth_methods, ~c"password"},
       {:pwdfun, password_fun(password)},
-      {:ssh_cli, {Tilde.SSH.Channel, [[width: 100, session_server: session_server]]}},
+      {:ssh_cli,
+       {Tilde.SSH.Channel,
+        [[width: 100, session_server: session_server, session_mode: session_mode]]}},
       {:parallel_login, true}
     ])
   end

@@ -10,6 +10,7 @@ defmodule Tilde.Command do
   @commands [
     %{label: "/help", insert: "/help", description: "Show this help"},
     %{label: "/new", insert: "/new ", description: "Start an isolated web session"},
+    %{label: "/attach", insert: "/attach ", description: "Attach SSH/TUI to a named session"},
     %{label: "/session", insert: "/session", description: "Show current session details"},
     %{label: "/clear", insert: "/clear", description: "Clear this session"},
     %{label: "/compact", insert: "/compact", description: "Trim older session history"},
@@ -28,6 +29,7 @@ defmodule Tilde.Command do
 
   - `/help` — Show this help
   - `/new [name]` — Start an isolated web session
+  - `/attach <name>` — Attach SSH/TUI to a named session
   - `/session` — Show current session details
   - `/clear` — Clear this session
   - `/compact` — Trim older session history
@@ -133,6 +135,15 @@ defmodule Tilde.Command do
   def run(%__MODULE__{name: "new", args: args}, %Session{}, _opts) do
     id = new_session_id(args)
     [{:new_session, id}, assistant("New isolated session: /tilde/#{id}")]
+  end
+
+  def run(%__MODULE__{name: "attach", args: ""}, %Session{}, _opts) do
+    [assistant("Usage: /attach <session-name>")]
+  end
+
+  def run(%__MODULE__{name: "attach", args: args}, %Session{}, _opts) do
+    id = Tilde.SessionRegistry.normalize_id(args)
+    [assistant("SSH/TUI can attach to this session with `/attach #{id}`. Web: /tilde/#{id}")]
   end
 
   def run(%__MODULE__{name: "quit"}, %Session{}, _opts) do

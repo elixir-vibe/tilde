@@ -36,6 +36,7 @@ defmodule Mix.Tasks.Tilde.Demo do
     start_rate_limit()
     configure_endpoint(web_port, host)
     start_pubsub()
+    start_session_registry()
     start_session_server()
     start_endpoint()
     start_ssh(ssh_port, password)
@@ -48,7 +49,8 @@ defmodule Mix.Tasks.Tilde.Demo do
       SSH:      ssh tilde@localhost -p #{ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
       Password: #{password}
 
-    Both renderers share Tilde.SessionServer.
+    SSH tilde@... opens a private session. SSH shared@... or name@... attaches a named session.
+    Web /tilde/:session_id attaches the same named session.
     Press Ctrl+C twice to stop.
     """)
 
@@ -106,6 +108,10 @@ defmodule Mix.Tasks.Tilde.Demo do
     end
   end
 
+  defp start_session_registry do
+    Tilde.SessionRegistry.ensure_started()
+  end
+
   defp start_session_server do
     Tilde.SessionServer.ensure_started(Tilde.SessionServer,
       session: Tilde.Live.Demo.demo_session()
@@ -123,7 +129,7 @@ defmodule Mix.Tasks.Tilde.Demo do
     Tilde.SSH.Demo.start_link(
       port: ssh_port,
       password: password,
-      session_server: Tilde.SessionServer
+      session_mode: :private
     )
   end
 end

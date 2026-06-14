@@ -10,7 +10,7 @@ defmodule Tilde.SSH.Channel do
 
   @behaviour :ssh_server_channel
 
-  alias Tilde.{Block, Session, SessionServer}
+  alias Tilde.{Block, Input, Session, SessionRegistry, SessionServer}
   alias Tilde.TUI.{Controller, Keys, Renderer, ViewRenderer}
   alias Tilde.View.Builder
 
@@ -20,6 +20,8 @@ defmodule Tilde.SSH.Channel do
             height: 30,
             session: nil,
             session_server: nil,
+            session_mode: :private,
+            session_id: nil,
             streaming?: false
 
   @type t :: %__MODULE__{
@@ -29,6 +31,8 @@ defmodule Tilde.SSH.Channel do
           height: pos_integer(),
           session: Session.t() | nil,
           session_server: SessionServer.name() | nil,
+          session_mode: :private | :shared,
+          session_id: String.t() | nil,
           streaming?: boolean()
         }
 
@@ -37,31 +41,29 @@ defmodule Tilde.SSH.Channel do
     opts = normalize_args(args)
 
     session_server = Keyword.get(opts, :session_server)
+    session_mode = Keyword.get(opts, :session_mode, :private)
 
-    session =
-      if session_server do
-        SessionServer.get_session(session_server)
-      else
-        Keyword.get_lazy(opts, :session, &Tilde.Live.Demo.demo_session/0)
-      end
+    session = Keyword.get_lazy(opts, :session, &Tilde.Live.Demo.demo_session/0)
 
     {:ok,
      %__MODULE__{
        width: Keyword.get(opts, :width, 100),
        height: Keyword.get(opts, :height, 30),
        session: session,
-       session_server: session_server
+       session_server: session_server,
+       session_mode: session_mode,
+       session_id: session.id
      }}
   end
 
   @impl true
   def handle_msg({:ssh_channel_up, channel_id, connection_ref}, state) do
-    if state.session_server, do: SessionServer.subscribe(state.session_server)
     {:ok, %{state | channel_id: channel_id, connection_ref: connection_ref}}
   end
 
   def handle_msg({:tilde_session_updated, _session_id, %Session{} = session}, state) do
     old_session = state.session
+    session = preserve_local_prompt(session, old_session)
     state = %{state | session: session}
 
     state =
@@ -94,7 +96,11 @@ defmodule Tilde.SSH.Channel do
   def handle_ssh_msg({:ssh_cm, connection_ref, {:shell, channel_id, want_reply}}, state) do
     :ssh_connection.reply_request(connection_ref, want_reply, :success, channel_id)
 
-    state = %{state | connection_ref: connection_ref, channel_id: channel_id}
+    state =
+      state
+      |> Map.merge(%{connection_ref: connection_ref, channel_id: channel_id})
+      |> route_session()
+
     render(state)
     {:ok, state}
   end
@@ -142,16 +148,193 @@ defmodule Tilde.SSH.Channel do
   @impl true
   def terminate(_reason, _state), do: :ok
 
+  defp route_session(%__MODULE__{session_mode: :shared, session_server: server} = state)
+       when not is_nil(server) do
+    session = SessionServer.subscribe(server)
+    %{state | session: session, session_id: session.id}
+  end
+
+  defp route_session(%__MODULE__{} = state) do
+    attach_session(state, private_session_id(), announce?: false)
+  end
+
+  defp private_session_id do
+    "ssh-#{System.unique_integer([:positive, :monotonic])}"
+  end
+
+  defp session_server_for(session_id) do
+    {:ok, _pid} = SessionRegistry.ensure_started()
+    SessionRegistry.via(session_id)
+  end
+
+  defp attach_session(%__MODULE__{} = state, session_id, opts \\ []) do
+    session_id = SessionRegistry.normalize_id(session_id)
+    old_server = state.session_server
+    server = session_server_for(session_id)
+
+    if old_server && old_server != server do
+      SessionServer.unsubscribe(old_server)
+    end
+
+    {:ok, _pid} =
+      SessionServer.ensure_started(server, session: Tilde.Live.Demo.demo_session(id: session_id))
+
+    session = SessionServer.subscribe(server)
+
+    state = %{
+      state
+      | session_server: server,
+        session: session,
+        session_id: session_id,
+        streaming?: false
+    }
+
+    if Keyword.get(opts, :announce?, true), do: render_attached_session(state)
+    state
+  end
+
+  defp attach_command(input) when is_binary(input) do
+    case Tilde.Command.parse(input) do
+      {:ok, %Tilde.Command{name: "attach", args: args}} when args != "" ->
+        {:ok, SessionRegistry.normalize_id(args)}
+
+      {:ok, %Tilde.Command{name: "attach"}} ->
+        {:ok, "shared"}
+
+      _other ->
+        :error
+    end
+  end
+
+  defp attach_command(_input), do: :error
+
+  defp submit_local_input(
+         server,
+         %__MODULE__{session: %Session{input: %Input{value: value}}} = state
+       ) do
+    if String.trim(value) == "" do
+      {:cont, {:cont, state}}
+    else
+      session =
+        SessionServer.update_session(server, fn session ->
+          session
+          |> Session.append_event(Tilde.input_submitted(value))
+          |> Session.put_status("last input", compact(value))
+        end)
+
+      {:cont, {:cont, %{state | session: session}}}
+    end
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, :quit) do
+    if state.session.input.value == "" do
+      {:halt, {:halt, state}}
+    else
+      put_local_input(state, Input.insert(state.session.input, "q"))
+    end
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, :redraw) do
+    if state.session.input.value == "" do
+      {:cont, {:cont, state}}
+    else
+      put_local_input(state, Input.insert(state.session.input, "r"))
+    end
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, {:text, text}) do
+    put_local_input(state, Input.insert(state.session.input, text))
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, :tab) do
+    case Tilde.Command.completion(state.session.input.value) do
+      nil -> {:cont, {:cont, state}}
+      completion -> put_local_input(state, Input.put_value(state.session.input, completion))
+    end
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, :backspace) do
+    put_local_input(state, Input.backspace(state.session.input))
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, :cancel) do
+    put_local_input(state, Input.clear(state.session.input))
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, :interrupt) do
+    if state.session.input.value == "" do
+      {:halt, {:halt, state}}
+    else
+      put_local_input(state, Input.clear(state.session.input))
+    end
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, :toggle_expand) do
+    {:cont, session} = Controller.apply_key(state.session, :toggle_expand)
+    {:cont, {:cont, %{state | session: session}}}
+  end
+
+  defp apply_local_prompt_key(%__MODULE__{} = state, _key), do: {:cont, {:cont, state}}
+
+  defp put_local_input(%__MODULE__{} = state, %Input{} = input) do
+    session =
+      state.session
+      |> Session.put_input(input)
+      |> put_local_command_suggestions(input.value)
+
+    {:cont, {:cont, %{state | session: session}}}
+  end
+
+  defp put_local_command_suggestions(%Session{} = session, value) do
+    case Tilde.Command.suggestions(value) do
+      nil ->
+        %{
+          session
+          | widgets:
+              Map.new(session.widgets, fn {placement, widgets} ->
+                {placement, Enum.reject(widgets, &(&1.id == "command-suggestions"))}
+              end)
+        }
+
+      suggest ->
+        Session.put_widget(
+          session,
+          Tilde.Widget.new("command-suggestions", :above_input, suggest)
+        )
+    end
+  end
+
+  defp preserve_local_prompt(
+         %Session{} = incoming,
+         %Session{input: %Input{value: value}} = current
+       )
+       when value != "" do
+    %{incoming | input: current.input, widgets: current.widgets}
+  end
+
+  defp preserve_local_prompt(%Session{} = incoming, _current), do: incoming
+
+  defp compact(input) do
+    input
+    |> String.replace(~r/\s+/, " ")
+    |> String.trim()
+    |> String.slice(0, 80)
+  end
+
   defp apply_keys(%__MODULE__{session_server: nil} = state, keys) do
     apply_local_keys(state, keys)
   end
 
   defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
-    Enum.reduce_while(keys, {:cont, state}, fn key, {:cont, state} ->
-      case SessionServer.apply_key(server, key) do
-        {:cont, session} -> {:cont, {:cont, %{state | session: session}}}
-        {:halt, session} -> {:halt, {:halt, %{state | session: session}}}
-      end
+    Enum.reduce_while(keys, {:cont, state}, fn
+      :enter, {:cont, state} ->
+        case attach_command(state.session.input.value) do
+          {:ok, session_id} -> {:cont, {:cont, attach_session(state, session_id)}}
+          :error -> submit_local_input(server, state)
+        end
+
+      key, {:cont, state} ->
+        apply_local_prompt_key(state, key)
     end)
   end
 
@@ -263,6 +446,23 @@ defmodule Tilde.SSH.Channel do
       |> IO.iodata_to_binary()
 
     :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
+  end
+
+  defp render_attached_session(%__MODULE__{} = state) do
+    snapshot =
+      state.session
+      |> Renderer.render(width: state.width, height: state.height, clear?: false)
+      |> IO.iodata_to_binary()
+
+    send_bytes(state, [
+      "\r",
+      IO.ANSI.clear_line(),
+      IO.ANSI.faint(),
+      "attached session: #{state.session_id}",
+      IO.ANSI.normal(),
+      "\r\n\r\n",
+      snapshot
+    ])
   end
 
   defp render_prompt(%__MODULE__{connection_ref: nil}), do: :ok
