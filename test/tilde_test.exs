@@ -27,22 +27,6 @@ defmodule TildeTest.ToolRenderer do
   def result(_block, _opts), do: Tilde.ToolRenderer.result_view(lines: ["custom result"])
 end
 
-defmodule TildeTest.TemplateComponents do
-  use Phoenix.Component
-
-  attr(:title, :string, required: true)
-  slot(:inner_block, required: true)
-
-  def panel(assigns) do
-    ~H"""
-    <section class="tilde-panel">
-      <h2>{@title}</h2>
-      <p>{render_slot(@inner_block)}</p>
-    </section>
-    """
-  end
-end
-
 defmodule TildeTest.LLMBackend do
   @behaviour Tilde.LLM.Backend
 
@@ -987,41 +971,41 @@ defmodule TildeTest do
     assert Enum.map(block.actions, & &1.id) == [:confirm, :cancel]
   end
 
-  test "HEEx templates with imported components render through semantic Tilde views" do
-    import Tilde.Template
-    import Tilde.Template.TUI
-    import TildeTest.TemplateComponents
+  test "Tilde semantic HEEx components render to cells, LiveView, and TUI" do
+    require Tilde.Template
+    require Tilde.Template.Live
+    require Tilde.Template.TUI
 
-    _component_import_is_used_for_heex_resolution = &panel/1
-    assigns = %{name: "Ada"}
+    source = """
+    <.cell kind="template" state="success" padding_x={1} padding_y={0}>
+      <.tool_call name="bash" segment="mix test" />
+      <.line role="metadata"><.meta>cwd /tmp/app  exit 0</.meta></.line>
+      <.line role="primary"><.primary>ok</.primary></.line>
+    </.cell>
+    """
 
-    [cell] =
-      to_cells!(
-        """
-        <.panel title="Greeting">
-          Hello <strong>{@name}</strong>
-        </.panel>
-        """,
-        assigns: assigns
-      )
+    [cell] = Tilde.Template.to_cells!(source)
 
-    assert Enum.map(cell.lines, &Tilde.View.Helpers.plain_text/1) == ["Greeting", "Hello Ada"]
-    assert [%{style: :title, text: "Greeting"}] = hd(cell.lines).parts
-    assert Enum.any?(List.last(cell.lines).parts, &(&1.style == :title and &1.text == "Ada"))
+    assert cell.kind == :template
+    assert cell.state == :success
+    assert cell.padding_x == 1
 
-    tui =
-      render!(
-        """
-        <.panel title="Greeting">
-          Hello <strong>{@name}</strong>
-        </.panel>
-        """,
-        40,
-        assigns: assigns
-      )
+    assert Enum.map(cell.lines, &Tilde.View.Helpers.plain_text/1) == [
+             "bash mix test",
+             "cwd /tmp/app exit 0",
+             "ok"
+           ]
 
-    assert strip_ansi(tui) =~ "Greeting"
-    assert strip_ansi(tui) =~ "Hello Ada"
+    assert [%{style: :title}, %{style: :accent}] = hd(cell.lines).parts
+    assert List.last(cell.lines).role == :primary
+
+    live = source |> Tilde.Template.Live.render!() |> rendered_to_string()
+    tui = Tilde.Template.TUI.render!(source, 50)
+
+    assert live =~ "tilde-view-text-title"
+    assert live =~ "tilde-view-text-accent"
+    assert strip_ansi(tui) =~ "bash mix test"
+    assert strip_ansi(tui) =~ "ok"
     assert tui =~ IO.ANSI.bright()
   end
 
