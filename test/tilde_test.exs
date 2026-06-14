@@ -250,10 +250,11 @@ defmodule TildeTest do
     lines = Tilde.TUI.Markdown.render_lines(markdown)
 
     assert "Before" in lines
-    assert "+---------+--------------+" in lines
-    assert "| surface |     renderer |" in lines
-    assert "| web     | LiveView DOM |" in lines
-    assert "| ssh     | semantic TUI |" in lines
+    assert "┌─────────┬──────────────┐" in lines
+    assert "│ surface │     renderer │" in lines
+    assert "│ web     │ LiveView DOM │" in lines
+    assert "│ ssh     │ semantic TUI │" in lines
+    assert "└─────────┴──────────────┘" in lines
     assert "After" in lines
   end
 
@@ -312,13 +313,15 @@ defmodule TildeTest do
       |> Session.put_status("model", "demo")
 
     rendered = Tilde.TUI.Renderer.render_to_string(session, width: 60)
-
     plain = strip_ansi(rendered)
+
+    assert plain =~ "user\r\nRun tests"
 
     assert rendered =~ IO.ANSI.clear()
     assert rendered =~ IO.ANSI.home()
     assert rendered =~ IO.ANSI.green_background()
     assert rendered =~ "# tilde"
+
     assert rendered =~ "Run tests"
     assert rendered =~ "bash"
     assert rendered =~ "mix test"
@@ -1000,7 +1003,7 @@ defmodule TildeTest do
         ])
 
       html = render_component(&Tilde.Live.Console.console/1, session: session)
-      tui = session |> Tilde.TUI.Renderer.render() |> Enum.join()
+      tui = session |> Tilde.TUI.Renderer.render() |> Enum.join() |> strip_ansi()
 
       assert html =~ "custom"
       assert html =~ "ok"

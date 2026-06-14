@@ -55,15 +55,17 @@ defmodule Tilde.TUI.Markdown do
     rows = Enum.map(table.nodes, &table_row/1)
     widths = column_widths(rows)
     alignments = (table.alignments || []) |> List.to_tuple()
-    border = border_line(widths)
+    top = border_line(widths, "┌", "┬", "┐")
+    middle = border_line(widths, "├", "┼", "┤")
+    bottom = border_line(widths, "└", "┴", "┘")
 
     rows
     |> Enum.with_index()
     |> Enum.flat_map(fn {row, index} ->
       line = row_line(row, widths, alignments)
-      if index == 0, do: [border, line, border], else: [line]
+      if index == 0, do: [top, line, middle], else: [line]
     end)
-    |> Kernel.++([border])
+    |> Kernel.++([bottom])
   end
 
   defp table_row(row), do: Enum.map(row.nodes, &cell_text/1)
@@ -88,21 +90,21 @@ defmodule Tilde.TUI.Markdown do
     end)
   end
 
-  defp border_line(widths) do
+  defp border_line(widths, left, join, right) do
     widths
-    |> Enum.map_join("+", &String.duplicate("-", &1 + 2))
-    |> then(&("+" <> &1 <> "+"))
+    |> Enum.map_join(join, &String.duplicate("─", &1 + 2))
+    |> then(&(left <> &1 <> right))
   end
 
   defp row_line(row, widths, alignments) do
     row
     |> Enum.zip(widths)
     |> Enum.with_index()
-    |> Enum.map_join("|", fn {{cell, width}, index} ->
+    |> Enum.map_join("│", fn {{cell, width}, index} ->
       alignment = alignment_at(alignments, index)
       " " <> align(cell, width, alignment) <> " "
     end)
-    |> then(&("|" <> &1 <> "|"))
+    |> then(&("│" <> &1 <> "│"))
   end
 
   defp alignment_at(alignments, index) do

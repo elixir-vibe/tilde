@@ -30,19 +30,19 @@ defmodule Tilde.TUI.ViewRenderer do
         cell.lines ++
         List.duplicate(blank, cell.padding_y)
 
-    Enum.map_join(lines, "\n", &render_cell_line(&1, inner_width, cell, opts))
+    lines
+    |> Enum.with_index()
+    |> Enum.map_join("\n", fn {line, index} ->
+      render_cell_line(line, inner_width, cell, opts, index)
+    end)
   end
 
   defp message_lines(%Cell{runs: [_ | _] = runs}),
-    do: text_lines(Enum.map_join(runs, & &1.text), 2)
+    do: text_lines(Enum.map_join(runs, & &1.text), 0)
 
-  defp message_lines(%Cell{format: :markdown, source: source}) do
-    source
-    |> Markdown.render_lines()
-    |> Enum.map(&("  " <> &1))
-  end
+  defp message_lines(%Cell{format: :markdown, source: source}), do: Markdown.render_lines(source)
 
-  defp message_lines(%Cell{source: source}), do: text_lines(source, 2)
+  defp message_lines(%Cell{source: source}), do: text_lines(source, 0)
 
   defp text_lines(text, indent) do
     prefix = String.duplicate(" ", indent)
@@ -53,14 +53,36 @@ defmodule Tilde.TUI.ViewRenderer do
     |> Enum.map(&(prefix <> &1))
   end
 
-  defp render_cell_line(line, inner_width, cell, opts) do
+  defp render_cell_line(line, inner_width, cell, opts, index) do
     text = line |> to_string() |> truncate(inner_width)
+    styled = style_line(text, cell, index, opts)
 
     padded =
       String.duplicate(" ", cell.padding_x) <>
-        pad(text, inner_width) <> String.duplicate(" ", cell.padding_x)
+        pad(styled, inner_width) <> String.duplicate(" ", cell.padding_x)
 
     state(padded, cell.state, opts)
+  end
+
+  defp style_line(text, %Cell{kind: :tool, padding_y: padding_y}, padding_y, opts) do
+    if Keyword.get(opts, :ansi, true), do: style_tool_call(text), else: text
+  end
+
+  defp style_line(text, _cell, _index, _opts), do: text
+
+  defp style_tool_call(""), do: ""
+
+  defp style_tool_call(text) do
+    case String.split(text, " ", parts: 2) do
+      [name, rest] ->
+        IO.ANSI.bright() <>
+          name <>
+          IO.ANSI.normal() <>
+          IO.ANSI.black() <> " " <> IO.ANSI.underline() <> rest <> IO.ANSI.no_underline()
+
+      [name] ->
+        IO.ANSI.bright() <> name <> IO.ANSI.normal() <> IO.ANSI.black()
+    end
   end
 
   defp state(text, :pending, opts), do: Theme.tool_pending(text, opts)
