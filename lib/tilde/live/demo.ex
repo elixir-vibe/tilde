@@ -14,12 +14,12 @@ defmodule Tilde.Live.Demo do
 
   import Tilde.Live.Console
 
-  alias Tilde.{Block, Choice, Session, SessionServer}
+  alias Tilde.{Block, Choice, Session, SessionRegistry, SessionServer}
 
   @impl true
-  def mount(_params, _session, socket) do
-    server = SessionServer
-    {:ok, _pid} = SessionServer.ensure_started(server, session: demo_session())
+  def mount(params, _session, socket) do
+    {server, session_id} = session_server(params)
+    {:ok, _pid} = SessionServer.ensure_started(server, session: demo_session(id: session_id))
 
     session =
       if connected?(socket),
@@ -105,9 +105,19 @@ defmodule Tilde.Live.Demo do
     {:noreply, assign(socket, session: session)}
   end
 
+  defp session_server(%{"session_id" => session_id}) do
+    session_id = SessionRegistry.normalize_id(session_id)
+    {:ok, _pid} = SessionRegistry.ensure_started()
+    {SessionRegistry.via(session_id), session_id}
+  end
+
+  defp session_server(_params), do: {SessionServer, "tilde_demo"}
+
   @doc "Returns the static semantic session used by the demo LiveView."
-  @spec demo_session() :: Session.t()
-  def demo_session do
+  @spec demo_session(keyword()) :: Session.t()
+  def demo_session(opts \\ []) do
+    id = Keyword.get(opts, :id, "tilde_demo")
+
     choice =
       Choice.new("Apply the generated patch?", [
         {"apply", "Apply", "Update the working tree"},
@@ -115,7 +125,7 @@ defmodule Tilde.Live.Demo do
         {"skip", "Skip", "Leave files unchanged"}
       ])
 
-    Tilde.session(id: "tilde_demo")
+    Tilde.session(id: id)
     |> Session.append_events([
       Tilde.user_message("Build a pi-like console on the web", id: "evt_demo_user"),
       Tilde.assistant_done(

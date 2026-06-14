@@ -193,9 +193,12 @@ ssh tilde@localhost -p 4022 \
 
 Password: `tilde`.
 
-Both renderers share the same `Tilde.SessionServer`, so input submitted over SSH
-appears in the web session and LiveView events mutate the same semantic session.
-Use `--web-port`, `--ssh-port`, or `--password` to customize the task.
+By default, the web and SSH renderers share the same `Tilde.SessionServer`, so
+input submitted over SSH appears in the web session and LiveView events mutate
+the same semantic session. The standalone demo also supports isolated web-only
+sessions at `/tilde/:session_id`; these are named through `Tilde.SessionRegistry`
+without creating dynamic atoms. Use `--web-port`, `--ssh-port`, or `--password`
+to customize the task.
 
 ## LLM runtime
 

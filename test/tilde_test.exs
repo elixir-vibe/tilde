@@ -283,6 +283,31 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
+  test "session registry names isolate session servers without dynamic atoms" do
+    assert Tilde.SessionRegistry.normalize_id("My Session!!") == "my-session"
+    assert {:ok, _pid} = Tilde.SessionRegistry.ensure_started()
+
+    left = Tilde.SessionRegistry.via("left-#{System.unique_integer([:positive])}")
+    right = Tilde.SessionRegistry.via("right-#{System.unique_integer([:positive])}")
+
+    assert {:ok, left_pid} =
+             Tilde.SessionServer.ensure_started(left, session: Tilde.session(id: "left"))
+
+    assert {:ok, right_pid} =
+             Tilde.SessionServer.ensure_started(right, session: Tilde.session(id: "right"))
+
+    Tilde.SessionServer.append_event(left, Tilde.input_submitted("left only"))
+    Tilde.SessionServer.append_event(right, Tilde.input_submitted("right only"))
+
+    assert [%Block{source: "left only"}] = Tilde.SessionServer.get_session(left).transcript.blocks
+
+    assert [%Block{source: "right only"}] =
+             Tilde.SessionServer.get_session(right).transcript.blocks
+
+    GenServer.stop(left_pid)
+    GenServer.stop(right_pid)
+  end
+
   test "session server mirrors one semantic session to subscribers" do
     name = :"tilde_session_server_test_#{System.unique_integer([:positive])}"
     session = Tilde.session(id: "mirror_test")

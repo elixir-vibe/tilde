@@ -21,5 +21,6 @@ defmodule Tilde.Live.DemoRouter do
 
     live("/", Tilde.Live.Demo, :index)
     live("/tilde", Tilde.Live.Demo, :index)
+    live("/tilde/:session_id", Tilde.Live.Demo, :index)
   end
 end

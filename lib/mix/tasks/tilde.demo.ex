@@ -59,7 +59,7 @@ defmodule Mix.Tasks.Tilde.Demo do
     Application.put_env(:tilde, :session_event_limit, 120)
 
     Application.put_env(:tilde, :llm_rate_limit,
-      scope: :global,
+      scope: :session,
       scale: :timer.seconds(30),
       limit: 3
     )
