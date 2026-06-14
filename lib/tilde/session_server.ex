@@ -96,7 +96,7 @@ defmodule Tilde.SessionServer do
 
   def handle_call({:update_session, fun}, _from, state) do
     previous = state.session
-    state = %{state | session: fun.(state.session)}
+    state = %{state | session: state.session |> fun.() |> trim_session()}
     broadcast(state)
     state = maybe_start_llm_response(previous, state)
     {:reply, state.session, state}
@@ -106,17 +106,17 @@ defmodule Tilde.SessionServer do
     case Controller.apply_key(state.session, key) do
       {:cont, session} ->
         previous = state.session
-        state = %{state | session: session}
+        state = %{state | session: trim_session(session)}
         broadcast(state)
         state = maybe_start_llm_response(previous, state)
-        {:reply, {:cont, session}, state}
+        {:reply, {:cont, state.session}, state}
 
       {:halt, session} ->
         previous = state.session
-        state = %{state | session: session}
+        state = %{state | session: trim_session(session)}
         broadcast(state)
         state = maybe_start_llm_response(previous, state)
-        {:reply, {:halt, session}, state}
+        {:reply, {:halt, state.session}, state}
     end
   end
 
@@ -125,7 +125,9 @@ defmodule Tilde.SessionServer do
     state = %{
       state
       | session:
-          Session.append_event(state.session, Tilde.assistant_delta(text, block_id: block_id))
+          state.session
+          |> Session.append_event(Tilde.assistant_delta(text, block_id: block_id))
+          |> trim_session()
     }
 
     broadcast(state)
@@ -139,10 +141,9 @@ defmodule Tilde.SessionServer do
     state = %{
       state
       | session:
-          Session.append_event(
-            state.session,
-            Tilde.tool_started(name, args, tool_call_id: tool_call_id)
-          )
+          state.session
+          |> Session.append_event(Tilde.tool_started(name, args, tool_call_id: tool_call_id))
+          |> trim_session()
     }
 
     broadcast(state)
@@ -153,7 +154,12 @@ defmodule Tilde.SessionServer do
         {:tilde_llm_stream, _block_id, {:tool_done, tool_call_id, status, result}},
         state
       ) do
-    state = %{state | session: append_tool_result(state.session, tool_call_id, status, result)}
+    state = %{
+      state
+      | session:
+          state.session |> append_tool_result(tool_call_id, status, result) |> trim_session()
+    }
+
     broadcast(state)
     {:noreply, state}
   end
@@ -163,6 +169,7 @@ defmodule Tilde.SessionServer do
       state.session
       |> Session.append_event(Tilde.status_changed("model", nil))
       |> maybe_append_done(block_id, text)
+      |> trim_session()
 
     state = %{state | responding?: false, session: session}
     broadcast(state)
@@ -179,6 +186,7 @@ defmodule Tilde.SessionServer do
           state.session
           |> Session.append_event(Tilde.status_changed("model", nil))
           |> Session.append_event(Tilde.assistant_done(text))
+          |> trim_session()
     }
 
     broadcast(state)
@@ -206,10 +214,9 @@ defmodule Tilde.SessionServer do
 
       {:error, {:rate_limited, retry_after}} ->
         session =
-          Session.append_event(
-            state.session,
-            Tilde.assistant_done(rate_limit_message(retry_after))
-          )
+          state.session
+          |> Session.append_event(Tilde.assistant_done(rate_limit_message(retry_after)))
+          |> trim_session()
 
         state = %{state | session: session}
         broadcast(state)
@@ -220,7 +227,11 @@ defmodule Tilde.SessionServer do
   defp start_llm_response(%__MODULE__{} = state) do
     server = self()
     block_id = assistant_block_id(state.session)
-    session = Session.append_event(state.session, Tilde.status_changed("model", "thinking…"))
+
+    session =
+      state.session
+      |> Session.append_event(Tilde.status_changed("model", "thinking…"))
+      |> trim_session()
 
     broadcast(%{state | session: session})
     Task.start(fn -> stream_llm_response(server, block_id, session) end)
@@ -266,6 +277,10 @@ defmodule Tilde.SessionServer do
     do: events |> List.last() |> Map.get(:type)
 
   defp last_event_type(_session), do: nil
+
+  defp trim_session(%Session{} = session) do
+    Session.trim_events(session, Application.get_env(:tilde, :session_event_limit, false))
+  end
 
   defp rate_limit_message(retry_after) do
     seconds = retry_after |> div(1_000) |> max(1)

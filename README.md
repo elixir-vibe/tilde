@@ -215,7 +215,8 @@ config :tilde,
 
 Without an API key, submissions remain semantic user messages and the demo shows
 a clear configuration message instead of crashing. The standalone public demo
-uses optional Hammer/ETS rate limiting for LLM submissions.
+uses optional Hammer/ETS rate limiting for LLM submissions and caps retained
+session events so shared demo history stays bounded.
 
 ## Mirrored sessions
 

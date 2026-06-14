@@ -56,6 +56,7 @@ defmodule Mix.Tasks.Tilde.Demo do
 
   defp configure_llm do
     Application.put_env(:tilde, :llm_enabled, true)
+    Application.put_env(:tilde, :session_event_limit, 120)
 
     Application.put_env(:tilde, :llm_rate_limit,
       scope: :global,

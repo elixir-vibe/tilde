@@ -710,6 +710,41 @@ defmodule TildeTest do
              |> String.trim_trailing()
   end
 
+  test "session can trim event log and rebuild derived state" do
+    session =
+      Tilde.session()
+      |> Session.append_event(Tilde.input_submitted("one"))
+      |> Session.append_event(Tilde.assistant_done("two"))
+      |> Session.append_event(Tilde.input_submitted("three"))
+      |> Session.trim_events(2)
+
+    assert Enum.map(session.events, & &1.text) == ["two", "three"]
+    assert Enum.map(session.transcript.blocks, & &1.source) == ["two", "three"]
+  end
+
+  test "session server applies configured event trimming" do
+    with_application_env(:llm_enabled, false, fn ->
+      with_application_env(:session_event_limit, 2, fn ->
+        name = :"tilde_session_server_trim_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.SessionServer.start_link(
+                   name: name,
+                   session: Tilde.session(id: "trim_test")
+                 )
+
+        Tilde.SessionServer.append_event(name, Tilde.input_submitted("one"))
+        Tilde.SessionServer.append_event(name, Tilde.assistant_done("two"))
+        updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("three"))
+
+        assert Enum.map(updated.events, & &1.text) == ["two", "three"]
+        assert Enum.map(updated.transcript.blocks, & &1.source) == ["two", "three"]
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
   test "session keeps event log, transcript, widgets, and statuses" do
     session =
       Tilde.session(id: "session_1")
