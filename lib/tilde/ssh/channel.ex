@@ -10,15 +10,17 @@ defmodule Tilde.SSH.Channel do
 
   @behaviour :ssh_server_channel
 
-  alias Tilde.{Session, SessionServer}
-  alias Tilde.TUI.{Controller, Keys, Renderer}
+  alias Tilde.{Block, Session, SessionServer}
+  alias Tilde.TUI.{Controller, Keys, Renderer, ViewRenderer}
+  alias Tilde.View.Builder
 
   defstruct connection_ref: nil,
             channel_id: nil,
             width: 100,
             height: 30,
             session: nil,
-            session_server: nil
+            session_server: nil,
+            streaming?: false
 
   @type t :: %__MODULE__{
           connection_ref: term(),
@@ -26,7 +28,8 @@ defmodule Tilde.SSH.Channel do
           width: pos_integer(),
           height: pos_integer(),
           session: Session.t() | nil,
-          session_server: SessionServer.name() | nil
+          session_server: SessionServer.name() | nil,
+          streaming?: boolean()
         }
 
   @impl true
@@ -61,9 +64,12 @@ defmodule Tilde.SSH.Channel do
     old_session = state.session
     state = %{state | session: session}
 
-    unless session == old_session do
-      render_change(state, old_session)
-    end
+    state =
+      cond do
+        stale_session?(old_session, session) -> state
+        session == old_session -> state
+        true -> render_change(state, old_session)
+      end
 
     {:ok, state}
   end
@@ -100,7 +106,7 @@ defmodule Tilde.SSH.Channel do
     |> apply_keys(Keys.decode_many(data))
     |> case do
       {:cont, state} ->
-        render_change(state, old_session)
+        state = render_change(state, old_session)
         {:ok, state}
 
       {:halt, state} ->
@@ -122,7 +128,6 @@ defmodule Tilde.SSH.Channel do
         height: non_zero(height, state.height)
     }
 
-    render(state)
     {:ok, state}
   end
 
@@ -160,18 +165,92 @@ defmodule Tilde.SSH.Channel do
   end
 
   defp render_change(%__MODULE__{} = state, %Session{} = old_session) do
-    if input_only_update?(old_session, state.session),
-      do: render_prompt(state),
-      else: render(state)
+    cond do
+      input_only_update?(old_session, state.session) ->
+        render_prompt(state)
+        state
+
+      assistant_stream_finished?(old_session, state.session, state) ->
+        append_prompt(state)
+        %{state | streaming?: false}
+
+      status_only_update?(old_session, state.session) ->
+        state
+
+      new_blocks = new_blocks(old_session, state.session) ->
+        append_blocks(state, new_blocks, prompt?: prompt_after_blocks?(state.session, new_blocks))
+        %{state | streaming?: streaming_blocks?(new_blocks)}
+
+      delta = assistant_delta(old_session, state.session) ->
+        append_text(state, delta)
+        %{state | streaming?: true}
+
+      true ->
+        state
+    end
   end
 
-  defp render_change(%__MODULE__{} = state, _old_session), do: render(state)
+  defp render_change(%__MODULE__{} = state, _old_session) do
+    render(state)
+    state
+  end
+
+  defp stale_session?(%Session{} = current, %Session{} = incoming) do
+    length(incoming.events) < length(current.events)
+  end
+
+  defp stale_session?(_current, _incoming), do: false
 
   defp input_only_update?(%Session{} = old, %Session{} = new) do
     old.input != new.input and
       old.transcript == new.transcript and
       old.widgets == new.widgets and
       old.statuses == new.statuses
+  end
+
+  defp status_only_update?(%Session{} = old, %Session{} = new) do
+    old.input == new.input and old.transcript == new.transcript and old.widgets == new.widgets and
+      old.statuses != new.statuses
+  end
+
+  defp assistant_stream_finished?(%Session{} = old, %Session{} = new, %__MODULE__{
+         streaming?: true
+       }) do
+    Map.has_key?(old.statuses, "model") and not Map.has_key?(new.statuses, "model")
+  end
+
+  defp assistant_stream_finished?(_old, _new, _state), do: false
+
+  defp new_blocks(%Session{} = old, %Session{} = new) do
+    old_count = length(old.transcript.blocks)
+    new_count = length(new.transcript.blocks)
+
+    if new_count > old_count do
+      Enum.drop(new.transcript.blocks, old_count)
+    else
+      nil
+    end
+  end
+
+  defp assistant_delta(%Session{} = old, %Session{} = new) do
+    with %Block{kind: :message, role: :assistant, id: id, source: old_source} <-
+           List.last(old.transcript.blocks),
+         %Block{kind: :message, role: :assistant, id: ^id, source: new_source} <-
+           List.last(new.transcript.blocks),
+         true <- String.starts_with?(new_source, old_source),
+         delta when delta != "" <- String.replace_prefix(new_source, old_source, "") do
+      delta
+    else
+      _other -> nil
+    end
+  end
+
+  defp streaming_blocks?(blocks) do
+    Enum.any?(blocks, &match?(%Block{kind: :message, role: :assistant}, &1))
+  end
+
+  defp prompt_after_blocks?(%Session{} = session, blocks) do
+    not streaming_blocks?(blocks) and not Map.has_key?(session.statuses, "model")
   end
 
   defp render(%__MODULE__{connection_ref: nil}), do: :ok
@@ -190,11 +269,61 @@ defmodule Tilde.SSH.Channel do
   defp render_prompt(%__MODULE__{channel_id: nil}), do: :ok
 
   defp render_prompt(%__MODULE__{} = state) do
-    bytes =
-      ["\r", IO.ANSI.clear_line(), Renderer.render_prompt(state.session, ansi: true)]
-      |> IO.iodata_to_binary()
+    send_bytes(state, [
+      "\r",
+      IO.ANSI.clear_line(),
+      Renderer.render_prompt(state.session, ansi: true)
+    ])
+  end
 
-    :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
+  defp append_blocks(%__MODULE__{} = state, blocks, opts) do
+    prompt? = Keyword.get(opts, :prompt?, true)
+
+    content =
+      blocks
+      |> Enum.map_join("\n\n", &render_block(&1, state))
+      |> terminal_newlines()
+
+    send_bytes(state, [
+      "\r",
+      IO.ANSI.clear_line(),
+      content,
+      if(prompt?, do: ["\r\n\r\n", Renderer.render_prompt(state.session, ansi: true)], else: "")
+    ])
+  end
+
+  defp append_text(%__MODULE__{} = state, text) do
+    send_bytes(state, terminal_newlines(text))
+  end
+
+  defp append_prompt(%__MODULE__{} = state) do
+    send_bytes(state, ["\r\n\r\n", Renderer.render_prompt(state.session, ansi: true)])
+  end
+
+  defp render_block(%Block{kind: :message, role: :user, source: source}, _state), do: source
+
+  defp render_block(%Block{kind: :message, role: role, source: source}, _state) do
+    [IO.ANSI.faint(), to_string(role), IO.ANSI.normal(), "\n", source]
+    |> IO.iodata_to_binary()
+  end
+
+  defp render_block(%Block{} = block, %__MODULE__{} = state) do
+    block
+    |> Builder.block()
+    |> ViewRenderer.render(state.width, ansi: true)
+  end
+
+  defp terminal_newlines(iodata) do
+    iodata
+    |> IO.iodata_to_binary()
+    |> String.replace("\n", "\r\n")
+  end
+
+  defp send_bytes(%__MODULE__{connection_ref: nil}, _bytes), do: :ok
+  defp send_bytes(%__MODULE__{channel_id: nil}, _bytes), do: :ok
+
+  defp send_bytes(%__MODULE__{} = state, bytes) do
+    :ssh_connection.send(state.connection_ref, state.channel_id, IO.iodata_to_binary(bytes))
   end
 
   defp close(%__MODULE__{connection_ref: nil}), do: :ok
