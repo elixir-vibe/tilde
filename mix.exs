@@ -8,7 +8,7 @@ defmodule Tilde.MixProject do
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      dialyzer: [plt_add_apps: [:ex_unit]],
+      dialyzer: [plt_add_apps: [:ex_unit, :mix]],
       aliases: aliases()
     ]
   end
@@ -37,6 +37,7 @@ defmodule Tilde.MixProject do
       {:vibe_kit, "~> 0.1"},
       {:phoenix_live_view, "~> 1.0", optional: true},
       {:phoenix_html, "~> 4.0", optional: true},
+      {:bandit, "~> 1.0", optional: true},
       {:mdex, "~> 0.13.0", optional: true},
       {:igniter, "~> 0.6", only: [:dev, :test]}
       # {:dep_from_hexpm, "~> 0.3.0"},

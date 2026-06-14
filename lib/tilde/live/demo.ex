@@ -32,7 +32,7 @@ defmodule Tilde.Live.Demo do
   @impl true
   def render(assigns) do
     ~H"""
-    <style>{Tilde.Live.Styles.css()}</style>
+    {Phoenix.HTML.raw("<style>" <> Tilde.Live.Styles.css() <> "</style>")}
     <.console session={@session} input={@session.input.value} running?={@running?} />
     <details class="tilde-demo-hooks">
       <summary>Keyboard hook</summary>

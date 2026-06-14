@@ -169,6 +169,34 @@ semantic transcript rendered by LiveView, TUI, and SSH.
 The SSH path has been dogfooded with OpenSSH through tmux. Terminal output uses
 CRLF line endings over SSH so remote terminals return to column zero correctly.
 
+## Standalone mirrored demo
+
+Run the web + SSH demo with one command:
+
+```sh
+mix tilde.demo
+```
+
+Then open the LiveView DOM renderer:
+
+```text
+http://localhost:4000/tilde
+```
+
+And connect the SSH/TUI renderer:
+
+```sh
+ssh tilde@localhost -p 4022 \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null
+```
+
+Password: `tilde`.
+
+Both renderers share the same `Tilde.SessionServer`, so input submitted over SSH
+appears in the web session and LiveView events mutate the same semantic session.
+Use `--web-port`, `--ssh-port`, or `--password` to customize the task.
+
 ## Mirrored sessions
 
 `Tilde.SessionServer` owns a single semantic `%Tilde.Session{}` process and
