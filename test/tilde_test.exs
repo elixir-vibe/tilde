@@ -168,7 +168,7 @@ defmodule TildeTest do
     assert stderr.hidden_lines == 1
   end
 
-  test "live tool renders per-stream output classes" do
+  test "live tool renders through shared semantic view cells" do
     tool =
       Block.tool("tool_1", "bash", %{command: "mix test", cwd: "/tmp/app"},
         display: %Display{compact_limit: {:lines, 3}}
@@ -179,13 +179,13 @@ defmodule TildeTest do
 
     html = render_component(&Tilde.Live.Tool.tool/1, block: tool)
 
-    assert html =~ "tilde-tool-stream-stdout"
-    assert html =~ "tilde-tool-stream-stderr"
-    assert html =~ "data-stream-kind=\"stderr\""
-    assert html =~ "cwd"
-    assert html =~ "/tmp/app"
-    assert html =~ "exit"
-    assert html =~ "0"
+    assert html =~ "tilde-tool-cell-lines"
+    assert html =~ ~s|tilde-view-text-muted">stdout|
+    assert html =~ ~s|tilde-view-text-muted">stderr|
+    assert html =~ ~s|tilde-view-text-primary">ok|
+    assert html =~ ~s|tilde-view-text-primary">warning|
+    refute html =~ "tilde-tool-stream-stdout"
+    refute html =~ "/tmp/app"
   end
 
   test "markdown facade uses configured backend" do
