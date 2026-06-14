@@ -964,6 +964,8 @@ defmodule TildeTest do
 
     assert js =~ "TildeConsole"
     assert js =~ "ctrlKey"
+    assert js =~ "key === \"tab\""
+    assert js =~ "tilde:complete_input"
     assert js =~ "tilde:toggle_expand"
     assert js =~ "[data-block-id]"
   end

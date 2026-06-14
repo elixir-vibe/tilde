@@ -55,17 +55,43 @@ defmodule Tilde.Live.Hooks do
             }
           }
 
+          this.handleCompletion = ({ insert }) => {
+            const textarea = this.el.querySelector("textarea[name='input']")
+            if (!textarea || !insert) return
+            textarea.value = insert
+            this.resizeInput(textarea)
+            textarea.focus()
+          }
+
+          this.handleEvent("tilde:input_completed", this.handleCompletion)
+
           this.handleKeydown = (event) => {
             const key = event.key && event.key.toLowerCase()
             const target = event.target
 
-            if (target && target.matches && target.matches("textarea[name='input']") && key === "enter") {
-              if (event.shiftKey) return
+            if (target && target.matches && target.matches("textarea[name='input']")) {
+              if (key === "tab" && target.value.trimStart().startsWith("/")) {
+                event.preventDefault()
+                const firstSuggestion = this.el.querySelector(".tilde-suggest-row[phx-value-insert]")
+                const insert = firstSuggestion && firstSuggestion.getAttribute("phx-value-insert")
+                if (insert) {
+                  target.value = insert
+                  this.resizeInput(target)
+                  this.pushEvent("tilde:complete_input", { insert })
+                } else {
+                  this.pushEvent("tilde:complete_input", { input: target.value })
+                }
+                return
+              }
 
-              event.preventDefault()
-              this.shouldStickToBottom = true
-              target.form && target.form.requestSubmit()
-              return
+              if (key === "enter") {
+                if (event.shiftKey) return
+
+                event.preventDefault()
+                this.shouldStickToBottom = true
+                target.form && target.form.requestSubmit()
+                return
+              }
             }
 
             if (!event.ctrlKey || key !== "o") return

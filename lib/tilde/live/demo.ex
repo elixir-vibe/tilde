@@ -89,12 +89,19 @@ defmodule Tilde.Live.Demo do
     {:noreply, assign(socket, session: session)}
   end
 
-  def handle_event("tilde:complete_input", %{"insert" => insert}, socket) do
+  def handle_event("tilde:complete_input", params, socket) do
+    input = Map.get(params, "insert") || complete_input(Map.get(params, "input", ""))
+
     session =
       SessionServer.update_session(
         socket.assigns.session_server,
-        &Session.append_event(&1, Tilde.input_changed(insert))
+        &Session.append_event(&1, Tilde.input_changed(input))
       )
+
+    socket =
+      if input != Map.get(params, "input"),
+        do: push_event(socket, "tilde:input_completed", %{insert: input}),
+        else: socket
 
     {:noreply, assign(socket, session: session)}
   end
@@ -190,6 +197,8 @@ defmodule Tilde.Live.Demo do
 
     %{session | transcript: transcript}
   end
+
+  defp complete_input(input), do: Command.completion(input) || input
 
   defp compact(input) do
     input
