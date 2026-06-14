@@ -64,7 +64,7 @@ defmodule Tilde.SSH.Demo do
       {:system_dir, String.to_charlist(system_dir)},
       {:auth_methods, ~c"password"},
       {:pwdfun, password_fun(password)},
-      {:shell, {Tilde.SSH.Shell, :start, [[width: 100]]}},
+      {:ssh_cli, {Tilde.SSH.Channel, [[width: 100]]}},
       {:parallel_login, true}
     ])
   end

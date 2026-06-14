@@ -240,6 +240,25 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
+  test "tui controller applies keys to semantic session" do
+    session =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+
+    assert {:cont, toggled} = Tilde.TUI.Controller.apply_key(session, :toggle_expand)
+    assert [%Block{display: %{expanded?: true}}] = toggled.transcript.blocks
+    assert {:halt, ^toggled} = Tilde.TUI.Controller.apply_key(toggled, :quit)
+  end
+
+  test "ssh channel initializes semantic demo state" do
+    assert {:ok, state} = Tilde.SSH.Channel.init([[width: 72, height: 24]])
+    assert state.width == 72
+    assert state.height == 24
+    assert %Session{} = state.session
+  end
+
   test "ssh shell applies tui keys to semantic session" do
     session =
       Tilde.session()

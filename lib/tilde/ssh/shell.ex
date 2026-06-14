@@ -6,8 +6,8 @@ defmodule Tilde.SSH.Shell do
   terminal transport for the semantic Tilde session and TUI renderer.
   """
 
-  alias Tilde.{Block, Session}
-  alias Tilde.TUI.{Keys, Renderer}
+  alias Tilde.Session
+  alias Tilde.TUI.{Controller, Keys, Renderer}
 
   @doc "Starts the interactive demo shell. Called by Erlang SSH's shell option."
   @spec start(keyword()) :: :ok
@@ -21,17 +21,8 @@ defmodule Tilde.SSH.Shell do
   end
 
   @doc "Applies a decoded key to a session."
-  @spec apply_key(Session.t(), Keys.key()) :: {:cont, Session.t()} | {:halt, Session.t()}
-  def apply_key(%Session{} = session, :toggle_expand) do
-    case first_tool_id(session) do
-      nil -> {:cont, session}
-      id -> {:cont, Session.toggle_expand(session, id)}
-    end
-  end
-
-  def apply_key(%Session{} = session, :quit), do: {:halt, session}
-  def apply_key(%Session{} = session, :redraw), do: {:cont, session}
-  def apply_key(%Session{} = session, _key), do: {:cont, session}
+  @spec apply_key(Session.t(), Keys.key()) :: Controller.result()
+  def apply_key(%Session{} = session, key), do: Controller.apply_key(session, key)
 
   defp loop(%Session{} = session, width) do
     case IO.getn("", 1) do
@@ -56,12 +47,5 @@ defmodule Tilde.SSH.Shell do
     |> IO.write()
 
     session
-  end
-
-  defp first_tool_id(%Session{} = session) do
-    Enum.find_value(session.transcript.blocks, fn
-      %Block{kind: :tool, id: id} -> id
-      _block -> nil
-    end)
   end
 end

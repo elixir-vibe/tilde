@@ -146,7 +146,9 @@ The demo generates a PEM RSA host key through the configured
 Erlang/OTP `:public_key` and writes to `_build/tilde_ssh/system`. It does not
 call `ssh-keygen`. The SSH shell is not an OS shell or PTY emulator. SSH is only
 the transport for the semantic Tilde session rendered through
-`Tilde.TUI.Renderer`.
+`Tilde.TUI.Renderer`. The demo uses `Tilde.SSH.Channel`, an
+`:ssh_server_channel` implementation, so it can observe PTY allocation, shell
+requests, channel data, and window resize events directly.
 
 Initial keys:
 
