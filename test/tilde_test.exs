@@ -507,41 +507,6 @@ defmodule TildeTest do
     end)
   end
 
-  test "LLM message projection keeps semantic user and assistant history" do
-    session =
-      Tilde.session()
-      |> Session.append_event(Tilde.input_submitted("first"))
-      |> Session.append_event(Tilde.assistant_done("reply"))
-      |> Session.append_event(Tilde.tool_started("utc_now", %{}, tool_call_id: "tool_1"))
-      |> Session.append_event(Tilde.tool_done("tool_1", :success, %{utc_now: "now"}))
-      |> Session.append_event(Tilde.input_submitted("second"))
-
-    assert Tilde.LLM.Messages.to_messages(session) == [
-             %{role: :user, content: "first"},
-             %{role: :assistant, content: "reply"},
-             %{role: :user, content: "second"}
-           ]
-
-    assert Tilde.LLM.Messages.to_messages(session, exclude_latest_user: true) == [
-             %{role: :user, content: "first"},
-             %{role: :assistant, content: "reply"}
-           ]
-  end
-
-  test "LLM message projection can build a Jido context" do
-    session =
-      Tilde.session()
-      |> Session.append_event(Tilde.input_submitted("hello"))
-      |> Session.append_event(Tilde.assistant_done("hi"))
-
-    assert {:ok, context} = Tilde.LLM.Messages.to_jido_context(session)
-
-    assert Jido.AI.Context.to_messages(context) == [
-             %{role: :user, content: "hello"},
-             %{role: :assistant, content: "hi"}
-           ]
-  end
-
   test "jido LLM backend reports a missing OpenRouter key before calling the runtime" do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")

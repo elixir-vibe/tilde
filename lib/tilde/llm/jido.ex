@@ -9,8 +9,7 @@ defmodule Tilde.LLM.Jido do
 
   @behaviour Tilde.LLM.Backend
 
-  alias Tilde.{LLM, Session}
-  alias Tilde.LLM.Messages
+  alias Tilde.{Block, LLM, Session}
 
   @impl true
   def respond(%Session{} = session, opts \\ []) do
@@ -135,14 +134,44 @@ defmodule Tilde.LLM.Jido do
   end
 
   defp start_agent(%Session{} = session) do
-    with {:ok, context} <- Messages.to_jido_context(session, exclude_latest_user: true) do
-      Jido.start_agent(
-        Jido,
-        Tilde.Agent,
-        id: "tilde-#{session.id}-#{System.unique_integer([:positive])}",
-        initial_state: %{context: context}
-      )
-    end
+    Jido.start_agent(
+      Jido,
+      Tilde.Agent,
+      id: "tilde-#{session.id}-#{System.unique_integer([:positive])}",
+      initial_state: %{context: jido_context(session)}
+    )
+  end
+
+  defp jido_context(%Session{} = session) do
+    Jido.AI.Context.new()
+    |> Jido.AI.Context.append_messages(history_messages(session))
+  end
+
+  defp history_messages(%Session{} = session) do
+    session.transcript.blocks
+    |> drop_latest_user_message()
+    |> Enum.flat_map(&message_block/1)
+  end
+
+  defp message_block(%Block{kind: :message, role: :user, source: source}) when is_binary(source),
+    do: [%{role: :user, content: source}]
+
+  defp message_block(%Block{kind: :message, role: :assistant, source: source})
+       when is_binary(source),
+       do: [%{role: :assistant, content: source}]
+
+  defp message_block(_block), do: []
+
+  defp drop_latest_user_message(blocks) do
+    {blocks, _dropped?} =
+      blocks
+      |> Enum.reverse()
+      |> Enum.reduce({[], false}, fn
+        %Block{kind: :message, role: :user}, {acc, false} -> {acc, true}
+        block, {acc, dropped?} -> {[block | acc], dropped?}
+      end)
+
+    blocks
   end
 
   defp query(%Session{} = session), do: LLM.latest_user_text(session) || LLM.prompt(session)
