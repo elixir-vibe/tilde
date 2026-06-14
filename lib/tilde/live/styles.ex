@@ -18,7 +18,6 @@ defmodule Tilde.Live.Styles do
       --tilde-error: #b3261e;
       --tilde-warning: #8a5a00;
       --tilde-tool-bg: rgba(222, 214, 203, 0.35);
-      --tilde-scrollbar-track: transparent;
       --tilde-scrollbar-thumb: #b9aea1;
       --tilde-scrollbar-thumb-hover: #8f8378;
     }
@@ -48,7 +47,6 @@ defmodule Tilde.Live.Styles do
         --tilde-error: #ffb4ab;
         --tilde-warning: #e0b35a;
         --tilde-tool-bg: rgba(48, 44, 40, 0.45);
-        --tilde-scrollbar-track: transparent;
         --tilde-scrollbar-thumb: #625a52;
         --tilde-scrollbar-thumb-hover: #8d8278;
       }
@@ -72,19 +70,61 @@ defmodule Tilde.Live.Styles do
       min-height: 0;
       overflow-y: auto;
       overscroll-behavior: contain;
-      scrollbar-gutter: stable;
-      scrollbar-width: thin;
-      scrollbar-color: var(--tilde-scrollbar-thumb) var(--tilde-scrollbar-track);
+      scrollbar-gutter: auto;
     }
 
-    .tilde-transcript::-webkit-scrollbar { width: 10px; }
-    .tilde-transcript::-webkit-scrollbar-track { background: transparent; }
-    .tilde-transcript::-webkit-scrollbar-thumb {
-      background: var(--tilde-scrollbar-thumb);
-      border: 2px solid var(--tilde-bg);
-      border-radius: 0;
+    @supports (scrollbar-width: thin) {
+      .tilde-transcript {
+        scrollbar-width: thin;
+        scrollbar-color: var(--tilde-scrollbar-thumb) transparent;
+      }
     }
-    .tilde-transcript::-webkit-scrollbar-thumb:hover { background: var(--tilde-scrollbar-thumb-hover); }
+
+    @supports selector(::-webkit-scrollbar) {
+      .tilde-transcript {
+        scrollbar-width: auto;
+        scrollbar-color: auto;
+      }
+
+      .tilde-transcript::-webkit-scrollbar {
+        width: 14px;
+        height: 14px;
+        background: transparent;
+      }
+
+      .tilde-transcript::-webkit-scrollbar-button,
+      .tilde-transcript::-webkit-scrollbar-corner,
+      .tilde-transcript::-webkit-resizer {
+        display: none;
+        background: transparent;
+      }
+
+      .tilde-transcript::-webkit-scrollbar-track,
+      .tilde-transcript::-webkit-scrollbar-track-piece {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+      }
+
+      .tilde-transcript::-webkit-scrollbar-thumb {
+        min-height: 44px;
+        background-color: color-mix(in srgb, var(--tilde-scrollbar-thumb) 72%, transparent);
+        background-clip: content-box;
+        border: 4px solid transparent;
+        border-radius: 999px;
+        box-shadow: none;
+      }
+
+      .tilde-transcript::-webkit-scrollbar-thumb:hover {
+        background-color: color-mix(in srgb, var(--tilde-scrollbar-thumb-hover) 88%, transparent);
+        border-width: 3px;
+      }
+
+      .tilde-transcript::-webkit-scrollbar-thumb:active {
+        background-color: var(--tilde-scrollbar-thumb-hover);
+        border-width: 3px;
+      }
+    }
 
     .tilde-block { margin: 0 0 1.25rem; }
     .tilde-label, .tilde-muted, .tilde-tool-status, .tilde-key, .tilde-shortcut { color: var(--tilde-muted); }
