@@ -18,6 +18,9 @@ defmodule Tilde.Live.Styles do
       --tilde-error: #b3261e;
       --tilde-warning: #8a5a00;
       --tilde-tool-bg: rgba(222, 214, 203, 0.35);
+      --tilde-tool-pending-bg: rgba(138, 90, 0, 0.10);
+      --tilde-tool-success-bg: rgba(47, 125, 50, 0.10);
+      --tilde-tool-error-bg: rgba(179, 38, 30, 0.10);
       --tilde-scrollbar-thumb: #b9aea1;
       --tilde-scrollbar-thumb-hover: #8f8378;
     }
@@ -47,6 +50,9 @@ defmodule Tilde.Live.Styles do
         --tilde-error: #ffb4ab;
         --tilde-warning: #e0b35a;
         --tilde-tool-bg: rgba(48, 44, 40, 0.45);
+        --tilde-tool-pending-bg: rgba(224, 179, 90, 0.13);
+        --tilde-tool-success-bg: rgba(139, 196, 138, 0.13);
+        --tilde-tool-error-bg: rgba(255, 180, 171, 0.13);
         --tilde-scrollbar-thumb: #625a52;
         --tilde-scrollbar-thumb-hover: #8d8278;
       }
@@ -127,7 +133,7 @@ defmodule Tilde.Live.Styles do
     }
 
     .tilde-block { margin: 0 0 1.25rem; }
-    .tilde-label, .tilde-muted, .tilde-tool-status, .tilde-key, .tilde-shortcut { color: var(--tilde-muted); }
+    .tilde-label, .tilde-muted, .tilde-key, .tilde-shortcut { color: var(--tilde-muted); }
     .tilde-label { margin-bottom: 0.25rem; }
     .tilde-message-body { white-space: normal; }
     .tilde-markdown { white-space: normal; }
@@ -160,13 +166,17 @@ defmodule Tilde.Live.Styles do
       align-items: baseline;
     }
 
+    .tilde-tool-queued, .tilde-tool-running, .tilde-tool-streaming { background: var(--tilde-tool-pending-bg); }
+    .tilde-tool-success, .tilde-tool-done { background: var(--tilde-tool-success-bg); }
+    .tilde-tool-error { background: var(--tilde-tool-error-bg); }
+    .tilde-tool-cancelled { opacity: 0.82; }
+    .tilde-tool-call { min-width: 0; overflow-wrap: anywhere; }
     .tilde-tool-name { font-weight: 700; }
-    .tilde-tool-args { color: var(--tilde-link); overflow-wrap: anywhere; }
-    .tilde-tool-status { font-size: 0.9rem; }
-    .tilde-tool-success .tilde-tool-status, .tilde-tool-done .tilde-tool-status { color: var(--tilde-success); }
-    .tilde-tool-error .tilde-tool-status { color: var(--tilde-error); }
-    .tilde-tool-running .tilde-tool-status, .tilde-tool-streaming .tilde-tool-status { color: var(--tilde-warning); }
-    .tilde-tool-queued, .tilde-tool-cancelled { opacity: 0.82; }
+    .tilde-tool-segment { margin-left: 0.65ch; }
+    .tilde-tool-segment-accent { color: var(--tilde-link); }
+    .tilde-tool-segment-muted, .tilde-tool-segment-dim, .tilde-tool-tags, .tilde-tool-suffix { color: var(--tilde-muted); }
+    .tilde-tool-segment-success { color: var(--tilde-success); }
+    .tilde-tool-tags, .tilde-tool-suffix { margin-left: 0.65ch; }
     .tilde-tool-metadata { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0 0; }
     .tilde-tool-metadata div { display: flex; gap: 0.25rem; }
     .tilde-tool-metadata dt { color: var(--tilde-muted); }

@@ -125,13 +125,31 @@ defmodule Tilde.TUI.Doc do
 
   defp tool_header(view, opts) do
     [
-      Theme.title(view.name, opts),
-      non_empty_doc(Theme.accent(view.arg_summary, opts)),
-      Theme.muted(to_string(view.status), opts)
+      Theme.title(view.name, opts)
+      | Enum.map(view.call_segments, &tool_call_segment(&1, opts))
     ]
+    |> Kernel.++(tool_call_tags(view.call_tags, opts))
+    |> Kernel.++(tool_call_suffix(view.call_suffix, opts))
     |> Enum.reject(&empty_doc?/1)
     |> join_docs(" ")
   end
+
+  defp tool_call_segment(%{text: text, color: :muted}, opts),
+    do: Theme.muted(to_string(text), opts)
+
+  defp tool_call_segment(%{text: text, color: :dim}, opts), do: Theme.muted(to_string(text), opts)
+
+  defp tool_call_segment(%{text: text, color: :success}, opts),
+    do: Theme.success(to_string(text), opts)
+
+  defp tool_call_segment(%{text: text}, opts), do: Theme.accent(to_string(text), opts)
+
+  defp tool_call_tags([], _opts), do: []
+  defp tool_call_tags(tags, opts), do: [Theme.muted("[#{Enum.join(tags, ", ")}]", opts)]
+
+  defp tool_call_suffix(nil, _opts), do: []
+  defp tool_call_suffix("", _opts), do: []
+  defp tool_call_suffix(suffix, opts), do: [Theme.muted("(#{suffix})", opts)]
 
   defp metadata_rows([], _opts), do: empty()
 
@@ -209,9 +227,6 @@ defmodule Tilde.TUI.Doc do
   defp blank_line, do: "\n\n"
   defp prefix_line(doc), do: concat([newline(), doc])
   defp newline, do: "\n"
-
-  defp non_empty_doc(""), do: empty()
-  defp non_empty_doc(doc), do: doc
 
   defp join_docs([], _separator), do: empty()
   defp join_docs([doc], _separator), do: doc

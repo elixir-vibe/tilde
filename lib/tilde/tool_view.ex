@@ -44,6 +44,9 @@ defmodule Tilde.ToolView do
       name: block.name || "tool",
       status: block.status || :running,
       args: block.args,
+      call_segments: call_segments(block.args),
+      call_tags: call_tags(block),
+      call_suffix: call_suffix(block),
       arg_summary: arg_summary(block.args),
       metadata_rows: metadata_rows(block),
       lines: visible_lines,
@@ -122,6 +125,49 @@ defmodule Tilde.ToolView do
   defp duration(nil), do: nil
   defp duration(milliseconds) when is_integer(milliseconds), do: "#{milliseconds}ms"
   defp duration(value), do: value
+
+  defp call_segments(args) when map_size(args) == 0, do: []
+
+  defp call_segments(%{command: command}) when is_binary(command),
+    do: [%{text: command, color: :accent}]
+
+  defp call_segments(%{"command" => command}) when is_binary(command),
+    do: [%{text: command, color: :accent}]
+
+  defp call_segments(%{url: url}) when is_binary(url), do: [%{text: url, color: :accent}]
+  defp call_segments(%{"url" => url}) when is_binary(url), do: [%{text: url, color: :accent}]
+
+  defp call_segments(args) do
+    args
+    |> Enum.take(3)
+    |> Enum.map(fn {key, value} -> %{text: "#{key}=#{inspect(value)}", color: :accent} end)
+  end
+
+  defp call_tags(block) do
+    case fetch_key(block.metadata, :tags) do
+      tags when is_list(tags) -> tags |> Enum.reject(&blank?/1) |> Enum.map(&to_string/1)
+      tag when is_binary(tag) -> [tag]
+      _other -> []
+    end
+  end
+
+  defp call_suffix(block) do
+    case fetch_key(block.metadata, :suffix) do
+      suffix when is_binary(suffix) and suffix != "" ->
+        suffix
+
+      suffix when is_integer(suffix) or is_float(suffix) or is_boolean(suffix) ->
+        to_string(suffix)
+
+      _other ->
+        nil
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(false), do: true
+  defp blank?(""), do: true
+  defp blank?(_value), do: false
 
   defp arg_summary(args) when map_size(args) == 0, do: ""
 

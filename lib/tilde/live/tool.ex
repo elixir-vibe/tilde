@@ -24,9 +24,14 @@ defmodule Tilde.Live.Tool do
       tabindex="0"
     >
       <header class="tilde-tool-header">
-        <span class="tilde-tool-name">{@view.name}</span>
-        <span :if={@view.arg_summary != ""} class="tilde-tool-args">{@view.arg_summary}</span>
-        <span class="tilde-tool-status" title={to_string(@view.status)}>{status_label(@view.status)}</span>
+        <span class="tilde-tool-call">
+          <span class="tilde-tool-name">{@view.name}</span>
+          <span :for={segment <- @view.call_segments} class={tool_segment_class(segment)}>
+            {segment.text}
+          </span>
+          <span :if={@view.call_tags != []} class="tilde-tool-tags">[{Enum.join(@view.call_tags, ", ")}]</span>
+          <span :if={@view.call_suffix} class="tilde-tool-suffix">({@view.call_suffix})</span>
+        </span>
       </header>
 
       <dl :if={@view.metadata_rows != []} class="tilde-tool-metadata">
@@ -68,14 +73,8 @@ defmodule Tilde.Live.Tool do
     """
   end
 
-  defp status_label(:queued), do: "queued"
-  defp status_label(:running), do: "running"
-  defp status_label(:streaming), do: "running"
-  defp status_label(:success), do: "✓"
-  defp status_label(:done), do: "✓"
-  defp status_label(:error), do: "error"
-  defp status_label(:cancelled), do: "cancelled"
-  defp status_label(status), do: status
+  defp tool_segment_class(%{color: color}), do: "tilde-tool-segment tilde-tool-segment-#{color}"
+  defp tool_segment_class(_segment), do: "tilde-tool-segment tilde-tool-segment-accent"
 
   defp expandable?(%{expanded?: true}), do: true
   defp expandable?(%{hidden_lines: hidden}), do: hidden > 0
