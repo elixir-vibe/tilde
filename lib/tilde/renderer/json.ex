@@ -5,10 +5,18 @@ defmodule Tilde.Renderer.JSON do
 
   @behaviour Tilde.Renderer
 
-  alias Tilde.{Block, Stream, Transcript}
+  alias Tilde.{Block, Session, Stream, Transcript}
 
   @impl true
-  def render(%Transcript{} = transcript, _opts \\ []) do
+  def render(source, opts \\ [])
+
+  def render(%Session{transcript: transcript, statuses: statuses, metadata: metadata}, opts) do
+    transcript
+    |> render(opts)
+    |> Map.merge(%{statuses: statuses, metadata: metadata})
+  end
+
+  def render(%Transcript{} = transcript, _opts) do
     %{
       blocks: Enum.map(transcript.blocks, &block_to_map/1),
       statuses: transcript.statuses,

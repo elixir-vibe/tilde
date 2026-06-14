@@ -36,11 +36,13 @@ Initial modules:
 - `Tilde.Widget` — non-transcript UI regions such as above/below input and footer
 - `Tilde.Choice` — semantic choice/approval state
 - `Tilde.Live.*` — LiveView components in the same package
-- `Tilde.Markdown` — MDEx-backed safe Markdown rendering boundary
+- `Tilde.Markdown` — behaviour-backed Markdown rendering facade
+- `Tilde.Markdown.Backend` / `Tilde.Markdown.MDEx` — Markdown backend behaviour and MDEx implementation
 - `Tilde.Live.Markdown` — LiveView Markdown renderer with plain-text fallback
 - `Tilde.Live.Run` — semantic inline rendering for bold, underline, code, links, and tones
 - `Tilde.TUI.*` — Inspect.Algebra + `IO.ANSI` terminal renderer building blocks
 - `Tilde.SSH.*` — Erlang/OTP SSH demo server using generated `:public_key` host keys
+- `Tilde.SSH.KeyProvider` / `Tilde.SSH.KeyProvider.PublicKey` — SSH host key provider behaviour and default implementation
 
 ## Example
 
@@ -78,10 +80,10 @@ Tilde.Live.Styles.css()
 
 The Live components render semantic DOM for transcript blocks, tool widgets,
 choice blocks, widgets, input, and footer/statusline content. Markdown message
-source is rendered through MDEx when available, with MDEx's safe default policy
-that omits raw HTML. Components emit ordinary LiveView events such as
-`tilde:toggle_expand`; parent LiveViews decide how to apply those events to
-session/transcript state.
+source is rendered through the configured `Tilde.Markdown.Backend`; the default
+`Tilde.Markdown.MDEx` backend uses MDEx's safe policy that omits raw HTML.
+Components emit ordinary LiveView events such as `tilde:toggle_expand`; parent
+LiveViews decide how to apply those events to session/transcript state.
 
 A self-contained dogfood demo LiveView is included:
 
@@ -139,10 +141,12 @@ Password:
 tilde
 ```
 
-The demo generates a PEM RSA host key via Erlang/OTP `:public_key` in
-`_build/tilde_ssh/system`; it does not call `ssh-keygen`. The SSH shell is not an
-OS shell or PTY emulator. SSH is only the transport for the semantic Tilde
-session rendered through `Tilde.TUI.Renderer`.
+The demo generates a PEM RSA host key through the configured
+`Tilde.SSH.KeyProvider`; the default `Tilde.SSH.KeyProvider.PublicKey` uses
+Erlang/OTP `:public_key` and writes to `_build/tilde_ssh/system`. It does not
+call `ssh-keygen`. The SSH shell is not an OS shell or PTY emulator. SSH is only
+the transport for the semantic Tilde session rendered through
+`Tilde.TUI.Renderer`.
 
 Initial keys:
 

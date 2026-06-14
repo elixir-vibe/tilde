@@ -1,5 +1,19 @@
+defmodule TildeTest.MarkdownBackend do
+  @behaviour Tilde.Markdown.Backend
+
+  @impl true
+  def to_html(markdown, _opts), do: {:ok, "<p>fake #{markdown}</p>"}
+end
+
+defmodule TildeTest.KeyProvider do
+  @behaviour Tilde.SSH.KeyProvider
+
+  @impl true
+  def ensure_system_dir(path, _opts), do: {:ok, path}
+end
+
 defmodule TildeTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   import Phoenix.LiveViewTest
 
@@ -106,6 +120,13 @@ defmodule TildeTest do
     assert html =~ "0"
   end
 
+  test "markdown facade uses configured backend" do
+    with_application_env(:markdown_backend, TildeTest.MarkdownBackend, fn ->
+      assert Tilde.Markdown.backend() == TildeTest.MarkdownBackend
+      assert Tilde.Markdown.to_html("hello") == {:ok, "<p>fake hello</p>"}
+    end)
+  end
+
   test "markdown renderer uses MDEx for safe HTML" do
     assert {:ok, html} = Tilde.Markdown.to_html("**bold** and `code`")
     assert html =~ "<strong>bold</strong>"
@@ -187,6 +208,13 @@ defmodule TildeTest do
     assert rendered =~ "# tilde"
     assert rendered =~ "user"
     assert rendered =~ "hello"
+  end
+
+  test "ssh keys facade uses configured provider" do
+    with_application_env(:ssh_key_provider, TildeTest.KeyProvider, fn ->
+      assert Tilde.SSH.Keys.provider() == TildeTest.KeyProvider
+      assert Tilde.SSH.Keys.ensure_system_dir("/tmp/fake") == {:ok, "/tmp/fake"}
+    end)
   end
 
   test "ssh key generation uses Erlang public_key PEM host keys" do
@@ -371,4 +399,16 @@ defmodule TildeTest do
     assert stream.line_count == 1
     assert stream.byte_count == 3
   end
+
+  defp with_application_env(key, value, fun) do
+    previous = Application.get_env(:tilde, key)
+    Application.put_env(:tilde, key, value)
+
+    result = fun.()
+    restore_application_env(key, previous)
+    result
+  end
+
+  defp restore_application_env(key, nil), do: Application.delete_env(:tilde, key)
+  defp restore_application_env(key, previous), do: Application.put_env(:tilde, key, previous)
 end

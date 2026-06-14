@@ -3,32 +3,21 @@ defmodule Tilde.Markdown do
   Markdown rendering boundary for Tilde.
 
   Tilde keeps Markdown as an input format rather than its core representation.
-  When MDEx is available, this module renders Markdown to safe HTML using MDEx's
-  default policy, which omits raw HTML unless explicitly configured otherwise.
+  The concrete Markdown implementation is a behaviour-backed backend configured
+  through `:tilde, :markdown_backend` and defaults to `Tilde.Markdown.MDEx`.
   """
 
-  @default_options [
-    extension: [
-      strikethrough: true,
-      table: true,
-      autolink: true,
-      tasklist: true
-    ]
-  ]
+  @default_backend Tilde.Markdown.MDEx
 
-  @doc "Renders Markdown to HTML with MDEx when available."
-  @spec to_html(String.t(), keyword()) :: {:ok, String.t()} | {:error, :mdex_not_available}
+  @doc "Renders Markdown to HTML with the configured backend."
+  @spec to_html(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def to_html(markdown, opts \\ []) when is_binary(markdown) do
-    if Code.ensure_loaded?(MDEx) do
-      {:ok, MDEx.to_html!(markdown, options(opts))}
-    else
-      {:error, :mdex_not_available}
-    end
+    backend().to_html(markdown, opts)
   end
 
-  defp options(opts) do
-    Keyword.merge(@default_options, opts, fn _key, default, override ->
-      Keyword.merge(default, override)
-    end)
+  @doc "Returns the configured Markdown backend."
+  @spec backend() :: module()
+  def backend do
+    Application.get_env(:tilde, :markdown_backend, @default_backend)
   end
 end

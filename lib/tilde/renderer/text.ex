@@ -7,10 +7,14 @@ defmodule Tilde.Renderer.Text do
 
   @behaviour Tilde.Renderer
 
-  alias Tilde.{Block, ToolView, Transcript}
+  alias Tilde.{Block, Session, ToolView, Transcript}
 
   @impl true
-  def render(%Transcript{} = transcript, _opts \\ []) do
+  def render(source, opts \\ [])
+
+  def render(%Session{transcript: transcript}, opts), do: render(transcript, opts)
+
+  def render(%Transcript{} = transcript, _opts) do
     transcript.blocks
     |> Enum.map(&render_block/1)
     |> Enum.reject(&(&1 == ""))

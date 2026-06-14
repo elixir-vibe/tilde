@@ -6,10 +6,13 @@ defmodule Tilde.TUI.Renderer do
   formats it for a terminal width, and wraps it in `IO.ANSI` control sequences.
   """
 
+  @behaviour Tilde.Renderer
+
   alias Tilde.Session
   alias Tilde.TUI.Doc
 
   @doc "Renders a session as ANSI iodata."
+  @impl true
   @spec render(Session.t(), keyword()) :: iodata()
   def render(%Session{} = session, opts \\ []) do
     width = Keyword.get(opts, :width, 80)
