@@ -925,6 +925,16 @@ defmodule TildeTest do
     assert %Session{} = state.session
   end
 
+  test "ssh transport command parser handles session routing commands" do
+    assert Tilde.SSH.Command.parse("/attach demo") == {:attach, "demo"}
+    assert Tilde.SSH.Command.parse("/attach Demo Session!") == {:attach, "demo-session"}
+    assert Tilde.SSH.Command.parse("/attach") == {:attach, "shared"}
+    assert Tilde.SSH.Command.parse("/detach") == :detach
+    assert Tilde.SSH.Command.parse("/session") == :session
+    assert Tilde.SSH.Command.parse("hello") == :submit
+    assert Tilde.SSH.Command.parse("/clear") == :submit
+  end
+
   test "ssh shell applies tui keys to semantic session" do
     session =
       Tilde.session()

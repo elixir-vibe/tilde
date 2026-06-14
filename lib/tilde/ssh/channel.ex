@@ -11,6 +11,7 @@ defmodule Tilde.SSH.Channel do
   @behaviour :ssh_server_channel
 
   alias Tilde.{Block, Input, Session, SessionRegistry, SessionServer}
+  alias Tilde.SSH.Command, as: SSHCommand
   alias Tilde.TUI.{Controller, Keys, Renderer, ViewRenderer}
   alias Tilde.View.Builder
 
@@ -220,27 +221,6 @@ defmodule Tilde.SSH.Channel do
     %{state | session: session}
   end
 
-  defp ssh_command(input) when is_binary(input) do
-    case Tilde.Command.parse(input) do
-      {:ok, %Tilde.Command{name: "attach", args: args}} when args != "" ->
-        {:attach, SessionRegistry.normalize_id(args)}
-
-      {:ok, %Tilde.Command{name: "attach"}} ->
-        {:attach, "shared"}
-
-      {:ok, %Tilde.Command{name: "detach"}} ->
-        :detach
-
-      {:ok, %Tilde.Command{name: "session"}} ->
-        :session
-
-      _other ->
-        :submit
-    end
-  end
-
-  defp ssh_command(_input), do: :submit
-
   defp submit_local_input(
          server,
          %__MODULE__{session: %Session{input: %Input{value: value}}} = state
@@ -361,7 +341,7 @@ defmodule Tilde.SSH.Channel do
   defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn
       :enter, {:cont, state} ->
-        case ssh_command(state.session.input.value) do
+        case SSHCommand.parse(state.session.input.value) do
           {:attach, session_id} ->
             {:cont, {:cont, attach_session(state, session_id)}}
 
@@ -392,7 +372,7 @@ defmodule Tilde.SSH.Channel do
   defp render_change(%__MODULE__{} = state, %Session{} = old_session) do
     cond do
       input_only_update?(old_session, state.session) ->
-        render_prompt(state)
+        render_input_change(state, old_session)
         state
 
       assistant_stream_finished?(old_session, state.session, state) ->
@@ -546,6 +526,23 @@ defmodule Tilde.SSH.Channel do
       IO.ANSI.clear_line(),
       Renderer.render_prompt(state.session, ansi: true)
     ])
+  end
+
+  defp render_input_change(%__MODULE__{} = state, %Session{} = old_session) do
+    case appended_prompt_delta(old_session.input, state.session.input) do
+      {:ok, delta} -> send_bytes(state, delta)
+      :redraw -> render_prompt(state)
+    end
+  end
+
+  defp appended_prompt_delta(%Input{} = old, %Input{} = new) do
+    if old.cursor == String.length(old.value) and
+         new.cursor == String.length(new.value) and
+         String.starts_with?(new.value, old.value) do
+      {:ok, String.replace_prefix(new.value, old.value, "")}
+    else
+      :redraw
+    end
   end
 
   defp append_blocks(%__MODULE__{} = state, blocks, opts) do
