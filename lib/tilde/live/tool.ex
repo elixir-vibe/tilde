@@ -43,6 +43,12 @@ defmodule Tilde.Live.Tool do
 
       <div :if={@view.waiting?} class="tilde-tool-waiting">Waiting…</div>
 
+      <div :if={@view.streams == [] and @view.lines != []} class="tilde-tool-streams">
+        <section class="tilde-tool-stream tilde-tool-stream-result" data-stream-kind="result">
+          <pre><%= Enum.join(@view.lines, "\n") %></pre>
+        </section>
+      </div>
+
       <div :if={@view.streams != []} class="tilde-tool-streams">
         <section
           :for={stream <- @view.streams}

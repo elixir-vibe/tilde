@@ -12,6 +12,21 @@ defmodule TildeTest.KeyProvider do
   def ensure_system_dir(path, _opts), do: {:ok, path}
 end
 
+defmodule TildeTest.ToolRenderer do
+  @behaviour Tilde.ToolRenderer
+
+  @impl true
+  def call(block) do
+    Tilde.ToolRenderer.call_view("custom",
+      segments: [%{text: block.args.value, color: :success}],
+      tags: ["demo"]
+    )
+  end
+
+  @impl true
+  def result(_block, _opts), do: Tilde.ToolRenderer.result_view(lines: ["custom result"])
+end
+
 defmodule TildeTest.LLMBackend do
   @behaviour Tilde.LLM.Backend
 
@@ -888,6 +903,27 @@ defmodule TildeTest do
     assert block.kind == :choice
     assert block.choice.selected == ["no"]
     assert Enum.map(block.actions, & &1.id) == [:confirm, :cancel]
+  end
+
+  test "tool renderer registry customizes semantic call and result views" do
+    with_application_env(:tool_renderers, %{"custom_tool" => TildeTest.ToolRenderer}, fn ->
+      session =
+        Tilde.session()
+        |> Session.append_events([
+          Tilde.tool_started("custom_tool", %{value: "ok"}, tool_call_id: "tool_1"),
+          Tilde.tool_done("tool_1")
+        ])
+
+      html = render_component(&Tilde.Live.Console.console/1, session: session)
+      tui = session |> Tilde.TUI.Renderer.render() |> Enum.join()
+
+      assert html =~ "custom"
+      assert html =~ "ok"
+      assert html =~ "[demo]"
+      assert html =~ "custom result"
+      assert tui =~ "custom ok [demo]"
+      assert tui =~ "custom result"
+    end)
   end
 
   test "pending empty tool blocks show waiting without status badges" do

@@ -52,6 +52,7 @@ defmodule Tilde.TUI.Doc do
       tool_header(view, opts),
       metadata_rows(view.metadata_rows, opts),
       waiting_doc(view, opts),
+      result_lines_doc(view, opts),
       stream_docs(view.streams, opts),
       hidden_doc(view, opts)
     ])
@@ -163,6 +164,16 @@ defmodule Tilde.TUI.Doc do
     |> join_docs("  ")
     |> prefix_line()
   end
+
+  defp result_lines_doc(%{streams: [], lines: [_ | _] = lines}, opts) do
+    lines
+    |> Enum.map(&Theme.success(&1, opts))
+    |> Enum.map(&concat(["  ", &1]))
+    |> join_docs(newline())
+    |> prefix_line()
+  end
+
+  defp result_lines_doc(_view, _opts), do: empty()
 
   defp stream_docs([], _opts), do: empty()
 
