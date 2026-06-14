@@ -10,6 +10,7 @@ defmodule Tilde.LLM.Jido do
   @behaviour Tilde.LLM.Backend
 
   alias Tilde.{LLM, Session}
+  alias Tilde.LLM.Messages
 
   @impl true
   def respond(%Session{} = session, opts \\ []) do
@@ -30,7 +31,7 @@ defmodule Tilde.LLM.Jido do
          :ok <- configure_model_alias(opts),
          {:ok, pid} <- start_agent(session),
          {:ok, %{events: events}} <-
-           Tilde.Agent.ask_stream(pid, LLM.prompt(session), ask_opts(opts)) do
+           Tilde.Agent.ask_stream(pid, query(session), ask_opts(opts)) do
       stream_agent_events(pid, events)
     else
       {:error, reason} -> [{:error, reason}]
@@ -39,7 +40,7 @@ defmodule Tilde.LLM.Jido do
   end
 
   defp ask_agent(pid, %Session{} = session, opts) do
-    with {:ok, answer} <- Tilde.Agent.ask_sync(pid, LLM.prompt(session), ask_opts(opts)) do
+    with {:ok, answer} <- Tilde.Agent.ask_sync(pid, query(session), ask_opts(opts)) do
       {:ok, to_string(answer)}
     end
   after
@@ -116,8 +117,8 @@ defmodule Tilde.LLM.Jido do
   end
 
   defp ensure_jido_available do
-    if Code.ensure_loaded?(Jido.AgentServer) and Code.ensure_loaded?(Tilde.Agent) and
-         function_exported?(Tilde.Agent, :ask_sync, 3) do
+    if Code.ensure_loaded?(Jido.AgentServer) and Code.ensure_loaded?(Jido.AI.Context) and
+         Code.ensure_loaded?(Tilde.Agent) and function_exported?(Tilde.Agent, :ask_sync, 3) do
       :ok
     else
       {:error, :jido_ai_not_available}
@@ -134,12 +135,17 @@ defmodule Tilde.LLM.Jido do
   end
 
   defp start_agent(%Session{} = session) do
-    Jido.start_agent(
-      Jido,
-      Tilde.Agent,
-      id: "tilde-#{session.id}-#{System.unique_integer([:positive])}"
-    )
+    with {:ok, context} <- Messages.to_jido_context(session, exclude_latest_user: true) do
+      Jido.start_agent(
+        Jido,
+        Tilde.Agent,
+        id: "tilde-#{session.id}-#{System.unique_integer([:positive])}",
+        initial_state: %{context: context}
+      )
+    end
   end
+
+  defp query(%Session{} = session), do: LLM.latest_user_text(session) || LLM.prompt(session)
 
   defp ask_opts(opts) do
     [
