@@ -1,0 +1,106 @@
+defmodule Tilde.Transcript do
+  @moduledoc """
+  Reducer from append-only events to semantic transcript blocks.
+  """
+
+  alias Tilde.{Block, Event}
+
+  @type t :: %__MODULE__{
+          blocks: [Block.t()],
+          statuses: map(),
+          metadata: map()
+        }
+
+  defstruct blocks: [], statuses: %{}, metadata: %{}
+
+  @doc "Builds a transcript by applying events in order."
+  @spec from_events([Event.t()]) :: t()
+  def from_events(events) when is_list(events), do: Enum.reduce(events, new(), &apply_event/2)
+
+  @doc "Creates an empty transcript."
+  @spec new() :: t()
+  def new, do: %__MODULE__{}
+
+  @doc "Applies one event."
+  @spec apply_event(Event.t(), t()) :: t()
+  def apply_event(%Event{type: :user_message} = event, %__MODULE__{} = transcript) do
+    append_block(transcript, Block.message(block_id(event), :user, event.text || ""))
+  end
+
+  def apply_event(%Event{type: :assistant_delta} = event, %__MODULE__{} = transcript) do
+    append_or_update_assistant(transcript, event)
+  end
+
+  def apply_event(%Event{type: :assistant_done} = event, %__MODULE__{} = transcript) do
+    block = Block.message(block_id(event), :assistant, event.text || "")
+    append_block(transcript, block)
+  end
+
+  def apply_event(%Event{type: :tool_started} = event, %__MODULE__{} = transcript) do
+    id = event.tool_call_id || block_id(event)
+    block = Block.tool(id, event.name || "tool", event.args, metadata: event.metadata)
+    append_block(transcript, block)
+  end
+
+  def apply_event(%Event{type: :tool_stream} = event, %__MODULE__{} = transcript) do
+    update_block(transcript, event.tool_call_id || event.block_id, fn block ->
+      Block.append_stream(block, event.stream || :stdout, event.chunk || "")
+    end)
+  end
+
+  def apply_event(%Event{type: :tool_done} = event, %__MODULE__{} = transcript) do
+    update_block(transcript, event.tool_call_id || event.block_id, fn block ->
+      Block.finish_tool(block, event.status || :success, event.result)
+    end)
+  end
+
+  def apply_event(%Event{type: :block_display_changed} = event, %__MODULE__{} = transcript) do
+    update_block(transcript, event.block_id || event.tool_call_id, fn block ->
+      Block.update_display(block, event.display)
+    end)
+  end
+
+  def apply_event(%Event{type: :status_changed} = event, %__MODULE__{} = transcript) do
+    key = event.name || "status"
+    %{transcript | statuses: Map.put(transcript.statuses, key, event.status || event.text)}
+  end
+
+  defp append_or_update_assistant(%__MODULE__{} = transcript, %Event{} = event) do
+    id = event.block_id || last_assistant_id(transcript) || block_id(event)
+
+    if has_block?(transcript, id) do
+      update_block(transcript, id, &Block.append_text(&1, event.text || ""))
+    else
+      append_block(transcript, Block.message(id, :assistant, event.text || ""))
+    end
+  end
+
+  defp append_block(%__MODULE__{} = transcript, %Block{} = block) do
+    %{transcript | blocks: transcript.blocks ++ [block]}
+  end
+
+  defp update_block(%__MODULE__{} = transcript, nil, _fun), do: transcript
+
+  defp update_block(%__MODULE__{} = transcript, id, fun) when is_function(fun, 1) do
+    %{transcript | blocks: Enum.map(transcript.blocks, &update_matching_block(&1, id, fun))}
+  end
+
+  defp update_matching_block(%Block{id: id} = block, id, fun), do: fun.(block)
+  defp update_matching_block(%Block{} = block, _id, _fun), do: block
+
+  defp has_block?(%__MODULE__{} = transcript, id) do
+    Enum.any?(transcript.blocks, &(&1.id == id))
+  end
+
+  defp last_assistant_id(%__MODULE__{} = transcript) do
+    transcript.blocks
+    |> Enum.reverse()
+    |> Enum.find_value(fn
+      %Block{kind: :message, role: :assistant, id: id} -> id
+      _block -> nil
+    end)
+  end
+
+  defp block_id(%Event{block_id: id}) when is_binary(id), do: id
+  defp block_id(%Event{id: id}), do: String.replace_prefix(id, "evt_", "blk_")
+end

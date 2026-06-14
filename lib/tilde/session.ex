@@ -1,0 +1,88 @@
+defmodule Tilde.Session do
+  @moduledoc """
+  Semantic console session state.
+
+  A session keeps the append-only event log, its reduced transcript, ephemeral
+  widgets, status values, and metadata together. Renderers can subscribe to this
+  state or maintain equivalent assigns in a LiveView process.
+  """
+
+  alias Tilde.{Event, Transcript, Widget}
+
+  @type t :: %__MODULE__{
+          id: String.t(),
+          events: [Event.t()],
+          transcript: Transcript.t(),
+          widgets: %{optional(Widget.placement()) => [Widget.t()]},
+          statuses: map(),
+          metadata: map()
+        }
+
+  defstruct id: nil,
+            events: [],
+            transcript: %Transcript{},
+            widgets: %{},
+            statuses: %{},
+            metadata: %{}
+
+  @doc "Creates an empty session."
+  @spec new(keyword()) :: t()
+  def new(opts \\ []) do
+    %__MODULE__{
+      id: Keyword.get(opts, :id, unique_id()),
+      metadata: Keyword.get(opts, :metadata, %{})
+    }
+  end
+
+  @doc "Appends an event and updates the derived transcript."
+  @spec append_event(t(), Event.t()) :: t()
+  def append_event(%__MODULE__{} = session, %Event{} = event) do
+    events = session.events ++ [event]
+
+    %{
+      session
+      | events: events,
+        transcript: Transcript.apply_event(event, session.transcript)
+    }
+  end
+
+  @doc "Appends events in order."
+  @spec append_events(t(), [Event.t()]) :: t()
+  def append_events(%__MODULE__{} = session, events) when is_list(events) do
+    Enum.reduce(events, session, &append_event(&2, &1))
+  end
+
+  @doc "Adds or replaces a widget by id in its placement."
+  @spec put_widget(t(), Widget.t()) :: t()
+  def put_widget(%__MODULE__{} = session, %Widget{} = widget) do
+    widgets = Map.update(session.widgets, widget.placement, [widget], &replace_widget(&1, widget))
+    %{session | widgets: widgets}
+  end
+
+  @doc "Removes a widget from all placements."
+  @spec delete_widget(t(), String.t()) :: t()
+  def delete_widget(%__MODULE__{} = session, id) when is_binary(id) do
+    widgets =
+      Map.new(session.widgets, fn {placement, items} -> {placement, reject_widget(items, id)} end)
+
+    %{session | widgets: widgets}
+  end
+
+  @doc "Returns widgets for a placement."
+  @spec widgets(t(), Widget.placement()) :: [Widget.t()]
+  def widgets(%__MODULE__{} = session, placement), do: Map.get(session.widgets, placement, [])
+
+  @doc "Sets a named status value."
+  @spec put_status(t(), String.t(), term()) :: t()
+  def put_status(%__MODULE__{} = session, key, value) when is_binary(key) do
+    %{session | statuses: Map.put(session.statuses, key, value)}
+  end
+
+  defp replace_widget(widgets, %Widget{id: id} = widget) do
+    [widget | reject_widget(widgets, id)]
+  end
+
+  defp reject_widget(widgets, id), do: Enum.reject(widgets, &(&1.id == id))
+
+  defp unique_id, do: "session_#{System.unique_integer([:positive, :monotonic])}"
+end
