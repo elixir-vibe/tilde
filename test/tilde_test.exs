@@ -315,7 +315,11 @@ defmodule TildeTest do
                         %Session{transcript: %{blocks: [_user]}}}
 
         assert_receive {:tilde_session_updated, "llm_test",
+                        %Session{statuses: %{"model" => "thinking…"}}}
+
+        assert_receive {:tilde_session_updated, "llm_test",
                         %Session{
+                          statuses: statuses,
                           transcript: %{
                             blocks: [
                               %Block{role: :user},
@@ -323,6 +327,8 @@ defmodule TildeTest do
                             ]
                           }
                         }}
+
+        refute Map.has_key?(statuses, "model")
 
         GenServer.stop(pid)
       end)
@@ -348,7 +354,11 @@ defmodule TildeTest do
                         %Session{transcript: %{blocks: [_user]}}}
 
         assert_receive {:tilde_session_updated, "llm_failure",
+                        %Session{statuses: %{"model" => "thinking…"}}}
+
+        assert_receive {:tilde_session_updated, "llm_failure",
                         %Session{
+                          statuses: statuses,
                           transcript: %{
                             blocks: [
                               %Block{role: :user},
@@ -359,6 +369,8 @@ defmodule TildeTest do
                             ]
                           }
                         }}
+
+        refute Map.has_key?(statuses, "model")
 
         GenServer.stop(pid)
       end)
@@ -396,6 +408,20 @@ defmodule TildeTest do
     assert is_pid(Tilde.SSH.Demo.daemon_ref(pid))
     GenServer.stop(pid)
     File.rm_rf!(dir)
+  end
+
+  test "semantic status events update and clear session statuses" do
+    session =
+      Tilde.session()
+      |> Session.append_event(Tilde.status_changed("model", "thinking…"))
+
+    assert session.statuses["model"] == "thinking…"
+    assert session.transcript.statuses["model"] == "thinking…"
+
+    cleared = Session.append_event(session, Tilde.status_changed("model", nil))
+
+    refute Map.has_key?(cleared.statuses, "model")
+    refute Map.has_key?(cleared.transcript.statuses, "model")
   end
 
   test "semantic input events update input state and submit transcript messages" do

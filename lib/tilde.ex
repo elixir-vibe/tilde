@@ -40,6 +40,13 @@ defmodule Tilde do
     Event.new(:input_submitted, Keyword.put(opts, :text, text))
   end
 
+  @doc "Creates a status-changed event. Pass `nil` to clear the status."
+  @spec status_changed(String.t(), String.t() | nil, keyword()) :: Event.t()
+  def status_changed(name, text, opts \\ [])
+      when is_binary(name) and (is_binary(text) or is_nil(text)) do
+    Event.new(:status_changed, opts |> Keyword.put(:name, name) |> Keyword.put(:text, text))
+  end
+
   @doc "Creates a tool-started event."
   @spec tool_started(String.t(), map(), keyword()) :: Event.t()
   def tool_started(name, args \\ %{}, opts \\ []) when is_binary(name) and is_map(args) do

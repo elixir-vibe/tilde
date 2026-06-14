@@ -68,7 +68,14 @@ defmodule Tilde.Transcript do
 
   def apply_event(%Event{type: :status_changed} = event, %__MODULE__{} = transcript) do
     key = event.name || "status"
-    %{transcript | statuses: Map.put(transcript.statuses, key, event.status || event.text)}
+    value = event.status || event.text
+
+    statuses =
+      if is_nil(value),
+        do: Map.delete(transcript.statuses, key),
+        else: Map.put(transcript.statuses, key, value)
+
+    %{transcript | statuses: statuses}
   end
 
   defp append_or_update_assistant(%__MODULE__{} = transcript, %Event{} = event) do

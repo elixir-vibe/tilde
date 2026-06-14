@@ -125,7 +125,10 @@ defmodule Tilde.SessionServer do
     state = %{
       state
       | responding?: false,
-        session: Session.append_event(state.session, Tilde.assistant_done(text))
+        session:
+          state.session
+          |> Session.append_event(Tilde.status_changed("model", nil))
+          |> Session.append_event(Tilde.assistant_done(text))
     }
 
     broadcast(state)
@@ -138,7 +141,10 @@ defmodule Tilde.SessionServer do
     state = %{
       state
       | responding?: false,
-        session: Session.append_event(state.session, Tilde.assistant_done(text))
+        session:
+          state.session
+          |> Session.append_event(Tilde.status_changed("model", nil))
+          |> Session.append_event(Tilde.assistant_done(text))
     }
 
     broadcast(state)
@@ -154,10 +160,11 @@ defmodule Tilde.SessionServer do
   defp maybe_start_llm_response(previous, %__MODULE__{} = state) do
     if LLM.enabled?() and new_input_submitted?(previous, state.session) do
       server = self()
-      session = state.session
+      session = Session.append_event(state.session, Tilde.status_changed("model", "thinking…"))
 
+      broadcast(%{state | session: session})
       Task.start(fn -> send(server, {:tilde_llm_response, LLM.respond(session)}) end)
-      %{state | responding?: true}
+      %{state | session: session, responding?: true}
     else
       state
     end

@@ -123,11 +123,21 @@ defmodule Tilde.Session do
     put_input(session, Input.clear(session.input))
   end
 
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :status_changed} = event) do
+    update_status(session, event.name || "status", event.status || event.text)
+  end
+
   defp apply_session_event(%__MODULE__{} = session, %Event{}), do: session
 
   defp input_cursor(%Event{metadata: %{cursor: cursor}}) when is_integer(cursor), do: cursor
   defp input_cursor(%Event{text: text}) when is_binary(text), do: String.length(text)
   defp input_cursor(_event), do: 0
+
+  defp update_status(%__MODULE__{} = session, key, nil),
+    do: %{session | statuses: Map.delete(session.statuses, key)}
+
+  defp update_status(%__MODULE__{} = session, key, value),
+    do: %{session | statuses: Map.put(session.statuses, key, value)}
 
   defp replace_widget(widgets, %Widget{id: id} = widget) do
     [widget | reject_widget(widgets, id)]
