@@ -5,6 +5,7 @@ defmodule Tilde.Live.Message do
 
   use Phoenix.Component
 
+  import Tilde.Live.Markdown
   import Tilde.Live.Run
 
   attr(:block, :any, required: true)
@@ -15,7 +16,8 @@ defmodule Tilde.Live.Message do
       <div class="tilde-label">{@block.role}</div>
       <div class="tilde-message-body">
         <.runs :if={@block.runs != []} runs={@block.runs} />
-        <%= if @block.runs == [] do %>
+        <.markdown :if={@block.runs == [] and @block.format == :markdown} source={@block.source} />
+        <%= if @block.runs == [] and @block.format != :markdown do %>
           {render_source(@block.source)}
         <% end %>
       </div>

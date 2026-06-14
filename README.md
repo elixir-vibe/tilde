@@ -36,6 +36,8 @@ Initial modules:
 - `Tilde.Widget` — non-transcript UI regions such as above/below input and footer
 - `Tilde.Choice` — semantic choice/approval state
 - `Tilde.Live.*` — LiveView components in the same package
+- `Tilde.Markdown` — MDEx-backed safe Markdown rendering boundary
+- `Tilde.Live.Markdown` — LiveView Markdown renderer with plain-text fallback
 - `Tilde.Live.Run` — semantic inline rendering for bold, underline, code, links, and tones
 
 ## Example
@@ -73,9 +75,11 @@ Tilde.Live.Styles.css()
 ```
 
 The Live components render semantic DOM for transcript blocks, tool widgets,
-choice blocks, widgets, input, and footer/statusline content. They emit ordinary
-LiveView events such as `tilde:toggle_expand`; parent LiveViews decide how to
-apply those events to session/transcript state.
+choice blocks, widgets, input, and footer/statusline content. Markdown message
+source is rendered through MDEx when available, with MDEx's safe default policy
+that omits raw HTML. Components emit ordinary LiveView events such as
+`tilde:toggle_expand`; parent LiveViews decide how to apply those events to
+session/transcript state.
 
 A self-contained dogfood demo LiveView is included:
 

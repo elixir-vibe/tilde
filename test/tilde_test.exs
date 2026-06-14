@@ -106,6 +106,24 @@ defmodule TildeTest do
     assert html =~ "0"
   end
 
+  test "markdown renderer uses MDEx for safe HTML" do
+    assert {:ok, html} = Tilde.Markdown.to_html("**bold** and `code`")
+    assert html =~ "<strong>bold</strong>"
+    assert html =~ "<code>code</code>"
+
+    assert {:ok, safe_html} = Tilde.Markdown.to_html("<script>alert(1)</script>")
+    refute safe_html =~ "<script>"
+  end
+
+  test "live message renders markdown source with MDEx" do
+    block = Block.message("msg_1", :assistant, "**bold** and `code`")
+    html = render_component(&Tilde.Live.Message.message/1, block: block)
+
+    assert html =~ "tilde-markdown"
+    assert html =~ "<strong>bold</strong>"
+    assert html =~ "<code>code</code>"
+  end
+
   test "live message renders semantic runs as inline HTML" do
     block =
       Block.message("msg_1", :assistant, "",

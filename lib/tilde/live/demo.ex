@@ -81,7 +81,16 @@ defmodule Tilde.Live.Demo do
     Tilde.session(id: "tilde_demo")
     |> Session.append_events([
       Tilde.user_message("Build a pi-like console on the web", id: "evt_demo_user"),
-      Tilde.assistant_done("I'll inspect the project and sketch a semantic model.",
+      Tilde.assistant_done(
+        """
+        I'll inspect the project and sketch a **semantic model**.
+
+        - event log
+        - semantic transcript
+        - LiveView renderer
+
+        `ctrl+o` expands tools.
+        """,
         id: "evt_demo_assistant"
       ),
       Tilde.tool_started("bash", %{command: "mix test", cwd: "~/Development/elixir-vibe/tilde"},
