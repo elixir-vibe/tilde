@@ -61,6 +61,30 @@ defmodule TildeTest do
     assert run.attrs.href == "https://example.test"
   end
 
+  test "live message renders semantic runs as inline HTML" do
+    block =
+      Block.message("msg_1", :assistant, "",
+        runs: [
+          Run.new("bold", [:bold]),
+          Run.new(" "),
+          Run.new("under", [:underline]),
+          Run.new(" "),
+          Run.new("code", [:code]),
+          Run.new(" link", [], %{href: "https://example.test"})
+        ]
+      )
+
+    html = render_component(&Tilde.Live.Message.message/1, block: block)
+
+    assert html =~ "<strong>"
+    assert html =~ "bold"
+    assert html =~ "<u>"
+    assert html =~ "under"
+    assert html =~ "<code>"
+    assert html =~ "code"
+    assert html =~ "href=\"https://example.test\""
+  end
+
   test "text renderer produces pi-like transcript snapshots" do
     transcript =
       [

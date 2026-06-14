@@ -47,6 +47,14 @@ defmodule Tilde.Live.Styles do
     .tilde-label, .tilde-muted, .tilde-tool-status, .tilde-key { color: var(--tilde-muted); }
     .tilde-label { margin-bottom: 0.25rem; }
     .tilde-message-body { white-space: pre-wrap; }
+    .tilde-run-muted { color: var(--tilde-muted); }
+    .tilde-run-accent { color: var(--tilde-link); }
+    .tilde-run-error { color: var(--tilde-error); }
+    .tilde-run-success { color: var(--tilde-success); }
+    .tilde-run-code code, .tilde-message-body code {
+      border: 1px solid var(--tilde-line);
+      padding: 0 0.2em;
+    }
 
     .tilde-tool, .tilde-choice, .tilde-widget {
       border: 1px solid var(--tilde-line);

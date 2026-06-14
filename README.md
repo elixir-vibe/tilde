@@ -36,6 +36,7 @@ Initial modules:
 - `Tilde.Widget` — non-transcript UI regions such as above/below input and footer
 - `Tilde.Choice` — semantic choice/approval state
 - `Tilde.Live.*` — LiveView components in the same package
+- `Tilde.Live.Run` — semantic inline rendering for bold, underline, code, links, and tones
 
 ## Example
 

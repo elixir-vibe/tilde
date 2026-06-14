@@ -5,6 +5,8 @@ defmodule Tilde.Live.Message do
 
   use Phoenix.Component
 
+  import Tilde.Live.Run
+
   attr(:block, :any, required: true)
 
   def message(assigns) do
@@ -12,7 +14,10 @@ defmodule Tilde.Live.Message do
     <article class={["tilde-block", "tilde-message", "tilde-message-#{@block.role}"]} data-role={@block.role}>
       <div class="tilde-label">{@block.role}</div>
       <div class="tilde-message-body">
-        {render_source(@block.source)}
+        <.runs :if={@block.runs != []} runs={@block.runs} />
+        <%= if @block.runs == [] do %>
+          {render_source(@block.source)}
+        <% end %>
       </div>
     </article>
     """
