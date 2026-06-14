@@ -330,7 +330,8 @@ defmodule TildeTest do
     assert rendered =~ "stderr"
     assert rendered =~ "warning"
     assert rendered =~ "model: demo"
-    assert plain =~ "> "
+    assert plain =~ "model: demo\r\n\r\n> "
+    assert String.ends_with?(plain, "> ")
     refute plain =~ "▌"
     refute String.ends_with?(rendered, ["\n", "\r"])
   end

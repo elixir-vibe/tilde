@@ -34,8 +34,8 @@ defmodule Tilde.TUI.Renderer do
       Theme.title("# tilde", opts),
       render_blocks(session, width, opts),
       render_widgets(session, width, opts),
-      render_input(session, opts),
-      render_footer(session, opts)
+      render_footer(session, opts),
+      render_input(session, opts)
     ]
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join("\n\n")
