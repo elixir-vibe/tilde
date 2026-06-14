@@ -202,8 +202,10 @@ Use `--web-port`, `--ssh-port`, or `--password` to customize the task.
 Tilde keeps its semantic session/event model as the source of truth and delegates
 model/runtime orchestration to a behaviour-backed LLM boundary. The default
 backend is `Tilde.LLM.Jido`, which uses `Tilde.Agent` (`Jido.AI.Agent`) with
-ReqLLM/OpenRouter. The demo enables automatic assistant replies; set
-`OPENROUTER_API_KEY` to use the configured model:
+ReqLLM/OpenRouter. The agent includes a safe demo tool, `Tilde.Tools.UtcNow`,
+whose Jido tool lifecycle is projected back into Tilde semantic tool events. The
+demo enables automatic assistant replies; set `OPENROUTER_API_KEY` to use the
+configured model:
 
 ```elixir
 config :tilde,

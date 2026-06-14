@@ -36,6 +36,23 @@ defmodule TildeTest.StreamingLLMBackend do
   def stream(_session, _opts), do: [{:delta, "hel"}, {:delta, "lo"}, {:done, "hello"}]
 end
 
+defmodule TildeTest.ToolStreamingLLMBackend do
+  @behaviour Tilde.LLM.Backend
+
+  @impl true
+  def respond(_session, _opts), do: {:ok, "unused"}
+
+  @impl true
+  def stream(_session, _opts) do
+    [
+      {:tool_started, "tool_utc", "utc_now", %{}},
+      {:tool_done, "tool_utc", :success, %{utc_now: "2026-06-14T00:00:00Z"}},
+      {:delta, "done"},
+      {:done, "done"}
+    ]
+  end
+end
+
 defmodule TildeTest do
   use ExUnit.Case, async: false
 
@@ -396,6 +413,56 @@ defmodule TildeTest do
         GenServer.stop(pid)
       end)
     end)
+  end
+
+  test "session server renders streamed LLM tool events as semantic tool blocks" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.ToolStreamingLLMBackend, fn ->
+        name = :"tilde_session_server_llm_tool_stream_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.SessionServer.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_tool_stream")
+                 )
+
+        assert %Session{} = Tilde.SessionServer.subscribe(name)
+
+        Tilde.SessionServer.append_event(name, Tilde.input_submitted("what time is it?"))
+
+        assert_receive {:tilde_session_updated, "llm_tool_stream",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{kind: :tool, id: "tool_utc", name: "utc_now"}
+                            ]
+                          }
+                        }}
+
+        assert_receive {:tilde_session_updated, "llm_tool_stream",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{
+                                kind: :tool,
+                                status: :success,
+                                result: %{utc_now: "2026-06-14T00:00:00Z"}
+                              },
+                              %Block{role: :assistant, source: "done"}
+                            ]
+                          }
+                        }}
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
+  test "utc_now tool returns an ISO 8601 timestamp" do
+    assert {:ok, %{utc_now: timestamp}} = Tilde.Tools.UtcNow.run(%{}, %{})
+    assert {:ok, _datetime, 0} = DateTime.from_iso8601(timestamp)
   end
 
   test "session server turns LLM backend failures into public assistant messages" do

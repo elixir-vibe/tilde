@@ -132,6 +132,32 @@ defmodule Tilde.SessionServer do
     {:noreply, state}
   end
 
+  def handle_info(
+        {:tilde_llm_stream, _block_id, {:tool_started, tool_call_id, name, args}},
+        state
+      ) do
+    state = %{
+      state
+      | session:
+          Session.append_event(
+            state.session,
+            Tilde.tool_started(name, args, tool_call_id: tool_call_id)
+          )
+    }
+
+    broadcast(state)
+    {:noreply, state}
+  end
+
+  def handle_info(
+        {:tilde_llm_stream, _block_id, {:tool_done, tool_call_id, status, result}},
+        state
+      ) do
+    state = %{state | session: append_tool_result(state.session, tool_call_id, status, result)}
+    broadcast(state)
+    {:noreply, state}
+  end
+
   def handle_info({:tilde_llm_stream, block_id, {:done, text}}, state) do
     session =
       state.session
@@ -177,6 +203,14 @@ defmodule Tilde.SessionServer do
     else
       state
     end
+  end
+
+  defp append_tool_result(%Session{} = session, tool_call_id, status, result) do
+    session
+    |> Session.append_event(
+      Tilde.tool_stream(tool_call_id, :result, inspect(result, pretty: true, limit: 20))
+    )
+    |> Session.append_event(Tilde.tool_done(tool_call_id, status, result))
   end
 
   defp stream_llm_response(server, block_id, %Session{} = session) do

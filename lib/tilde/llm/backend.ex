@@ -5,7 +5,12 @@ defmodule Tilde.LLM.Backend do
 
   alias Tilde.Session
 
-  @type stream_event :: {:delta, String.t()} | {:done, String.t()} | {:error, term()}
+  @type stream_event ::
+          {:delta, String.t()}
+          | {:done, String.t()}
+          | {:error, term()}
+          | {:tool_started, String.t(), String.t(), map()}
+          | {:tool_done, String.t(), atom(), term()}
 
   @callback respond(Session.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   @callback stream(Session.t(), keyword()) :: Enumerable.t(stream_event())

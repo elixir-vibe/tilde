@@ -12,7 +12,7 @@ defmodule Tilde.Agent do
       name: "tilde_agent",
       description: "Small shared-session assistant for Tilde demos",
       model: :tilde_haiku,
-      tools: [],
+      tools: [Tilde.Tools.UtcNow],
       max_iterations: 4,
       max_tokens: 800,
       streaming: true,

@@ -56,22 +56,54 @@ defmodule Tilde.LLM.Jido do
   end
 
   defp jido_event_to_stream_events(%{kind: :llm_delta, data: data}) do
-    case Map.get(data, :delta, Map.get(data, "delta", "")) do
-      text when is_binary(text) and text != "" -> [{:delta, text}]
-      _other -> []
+    chunk_type = event_field(data, :chunk_type)
+
+    case {chunk_type, event_field(data, :delta, "")} do
+      {type, text} when type in [:content, "content"] and is_binary(text) and text != "" ->
+        [{:delta, text}]
+
+      _other ->
+        []
     end
   end
 
+  defp jido_event_to_stream_events(%{kind: :tool_started, data: data} = event) do
+    id = event.tool_call_id || event_field(data, :tool_call_id)
+    name = event.tool_name || event_field(data, :tool_name, "tool")
+    args = event_field(data, :arguments, %{})
+    [{:tool_started, id, name, args}]
+  end
+
+  defp jido_event_to_stream_events(%{kind: :tool_completed, data: data} = event) do
+    id = event.tool_call_id || event_field(data, :tool_call_id)
+    raw_result = event_field(data, :result)
+    status = tool_status(raw_result)
+    result = tool_result(raw_result)
+    [{:tool_done, id, status, result}]
+  end
+
   defp jido_event_to_stream_events(%{kind: :request_completed, data: data}) do
-    [{:done, data |> Map.get(:result, Map.get(data, "result", "")) |> to_string()}]
+    [{:done, data |> event_field(:result, "") |> to_string()}]
   end
 
   defp jido_event_to_stream_events(%{kind: :request_failed, data: data}) do
-    reason = Map.get(data, :error, Map.get(data, "error", data))
+    reason = event_field(data, :error, data)
     [{:error, reason}]
   end
 
   defp jido_event_to_stream_events(_event), do: []
+
+  defp event_field(data, key, default \\ nil) when is_atom(key) do
+    Map.get(data, key, Map.get(data, Atom.to_string(key), default))
+  end
+
+  defp tool_status({:ok, _result, _meta}), do: :success
+  defp tool_status({:ok, _result}), do: :success
+  defp tool_status(_other), do: :error
+
+  defp tool_result({:ok, result, _meta}), do: result
+  defp tool_result({:ok, result}), do: result
+  defp tool_result(result), do: result
 
   defp ensure_openrouter_key do
     case System.get_env("OPENROUTER_API_KEY") do
