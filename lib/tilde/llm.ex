@@ -27,10 +27,30 @@ defmodule Tilde.LLM do
   def respond(%Session{} = session, opts \\ []) do
     backend = Keyword.get(opts, :backend, backend())
 
-    if Code.ensure_loaded?(backend) and function_exported?(backend, :respond, 2) do
+    if backend_function?(backend, :respond) do
       backend.respond(session, opts)
     else
       {:error, {:llm_backend_unavailable, backend}}
+    end
+  end
+
+  @doc "Streams assistant response events from the configured backend."
+  @spec stream(Session.t(), keyword()) :: Enumerable.t(Tilde.LLM.Backend.stream_event())
+  def stream(%Session{} = session, opts \\ []) do
+    backend = Keyword.get(opts, :backend, backend())
+
+    cond do
+      backend_function?(backend, :stream) ->
+        backend.stream(session, opts)
+
+      backend_function?(backend, :respond) ->
+        Stream.map([respond(session, opts)], fn
+          {:ok, text} -> {:done, text}
+          {:error, reason} -> {:error, reason}
+        end)
+
+      true ->
+        [{:error, {:llm_backend_unavailable, backend}}]
     end
   end
 
@@ -69,6 +89,10 @@ defmodule Tilde.LLM do
        do: true
 
   defp message_block?(_block), do: false
+
+  defp backend_function?(backend, name) do
+    Code.ensure_loaded?(backend) and function_exported?(backend, name, 2)
+  end
 
   defp message_label(:user), do: "User message:"
   defp message_label(:assistant), do: "Previous reply:"

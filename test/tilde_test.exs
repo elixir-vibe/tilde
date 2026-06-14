@@ -26,6 +26,16 @@ defmodule TildeTest.FailingLLMBackend do
   def respond(_session, _opts), do: {:error, :boom}
 end
 
+defmodule TildeTest.StreamingLLMBackend do
+  @behaviour Tilde.LLM.Backend
+
+  @impl true
+  def respond(_session, _opts), do: {:ok, "unused"}
+
+  @impl true
+  def stream(_session, _opts), do: [{:delta, "hel"}, {:delta, "lo"}, {:done, "hello"}]
+end
+
 defmodule TildeTest do
   use ExUnit.Case, async: false
 
@@ -330,6 +340,59 @@ defmodule TildeTest do
 
         refute Map.has_key?(statuses, "model")
 
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
+  test "session server streams LLM deltas into one assistant block" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.StreamingLLMBackend, fn ->
+        name = :"tilde_session_server_llm_stream_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.SessionServer.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_stream")
+                 )
+
+        assert %Session{} = Tilde.SessionServer.subscribe(name)
+
+        Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+
+        assert_receive {:tilde_session_updated, "llm_stream",
+                        %Session{statuses: %{"model" => "thinking…"}}}
+
+        assert_receive {:tilde_session_updated, "llm_stream",
+                        %Session{
+                          transcript: %{
+                            blocks: [%Block{role: :user}, %Block{role: :assistant, source: "hel"}]
+                          }
+                        }}
+
+        assert_receive {:tilde_session_updated, "llm_stream",
+                        %Session{
+                          statuses: %{"model" => "thinking…"},
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "hello"}
+                            ]
+                          }
+                        }}
+
+        assert_receive {:tilde_session_updated, "llm_stream",
+                        %Session{
+                          statuses: statuses,
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "hello"}
+                            ]
+                          }
+                        }}
+
+        refute Map.has_key?(statuses, "model")
         GenServer.stop(pid)
       end)
     end)

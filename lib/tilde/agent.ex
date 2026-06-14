@@ -15,7 +15,7 @@ defmodule Tilde.Agent do
       tools: [],
       max_iterations: 4,
       max_tokens: 800,
-      streaming: false,
+      streaming: true,
       system_prompt: """
       You are Tilde, a concise assistant running inside a shared semantic console.
       Respond briefly. Do not claim to run tools unless a tool is actually available.

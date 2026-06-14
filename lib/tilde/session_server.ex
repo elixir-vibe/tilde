@@ -121,21 +121,29 @@ defmodule Tilde.SessionServer do
   end
 
   @impl true
-  def handle_info({:tilde_llm_response, {:ok, text}}, state) do
+  def handle_info({:tilde_llm_stream, block_id, {:delta, text}}, state) do
     state = %{
       state
-      | responding?: false,
-        session:
-          state.session
-          |> Session.append_event(Tilde.status_changed("model", nil))
-          |> Session.append_event(Tilde.assistant_done(text))
+      | session:
+          Session.append_event(state.session, Tilde.assistant_delta(text, block_id: block_id))
     }
 
     broadcast(state)
     {:noreply, state}
   end
 
-  def handle_info({:tilde_llm_response, {:error, reason}}, state) do
+  def handle_info({:tilde_llm_stream, block_id, {:done, text}}, state) do
+    session =
+      state.session
+      |> Session.append_event(Tilde.status_changed("model", nil))
+      |> maybe_append_done(block_id, text)
+
+    state = %{state | responding?: false, session: session}
+    broadcast(state)
+    {:noreply, state}
+  end
+
+  def handle_info({:tilde_llm_stream, _block_id, {:error, reason}}, state) do
     text = llm_error_message(reason)
 
     state = %{
@@ -160,14 +168,37 @@ defmodule Tilde.SessionServer do
   defp maybe_start_llm_response(previous, %__MODULE__{} = state) do
     if LLM.enabled?() and new_input_submitted?(previous, state.session) do
       server = self()
+      block_id = assistant_block_id(state.session)
       session = Session.append_event(state.session, Tilde.status_changed("model", "thinking…"))
 
       broadcast(%{state | session: session})
-      Task.start(fn -> send(server, {:tilde_llm_response, LLM.respond(session)}) end)
+      Task.start(fn -> stream_llm_response(server, block_id, session) end)
       %{state | session: session, responding?: true}
     else
       state
     end
+  end
+
+  defp stream_llm_response(server, block_id, %Session{} = session) do
+    session
+    |> LLM.stream()
+    |> Enum.each(&send(server, {:tilde_llm_stream, block_id, &1}))
+  end
+
+  defp maybe_append_done(%Session{} = session, block_id, text) when is_binary(text) do
+    if assistant_block?(session, block_id) or String.trim(text) == "" do
+      session
+    else
+      Session.append_event(session, Tilde.assistant_done(text, block_id: block_id))
+    end
+  end
+
+  defp assistant_block?(%Session{} = session, block_id) do
+    Enum.any?(session.transcript.blocks, &(&1.id == block_id and &1.role == :assistant))
+  end
+
+  defp assistant_block_id(%Session{} = session) do
+    "msg_assistant_#{length(session.events) + 1}"
   end
 
   defp new_input_submitted?(%Session{} = previous, %Session{} = session) do
