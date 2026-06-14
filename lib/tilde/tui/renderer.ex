@@ -56,6 +56,10 @@ defmodule Tilde.TUI.Renderer do
     end)
   end
 
+  @doc "Renders only the prompt/input line."
+  @spec render_prompt(Session.t(), keyword()) :: iodata()
+  def render_prompt(%Session{} = session, opts \\ []), do: render_input(session, opts)
+
   defp render_input(%Session{} = session, opts) do
     value = session.input.value
     cursor = min(session.input.cursor, String.length(value))
