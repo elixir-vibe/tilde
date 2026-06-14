@@ -336,6 +336,18 @@ defmodule TildeTest do
     refute String.ends_with?(rendered, ["\n", "\r"])
   end
 
+  test "tui renderer can render ANSI without clearing normal terminal scrollback" do
+    rendered =
+      Tilde.session(id: "session_1")
+      |> Session.append_event(Tilde.user_message("hello", id: "evt_user"))
+      |> Tilde.TUI.Renderer.render_to_string(width: 40, clear?: false)
+
+    refute rendered =~ IO.ANSI.clear()
+    refute rendered =~ IO.ANSI.home()
+    assert rendered =~ "# tilde"
+    assert strip_ansi(rendered) =~ "> "
+  end
+
   test "tui renderer clips full-frame output to terminal height" do
     session =
       Tilde.session(id: "session_1")

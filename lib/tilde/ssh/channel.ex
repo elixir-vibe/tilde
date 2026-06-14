@@ -180,7 +180,7 @@ defmodule Tilde.SSH.Channel do
   defp render(%__MODULE__{} = state) do
     bytes =
       state.session
-      |> Renderer.render(width: state.width, height: state.height)
+      |> Renderer.render(width: state.width, height: state.height, clear?: false)
       |> IO.iodata_to_binary()
 
     :ssh_connection.send(state.connection_ref, state.channel_id, bytes)

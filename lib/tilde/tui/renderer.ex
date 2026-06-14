@@ -24,7 +24,10 @@ defmodule Tilde.TUI.Renderer do
     body = session |> render_body(width, opts) |> maybe_clip_to_height(height)
 
     if ansi? do
-      [IO.ANSI.home(), IO.ANSI.clear(), terminal_newlines(body)]
+      frame_prefix =
+        if Keyword.get(opts, :clear?, true), do: [IO.ANSI.home(), IO.ANSI.clear()], else: []
+
+      [frame_prefix, terminal_newlines(body)]
     else
       [body, "\n"]
     end
