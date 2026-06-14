@@ -169,6 +169,11 @@ defmodule Tilde.Live.Demo do
         - semantic transcript
         - LiveView renderer
 
+        | surface | renderer |
+        | --- | --- |
+        | web | LiveView DOM |
+        | ssh | semantic TUI |
+
         `ctrl+o` expands tools. Type `/help` for commands or `/new` for an isolated session.
         """,
         id: "evt_demo_assistant"
