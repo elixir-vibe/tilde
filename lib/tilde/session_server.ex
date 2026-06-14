@@ -9,7 +9,7 @@ defmodule Tilde.SessionServer do
 
   use GenServer
 
-  alias Tilde.{Event, LLM, RateLimit, Session}
+  alias Tilde.{Command, Event, LLM, RateLimit, Session}
   alias Tilde.TUI.Controller
 
   defstruct session: nil, subscribers: %{}, responding?: false
@@ -97,8 +97,18 @@ defmodule Tilde.SessionServer do
   def handle_call({:update_session, fun}, _from, state) do
     previous = state.session
     state = %{state | session: state.session |> fun.() |> trim_session()}
-    broadcast(state)
-    state = maybe_start_llm_response(previous, state)
+
+    state =
+      case maybe_apply_command(state) do
+        {:command, state} ->
+          broadcast(state)
+          state
+
+        :not_command ->
+          broadcast(state)
+          maybe_start_llm_response(previous, state)
+      end
+
     {:reply, state.session, state}
   end
 
@@ -107,15 +117,13 @@ defmodule Tilde.SessionServer do
       {:cont, session} ->
         previous = state.session
         state = %{state | session: trim_session(session)}
-        broadcast(state)
-        state = maybe_start_llm_response(previous, state)
+        state = handle_post_update(previous, state)
         {:reply, {:cont, state.session}, state}
 
       {:halt, session} ->
         previous = state.session
         state = %{state | session: trim_session(session)}
-        broadcast(state)
-        state = maybe_start_llm_response(previous, state)
+        state = handle_post_update(previous, state)
         {:reply, {:halt, state.session}, state}
     end
   end
@@ -195,6 +203,30 @@ defmodule Tilde.SessionServer do
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
     {:noreply, update_in(state.subscribers, &Map.delete(&1, ref))}
+  end
+
+  defp handle_post_update(previous, %__MODULE__{} = state) do
+    case maybe_apply_command(state) do
+      {:command, state} ->
+        broadcast(state)
+        state
+
+      :not_command ->
+        broadcast(state)
+        maybe_start_llm_response(previous, state)
+    end
+  end
+
+  defp maybe_apply_command(%__MODULE__{} = state) do
+    with %Event{type: :input_submitted, text: text} <- List.last(state.session.events),
+         {:ok, command} <- Command.parse(text) do
+      effects = Command.run(command, state.session, [])
+
+      {:command,
+       %{state | session: state.session |> Command.apply_effects(effects) |> trim_session()}}
+    else
+      _other -> :not_command
+    end
   end
 
   defp maybe_start_llm_response(_previous, %__MODULE__{responding?: true} = state), do: state

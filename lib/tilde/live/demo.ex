@@ -14,7 +14,7 @@ defmodule Tilde.Live.Demo do
 
   import Tilde.Live.Console
 
-  alias Tilde.{Block, Choice, Session, SessionRegistry, SessionServer}
+  alias Tilde.{Block, Choice, Command, Session, SessionRegistry, SessionServer}
 
   @impl true
   def mount(params, _session, socket) do
@@ -26,13 +26,23 @@ defmodule Tilde.Live.Demo do
         do: SessionServer.subscribe(server),
         else: SessionServer.get_session(server)
 
-    {:ok, assign(socket, session_server: server, session: session, running?: false)}
+    {:ok,
+     assign(socket,
+       session_server: server,
+       session: session,
+       running?: false,
+       new_session_path: new_session_path()
+     )}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     {Phoenix.HTML.raw("<style>" <> Tilde.Live.Styles.css() <> "</style>")}
+    <nav class="tilde-demo-nav">
+      <.link navigate={@new_session_path}>New isolated session</.link>
+      <span class="tilde-muted">Try /help, /new, /session, /clear, /compact</span>
+    </nav>
     <.console session={@session} input={@session.input.value} running?={@running?} />
     """
   end
@@ -80,14 +90,20 @@ defmodule Tilde.Live.Demo do
   end
 
   def handle_event("tilde:submit", %{"input" => input}, socket) do
-    session =
-      SessionServer.update_session(socket.assigns.session_server, fn session ->
-        session
-        |> Session.append_event(Tilde.input_submitted(input))
-        |> Session.put_status("last input", compact(input))
-      end)
+    case Command.parse(input) do
+      {:ok, %Command{name: "new", args: args}} ->
+        {:noreply, push_navigate(socket, to: "/tilde/#{Command.new_session_id(args)}")}
 
-    {:noreply, assign(socket, session: session)}
+      _other ->
+        session =
+          SessionServer.update_session(socket.assigns.session_server, fn session ->
+            session
+            |> Session.append_event(Tilde.input_submitted(input))
+            |> Session.put_status("last input", compact(input))
+          end)
+
+        {:noreply, assign(socket, session: session)}
+    end
   end
 
   def handle_event("tilde:interrupt", _params, socket) do
@@ -164,6 +180,8 @@ defmodule Tilde.Live.Demo do
 
     %{session | transcript: transcript}
   end
+
+  defp new_session_path, do: "/tilde/s-#{System.unique_integer([:positive])}"
 
   defp compact(input) do
     input

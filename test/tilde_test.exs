@@ -283,29 +283,78 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
+  test "slash commands parse and apply semantic effects" do
+    assert {:ok, %Tilde.Command{name: "help"}} = Tilde.Command.parse("/help")
+
+    assert {:ok, %Tilde.Command{name: "new", args: "My Demo"}} =
+             Tilde.Command.parse("/new My Demo")
+
+    assert Tilde.Command.parse("not a command") == :error
+    assert Tilde.Command.new_session_id("My Demo") == "my-demo"
+
+    session = Tilde.session(id: "cmd")
+    effects = Tilde.Command.run(%Tilde.Command{name: "session"}, session, [])
+    updated = Tilde.Command.apply_effects(session, effects)
+
+    assert [%Block{role: :assistant, source: source}] = updated.transcript.blocks
+    assert source =~ "Session: cmd"
+  end
+
+  test "session server handles slash commands without invoking the LLM" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.StreamingLLMBackend, fn ->
+        name = :"tilde_session_server_command_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.SessionServer.start_link(
+                   name: name,
+                   session: Tilde.session(id: "cmd_test")
+                 )
+
+        assert %Session{} = Tilde.SessionServer.subscribe(name)
+
+        updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("/help"))
+
+        assert [%Block{role: :user, source: "/help"}, %Block{role: :assistant, source: source}] =
+                 updated.transcript.blocks
+
+        assert source =~ "/new [name]"
+
+        refute_receive {:tilde_session_updated, "cmd_test",
+                        %Session{statuses: %{"model" => "thinking…"}}},
+                       50
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
   test "session registry names isolate session servers without dynamic atoms" do
-    assert Tilde.SessionRegistry.normalize_id("My Session!!") == "my-session"
-    assert {:ok, _pid} = Tilde.SessionRegistry.ensure_started()
+    with_application_env(:llm_enabled, false, fn ->
+      assert Tilde.SessionRegistry.normalize_id("My Session!!") == "my-session"
+      assert {:ok, _pid} = Tilde.SessionRegistry.ensure_started()
 
-    left = Tilde.SessionRegistry.via("left-#{System.unique_integer([:positive])}")
-    right = Tilde.SessionRegistry.via("right-#{System.unique_integer([:positive])}")
+      left = Tilde.SessionRegistry.via("left-#{System.unique_integer([:positive])}")
+      right = Tilde.SessionRegistry.via("right-#{System.unique_integer([:positive])}")
 
-    assert {:ok, left_pid} =
-             Tilde.SessionServer.ensure_started(left, session: Tilde.session(id: "left"))
+      assert {:ok, left_pid} =
+               Tilde.SessionServer.ensure_started(left, session: Tilde.session(id: "left"))
 
-    assert {:ok, right_pid} =
-             Tilde.SessionServer.ensure_started(right, session: Tilde.session(id: "right"))
+      assert {:ok, right_pid} =
+               Tilde.SessionServer.ensure_started(right, session: Tilde.session(id: "right"))
 
-    Tilde.SessionServer.append_event(left, Tilde.input_submitted("left only"))
-    Tilde.SessionServer.append_event(right, Tilde.input_submitted("right only"))
+      Tilde.SessionServer.append_event(left, Tilde.input_submitted("left only"))
+      Tilde.SessionServer.append_event(right, Tilde.input_submitted("right only"))
 
-    assert [%Block{source: "left only"}] = Tilde.SessionServer.get_session(left).transcript.blocks
+      assert [%Block{source: "left only"}] =
+               Tilde.SessionServer.get_session(left).transcript.blocks
 
-    assert [%Block{source: "right only"}] =
-             Tilde.SessionServer.get_session(right).transcript.blocks
+      assert [%Block{source: "right only"}] =
+               Tilde.SessionServer.get_session(right).transcript.blocks
 
-    GenServer.stop(left_pid)
-    GenServer.stop(right_pid)
+      GenServer.stop(left_pid)
+      GenServer.stop(right_pid)
+    end)
   end
 
   test "session server mirrors one semantic session to subscribers" do

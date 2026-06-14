@@ -200,6 +200,12 @@ sessions at `/tilde/:session_id`; these are named through `Tilde.SessionRegistry
 without creating dynamic atoms. Use `--web-port`, `--ssh-port`, or `--password`
 to customize the task.
 
+The demo includes a small renderer-neutral slash command layer through
+`Tilde.Command`. Commands such as `/help`, `/session`, `/clear`, `/compact`, and
+`/new [name]` are parsed from semantic input and work across LiveView and TUI/SSH.
+The web demo also exposes a “New isolated session” link, which is UI sugar over
+`/new`.
+
 ## LLM runtime
 
 Tilde keeps its semantic session/event model as the source of truth and delegates
