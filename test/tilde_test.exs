@@ -148,6 +148,57 @@ defmodule TildeTest do
     assert html =~ "href=\"https://example.test\""
   end
 
+  test "tui renderer uses algebra layout and IO.ANSI output" do
+    session =
+      Tilde.session(id: "session_1")
+      |> Session.append_events([
+        Tilde.user_message("Run tests", id: "evt_user"),
+        Tilde.assistant_done("I'll run **them**.", id: "evt_assistant"),
+        Tilde.tool_started("bash", %{command: "mix test", cwd: "/tmp/app"},
+          tool_call_id: "tool_1"
+        ),
+        Tilde.tool_stream("tool_1", :stdout, "ok\n"),
+        Tilde.tool_stream("tool_1", :stderr, "warning\n"),
+        Tilde.tool_done("tool_1", :success, %{exit_code: 0})
+      ])
+      |> Session.put_status("model", "demo")
+
+    rendered = Tilde.TUI.Renderer.render_to_string(session, width: 60)
+
+    assert rendered =~ IO.ANSI.clear()
+    assert rendered =~ IO.ANSI.home()
+    assert rendered =~ "# tilde"
+    assert rendered =~ "Run tests"
+    assert rendered =~ "bash"
+    assert rendered =~ "mix test"
+    assert rendered =~ "stdout"
+    assert rendered =~ "stderr"
+    assert rendered =~ "warning"
+    assert rendered =~ "model: demo"
+  end
+
+  test "tui renderer can render without ANSI for snapshots" do
+    rendered =
+      Tilde.session(id: "session_1")
+      |> Session.append_event(Tilde.user_message("hello", id: "evt_user"))
+      |> Tilde.TUI.Renderer.render_to_string(width: 40, ansi: false)
+
+    refute rendered =~ IO.ANSI.clear()
+    assert rendered =~ "# tilde"
+    assert rendered =~ "user"
+    assert rendered =~ "hello"
+  end
+
+  test "tui key decoder maps terminal bytes to semantic actions" do
+    assert Tilde.TUI.Keys.decode(<<15>>) == :toggle_expand
+    assert Tilde.TUI.Keys.decode("q") == :quit
+    assert Tilde.TUI.Keys.decode("r") == :redraw
+    assert Tilde.TUI.Keys.decode("\t") == :tab
+    assert Tilde.TUI.Keys.decode("\e[Z") == :backtab
+    assert Tilde.TUI.Keys.decode("\r") == :enter
+    assert Tilde.TUI.Keys.decode("a") == {:text, "a"}
+  end
+
   test "text renderer produces pi-like transcript snapshots" do
     transcript =
       [

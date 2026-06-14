@@ -39,6 +39,7 @@ Initial modules:
 - `Tilde.Markdown` — MDEx-backed safe Markdown rendering boundary
 - `Tilde.Live.Markdown` — LiveView Markdown renderer with plain-text fallback
 - `Tilde.Live.Run` — semantic inline rendering for bold, underline, code, links, and tones
+- `Tilde.TUI.*` — Inspect.Algebra + `IO.ANSI` terminal renderer building blocks
 
 ## Example
 
@@ -95,6 +96,24 @@ footer status using `Tilde.Session` helpers such as `toggle_expand/2` and
 For keyboard expansion, copy `Tilde.Live.Hooks.js()` into your LiveSocket assets
 and register the exported `TildeConsole` hook. Click-based expansion works
 without JavaScript hooks; the hook adds focused-block `ctrl+o`.
+
+## TUI renderer
+
+Tilde includes terminal-renderer building blocks for the SSH demo path:
+
+```elixir
+Tilde.TUI.Renderer.render_to_string(session, width: 80)
+```
+
+The TUI renderer uses `Inspect.Algebra` for width-aware layout and Elixir's
+built-in `IO.ANSI` helpers for ANSI styling. ANSI remains renderer output only;
+semantic events, blocks, runs, and streams do not store terminal escapes.
+
+Minimal key decoding is available through `Tilde.TUI.Keys`:
+
+```elixir
+Tilde.TUI.Keys.decode(<<15>>) #=> :toggle_expand
+```
 
 ## Display state
 
