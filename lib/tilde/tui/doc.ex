@@ -50,10 +50,10 @@ defmodule Tilde.TUI.Doc do
 
     concat([
       tool_header(view, opts),
-      metadata_rows(view.metadata_rows, opts),
+      metadata_rows(view.metadata_rows, opts, view.status),
       waiting_doc(view, opts),
       result_lines_doc(view, opts),
-      stream_docs(view.streams, opts),
+      stream_docs(view.streams, opts, view.status),
       hidden_doc(view, opts)
     ])
   end
@@ -126,66 +126,64 @@ defmodule Tilde.TUI.Doc do
   defp widget_doc(widget, opts), do: Theme.muted("#{widget.id}: #{inspect(widget.content)}", opts)
 
   defp tool_header(view, opts) do
-    [
-      Theme.title(view.name, opts)
-      | Enum.map(view.call_segments, &tool_call_segment(&1, opts))
-    ]
-    |> Kernel.++(tool_call_tags(view.call_tags, opts))
-    |> Kernel.++(tool_call_suffix(view.call_suffix, opts))
-    |> Enum.reject(&empty_doc?/1)
-    |> join_docs(" ")
+    view
+    |> tool_call_line()
+    |> tool_state(view.status, opts)
   end
 
-  defp tool_call_segment(%{text: text, color: :muted}, opts),
-    do: Theme.muted(to_string(text), opts)
+  defp tool_call_line(view) do
+    [
+      view.name,
+      Enum.map(view.call_segments, &to_string(&1.text)),
+      tool_call_tags(view.call_tags),
+      tool_call_suffix(view.call_suffix)
+    ]
+    |> List.flatten()
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" ")
+  end
 
-  defp tool_call_segment(%{text: text, color: :dim}, opts), do: Theme.muted(to_string(text), opts)
+  defp tool_call_tags([]), do: []
+  defp tool_call_tags(tags), do: ["[#{Enum.join(tags, ", ")}]"]
 
-  defp tool_call_segment(%{text: text, color: :success}, opts),
-    do: Theme.success(to_string(text), opts)
+  defp tool_call_suffix(nil), do: []
+  defp tool_call_suffix(""), do: []
+  defp tool_call_suffix(suffix), do: ["(#{suffix})"]
 
-  defp tool_call_segment(%{text: text}, opts), do: Theme.accent(to_string(text), opts)
+  defp waiting_doc(%{waiting?: true, status: status}, opts),
+    do: prefix_line(tool_state("Waiting…", status, opts))
 
-  defp tool_call_tags([], _opts), do: []
-  defp tool_call_tags(tags, opts), do: [Theme.muted("[#{Enum.join(tags, ", ")}]", opts)]
-
-  defp tool_call_suffix(nil, _opts), do: []
-  defp tool_call_suffix("", _opts), do: []
-  defp tool_call_suffix(suffix, opts), do: [Theme.muted("(#{suffix})", opts)]
-
-  defp waiting_doc(%{waiting?: true}, opts), do: prefix_line(Theme.muted("Waiting…", opts))
   defp waiting_doc(_view, _opts), do: empty()
 
-  defp metadata_rows([], _opts), do: empty()
+  defp metadata_rows([], _opts, _status), do: empty()
 
-  defp metadata_rows(rows, opts) do
+  defp metadata_rows(rows, opts, status) do
     rows
-    |> Enum.map(fn {key, value} -> concat([Theme.muted("#{key}:", opts), " ", value]) end)
-    |> join_docs("  ")
+    |> Enum.map_join("  ", fn {key, value} -> "#{key} #{value}" end)
+    |> tool_state(status, opts)
     |> prefix_line()
   end
 
-  defp result_lines_doc(%{streams: [], lines: [_ | _] = lines}, opts) do
+  defp result_lines_doc(%{streams: [], lines: [_ | _] = lines, status: status}, opts) do
     lines
-    |> Enum.map(&Theme.success(&1, opts))
-    |> Enum.map(&concat(["  ", &1]))
+    |> Enum.map(&tool_state("  #{&1}", status, opts))
     |> join_docs(newline())
     |> prefix_line()
   end
 
   defp result_lines_doc(_view, _opts), do: empty()
 
-  defp stream_docs([], _opts), do: empty()
+  defp stream_docs([], _opts, _status), do: empty()
 
-  defp stream_docs(streams, opts) do
+  defp stream_docs(streams, opts, status) do
     streams
     |> Enum.reject(fn stream -> stream.lines == [] and stream.hidden_lines == 0 end)
-    |> Enum.map(&stream_doc(&1, length(streams), opts))
+    |> Enum.map(&stream_doc(&1, length(streams), opts, status))
     |> join_docs(newline())
     |> prefix_line()
   end
 
-  defp stream_doc(stream, stream_count, opts) do
+  defp stream_doc(stream, stream_count, opts, status) do
     label =
       if stream_count > 1,
         do: concat([Theme.muted("#{stream.kind}", opts), newline()]),
@@ -195,30 +193,38 @@ defmodule Tilde.TUI.Doc do
       stream.lines
       |> Enum.map(&stream_line(&1, stream.kind, opts))
       |> hidden_stream_lines(stream, opts)
-      |> Enum.map(&concat(["  ", &1]))
+      |> Enum.map(&tool_state("  #{&1}", status, opts))
       |> join_docs(newline())
 
     concat([label, body])
   end
 
-  defp stream_line(line, :stderr, opts), do: Theme.error(line, opts)
-  defp stream_line(line, :log, opts), do: Theme.muted(line, opts)
-  defp stream_line(line, :result, opts), do: Theme.success(line, opts)
   defp stream_line(line, _kind, _opts), do: line
 
   defp hidden_stream_lines(lines, %{hidden_lines: 0}, _opts), do: lines
 
-  defp hidden_stream_lines(lines, stream, opts) do
-    lines ++ [Theme.muted("… #{stream.hidden_lines} more #{stream.kind} lines", opts)]
+  defp hidden_stream_lines(lines, stream, _opts) do
+    lines ++ ["… #{stream.hidden_lines} more #{stream.kind} lines"]
   end
+
+  defp tool_state(text, status, opts) when status in [:queued, :running, :streaming],
+    do: Theme.tool_pending(text, opts)
+
+  defp tool_state(text, status, opts) when status in [:success, :done],
+    do: Theme.tool_success(text, opts)
+
+  defp tool_state(text, :error, opts), do: Theme.tool_error(text, opts)
+  defp tool_state(text, _status, opts), do: Theme.cell(text, opts)
 
   defp hidden_doc(%{hidden_lines: 0, expanded?: false}, _opts), do: empty()
 
-  defp hidden_doc(%{hidden_lines: 0, expanded?: true}, opts),
-    do: prefix_line(Theme.muted("(ctrl+o to collapse)", opts))
+  defp hidden_doc(%{hidden_lines: 0, expanded?: true, status: status}, opts),
+    do: prefix_line(tool_state("(ctrl+o to collapse)", status, opts))
 
   defp hidden_doc(view, opts) do
-    prefix_line(Theme.muted("… #{view.hidden_lines} more lines (ctrl+o to expand)", opts))
+    prefix_line(
+      tool_state("… #{view.hidden_lines} more lines (ctrl+o to expand)", view.status, opts)
+    )
   end
 
   defp message_text(%Block{runs: [_ | _] = runs}), do: Enum.map_join(runs, & &1.text)

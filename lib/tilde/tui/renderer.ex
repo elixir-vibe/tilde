@@ -17,11 +17,7 @@ defmodule Tilde.TUI.Renderer do
   def render(%Session{} = session, opts \\ []) do
     width = Keyword.get(opts, :width, 80)
     ansi? = Keyword.get(opts, :ansi, true)
-    # Keep ANSI styling out of Inspect.Algebra documents so width calculations
-    # are based on visible text, not escape byte length. For now ANSI mode only
-    # controls screen management; semantic color can be applied after layout in
-    # a later renderer pass.
-    doc = Doc.session(session, Keyword.put(opts, :ansi, false))
+    doc = Doc.session(session, Keyword.put(opts, :ansi, ansi?))
     body = Inspect.Algebra.format(doc, width)
 
     if ansi? do

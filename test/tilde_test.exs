@@ -291,8 +291,11 @@ defmodule TildeTest do
 
     rendered = Tilde.TUI.Renderer.render_to_string(session, width: 60)
 
+    plain = strip_ansi(rendered)
+
     assert rendered =~ IO.ANSI.clear()
     assert rendered =~ IO.ANSI.home()
+    assert rendered =~ IO.ANSI.green_background()
     assert rendered =~ "# tilde"
     assert rendered =~ "Run tests"
     assert rendered =~ "bash"
@@ -301,7 +304,7 @@ defmodule TildeTest do
     assert rendered =~ "stderr"
     assert rendered =~ "warning"
     assert rendered =~ "model: demo"
-    assert rendered =~ "> ▌"
+    assert plain =~ "> ▌"
   end
 
   test "tui renderer can render without ANSI for snapshots" do
@@ -1055,6 +1058,10 @@ defmodule TildeTest do
     result = fun.()
     restore_application_env(key, previous)
     result
+  end
+
+  defp strip_ansi(text) do
+    Regex.replace(~r/\e\[[0-9;]*[A-Za-z]/, text, "")
   end
 
   defp restore_application_env(key, nil), do: Application.delete_env(:tilde, key)
