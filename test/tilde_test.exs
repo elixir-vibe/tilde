@@ -43,10 +43,12 @@ defmodule TildeTest do
     expanded = tool |> Block.update_display(%{expanded?: true}) |> ToolView.view()
 
     assert compact.lines == ["one", "two"]
+    assert [%{kind: :stdout, lines: ["one", "two"], hidden_lines: 1}] = compact.streams
     assert compact.hidden_lines == 1
     refute compact.expanded?
 
     assert expanded.lines == ["one", "two", "three"]
+    assert [%{kind: :stdout, lines: ["one", "two", "three"], hidden_lines: 0}] = expanded.streams
     assert expanded.hidden_lines == 0
     assert expanded.expanded?
     assert tool.streams |> hd() |> Stream.text() == "one\ntwo\nthree\n"
@@ -59,6 +61,49 @@ defmodule TildeTest do
     assert :bold in run.marks
     assert :underline in run.marks
     assert run.attrs.href == "https://example.test"
+  end
+
+  test "tool view preserves stream identity and metadata" do
+    tool =
+      Block.tool("tool_1", "bash", %{command: "mix test", cwd: "/tmp/app"},
+        display: %Display{compact_limit: {:lines, 2}},
+        metadata: %{duration_ms: 42}
+      )
+      |> Block.append_stream(:stdout, "ok\n")
+      |> Block.append_stream(:stderr, "warning\nmore\n")
+      |> Block.finish_tool(:success, %{exit_code: 0})
+
+    view = ToolView.view(tool)
+
+    assert view.metadata_rows == [cwd: "/tmp/app", exit: "0", duration: "42ms"]
+
+    assert [stdout, stderr] = view.streams
+    assert stdout.kind == :stdout
+    assert stdout.lines == ["ok"]
+    assert stdout.hidden_lines == 0
+    assert stderr.kind == :stderr
+    assert stderr.lines == ["warning"]
+    assert stderr.hidden_lines == 1
+  end
+
+  test "live tool renders per-stream output classes" do
+    tool =
+      Block.tool("tool_1", "bash", %{command: "mix test", cwd: "/tmp/app"},
+        display: %Display{compact_limit: {:lines, 3}}
+      )
+      |> Block.append_stream(:stdout, "ok\n")
+      |> Block.append_stream(:stderr, "warning\n")
+      |> Block.finish_tool(:success, %{exit_code: 0})
+
+    html = render_component(&Tilde.Live.Tool.tool/1, block: tool)
+
+    assert html =~ "tilde-tool-stream-stdout"
+    assert html =~ "tilde-tool-stream-stderr"
+    assert html =~ "data-stream-kind=\"stderr\""
+    assert html =~ "cwd"
+    assert html =~ "/tmp/app"
+    assert html =~ "exit"
+    assert html =~ "0"
   end
 
   test "live message renders semantic runs as inline HTML" do

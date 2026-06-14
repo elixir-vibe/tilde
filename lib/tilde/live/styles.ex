@@ -71,7 +71,16 @@ defmodule Tilde.Live.Styles do
 
     .tilde-tool-name { font-weight: 700; }
     .tilde-tool-args { color: var(--tilde-link); overflow-wrap: anywhere; }
-    .tilde-tool-output { margin: 0.75rem 0 0; white-space: pre-wrap; overflow-x: auto; }
+    .tilde-tool-metadata { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0 0; }
+    .tilde-tool-metadata div { display: flex; gap: 0.25rem; }
+    .tilde-tool-metadata dt { color: var(--tilde-muted); }
+    .tilde-tool-metadata dd { margin: 0; }
+    .tilde-tool-streams { display: grid; gap: 0.5rem; margin-top: 0.75rem; }
+    .tilde-tool-stream-label { color: var(--tilde-muted); font-size: 0.9rem; }
+    .tilde-tool-stream pre { margin: 0; white-space: pre-wrap; overflow-x: auto; }
+    .tilde-tool-stream-stderr { color: var(--tilde-error); }
+    .tilde-tool-stream-log { color: var(--tilde-muted); }
+    .tilde-tool-stream-result { color: var(--tilde-success); }
     .tilde-tool-footer, .tilde-choice-actions { margin-top: 0.75rem; display: flex; gap: 0.75rem; }
 
     .tilde-link-button, .tilde-action, .tilde-choice-option {

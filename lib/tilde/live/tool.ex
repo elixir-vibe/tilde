@@ -27,7 +27,25 @@ defmodule Tilde.Live.Tool do
         <span class="tilde-tool-status">{@view.status}</span>
       </header>
 
-      <pre :if={@view.lines != []} class="tilde-tool-output"><%= Enum.join(@view.lines, "\n") %></pre>
+      <dl :if={@view.metadata_rows != []} class="tilde-tool-metadata">
+        <div :for={{key, value} <- @view.metadata_rows}>
+          <dt>{key}</dt>
+          <dd>{value}</dd>
+        </div>
+      </dl>
+
+      <div :if={@view.streams != []} class="tilde-tool-streams">
+        <section
+          :for={stream <- @view.streams}
+          :if={stream.lines != [] or stream.hidden_lines > 0}
+          class={["tilde-tool-stream", "tilde-tool-stream-#{stream.kind}"]}
+          data-stream-kind={stream.kind}
+        >
+          <div :if={length(@view.streams) > 1} class="tilde-tool-stream-label">{stream.kind}</div>
+          <pre :if={stream.lines != []}><%= Enum.join(stream.lines, "\n") %></pre>
+          <div :if={stream.hidden_lines > 0} class="tilde-muted">… {stream.hidden_lines} more {stream.kind} lines</div>
+        </section>
+      </div>
 
       <footer :if={@view.hidden_lines > 0 or expandable?(@view)} class="tilde-tool-footer">
         <span :if={@view.hidden_lines > 0} class="tilde-muted">… {@view.hidden_lines} more lines</span>

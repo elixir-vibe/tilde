@@ -29,7 +29,7 @@ Initial modules:
 - `Tilde.Display` — compact/expanded display state, including `ctrl+o`
 - `Tilde.Action` — semantic actions for renderers
 - `Tilde.Run` — inline text marks such as bold and underline
-- `Tilde.ToolView` — compact/expanded derived tool widget data
+- `Tilde.ToolView` — compact/expanded derived tool widget data with stream identity and metadata rows
 - `Tilde.Renderer.Text` — plain text renderer
 - `Tilde.Renderer.JSON` — JSON-compatible map renderer
 - `Tilde.Session` — event log, transcript, widgets, statuses, and metadata

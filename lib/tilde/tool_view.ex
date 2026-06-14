@@ -21,14 +21,15 @@ defmodule Tilde.ToolView do
     limit = line_limit(block)
     lines = output_lines(block)
     visible = Enum.take(lines, limit)
+    streams = stream_views(block.streams, limit)
 
-    base_view(block, visible, max(length(lines) - length(visible), 0), false)
+    base_view(block, visible, streams, max(length(lines) - length(visible), 0), false)
   end
 
   @doc "Builds an expanded tool view with all output."
   @spec expanded(Block.t()) :: t()
   def expanded(%Block{kind: :tool} = block) do
-    base_view(block, output_lines(block), 0, true)
+    base_view(block, output_lines(block), stream_views(block.streams, :all), 0, true)
   end
 
   @doc "Returns all output lines across streams, annotated by stream kind when useful."
@@ -37,14 +38,16 @@ defmodule Tilde.ToolView do
     Enum.flat_map(streams, &stream_lines/1)
   end
 
-  defp base_view(block, visible_lines, hidden_lines, expanded?) do
+  defp base_view(block, visible_lines, streams, hidden_lines, expanded?) do
     %{
       id: block.id,
       name: block.name || "tool",
       status: block.status || :running,
       args: block.args,
       arg_summary: arg_summary(block.args),
+      metadata_rows: metadata_rows(block),
       lines: visible_lines,
+      streams: streams,
       hidden_lines: hidden_lines,
       expanded?: expanded?,
       actions: block.actions,
@@ -56,11 +59,69 @@ defmodule Tilde.ToolView do
   defp line_limit(%Block{display: %{compact_limit: {:lines, limit}}}), do: limit
   defp line_limit(_block), do: 8
 
+  defp stream_views(streams, :all) do
+    Enum.map(streams, fn stream ->
+      lines = Stream.lines(stream)
+
+      %{
+        id: stream.id,
+        kind: stream.kind,
+        lines: lines,
+        hidden_lines: 0,
+        byte_count: Stream.byte_count(stream),
+        line_count: length(lines)
+      }
+    end)
+  end
+
+  defp stream_views(streams, limit) do
+    {views, _remaining} =
+      Enum.map_reduce(streams, limit, fn stream, remaining ->
+        lines = Stream.lines(stream)
+        visible = Enum.take(lines, max(remaining, 0))
+
+        view = %{
+          id: stream.id,
+          kind: stream.kind,
+          lines: visible,
+          hidden_lines: max(length(lines) - length(visible), 0),
+          byte_count: Stream.byte_count(stream),
+          line_count: length(lines)
+        }
+
+        {view, max(remaining - length(visible), 0)}
+      end)
+
+    views
+  end
+
   defp stream_lines(%Stream{kind: :stdout} = stream), do: Stream.lines(stream)
 
   defp stream_lines(%Stream{kind: kind} = stream) do
     Enum.map(Stream.lines(stream), &"#{kind}: #{&1}")
   end
+
+  defp metadata_rows(block) do
+    [
+      metadata_row(:cwd, fetch_key(block.args, :cwd)),
+      metadata_row(:exit, fetch_key(block.result, :exit_code)),
+      metadata_row(:duration, block.metadata |> fetch_key(:duration_ms) |> duration())
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp metadata_row(_key, nil), do: nil
+  defp metadata_row(key, value), do: {key, to_string(value)}
+
+  defp fetch_key(map, key) when is_map(map) do
+    Map.get(map, key) || Map.get(map, to_string(key))
+  end
+
+  defp fetch_key(_value, _key), do: nil
+
+  defp duration(nil), do: nil
+  defp duration(milliseconds) when is_integer(milliseconds), do: "#{milliseconds}ms"
+  defp duration(value), do: value
 
   defp arg_summary(args) when map_size(args) == 0, do: ""
 
