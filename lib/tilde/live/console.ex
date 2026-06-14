@@ -14,6 +14,7 @@ defmodule Tilde.Live.Console do
 
   alias Tilde.{Session, Transcript}
 
+  attr(:id, :string, default: "tilde-console")
   attr(:session, :any, default: nil)
   attr(:transcript, :any, default: nil)
   attr(:input, :string, default: "")
@@ -28,7 +29,7 @@ defmodule Tilde.Live.Console do
       |> assign(:below_widgets, widgets(assigns.session, :below_input))
 
     ~H"""
-    <main class={["tilde-console", @class]}>
+    <main id={@id} class={["tilde-console", @class]} phx-hook="TildeConsole">
       <section class="tilde-transcript" id="tilde-transcript">
         <.block :for={block <- @transcript.blocks} block={block} />
       </section>

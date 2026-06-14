@@ -150,6 +150,15 @@ defmodule TildeTest do
     assert html =~ "background: no running jobs"
   end
 
+  test "live hooks expose ctrl-o focused block expansion JavaScript" do
+    js = Tilde.Live.Hooks.js()
+
+    assert js =~ "TildeConsole"
+    assert js =~ "ctrlKey"
+    assert js =~ "tilde:toggle_expand"
+    assert js =~ "[data-block-id]"
+  end
+
   test "live console renders transcript, widgets, input, and footer" do
     session =
       Tilde.session(id: "session_1")
@@ -164,6 +173,7 @@ defmodule TildeTest do
 
     html = render_component(&Tilde.Live.Console.console/1, session: session, input: "next")
 
+    assert html =~ "phx-hook=\"TildeConsole\""
     assert html =~ "tilde-console"
     assert html =~ "Run tests"
     assert html =~ "bash"

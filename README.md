@@ -87,6 +87,10 @@ It exercises tool expansion, choice selection, input submission, widgets, and
 footer status using `Tilde.Session` helpers such as `toggle_expand/2` and
 `select_choice/3`.
 
+For keyboard expansion, copy `Tilde.Live.Hooks.js()` into your LiveSocket assets
+and register the exported `TildeConsole` hook. Click-based expansion works
+without JavaScript hooks; the hook adds focused-block `ctrl+o`.
+
 ## Display state
 
 Expansion is renderer state, not content mutation:

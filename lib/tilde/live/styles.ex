@@ -104,6 +104,17 @@ defmodule Tilde.Live.Styles do
     }
 
     .tilde-footer { color: var(--tilde-muted); font-size: 0.9rem; }
+
+    .tilde-demo-hooks {
+      max-width: 920px;
+      margin: 1rem auto;
+      padding: 0 24px 24px;
+      color: var(--tilde-fg);
+      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .tilde-demo-hooks summary { color: var(--tilde-link); cursor: pointer; }
+    .tilde-demo-hooks pre { border: 1px solid var(--tilde-line); overflow-x: auto; padding: 0.75rem; }
     """
   end
 end

@@ -26,6 +26,13 @@ defmodule Tilde.Live.Demo do
     ~H"""
     <style>{Tilde.Live.Styles.css()}</style>
     <.console session={@session} input={@input} running?={@running?} />
+    <details class="tilde-demo-hooks">
+      <summary>Keyboard hook</summary>
+      <p class="tilde-muted">
+        Add this hook to your LiveSocket setup, then focus a tool block and press ctrl+o.
+      </p>
+      <pre><code>{Tilde.Live.Hooks.js()}</code></pre>
+    </details>
     """
   end
 
