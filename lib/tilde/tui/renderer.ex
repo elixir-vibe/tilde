@@ -60,11 +60,13 @@ defmodule Tilde.TUI.Renderer do
     cursor = min(session.input.cursor, String.length(value))
     {left, right} = value |> String.graphemes() |> Enum.split(cursor)
 
+    cursor = if Keyword.get(opts, :ansi, true), do: "", else: "▌"
+
     [
       Theme.accent(">", opts),
       " ",
       Enum.join(left),
-      Theme.muted("▌", opts),
+      Theme.muted(cursor, opts),
       Enum.join(right)
     ]
     |> IO.iodata_to_binary()

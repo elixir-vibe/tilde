@@ -330,7 +330,8 @@ defmodule TildeTest do
     assert rendered =~ "stderr"
     assert rendered =~ "warning"
     assert rendered =~ "model: demo"
-    assert plain =~ "> ▌"
+    assert plain =~ "> "
+    refute plain =~ "▌"
     refute String.ends_with?(rendered, ["\n", "\r"])
   end
 
@@ -344,6 +345,7 @@ defmodule TildeTest do
     assert rendered =~ "# tilde"
     assert rendered =~ "user"
     assert rendered =~ "hello"
+    assert rendered =~ "> ▌"
   end
 
   test "ssh keys facade uses configured provider" do
