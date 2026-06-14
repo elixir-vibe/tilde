@@ -935,6 +935,32 @@ defmodule TildeTest do
     assert Tilde.SSH.Command.parse("/clear") == :submit
   end
 
+  test "ssh delta classifier detects append-oriented tool updates" do
+    started =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+
+    streamed = Session.append_event(started, Tilde.tool_stream("tool_1", :stdout, "one\n"))
+    streamed_more = Session.append_event(streamed, Tilde.tool_stream("tool_1", :stdout, "two\n"))
+
+    done =
+      Session.append_event(streamed_more, Tilde.tool_done("tool_1", :success, %{exit_code: 0}))
+
+    assert {:new_blocks, [%Block{kind: :tool, id: "tool_1"}]} =
+             Tilde.SSH.Delta.classify(Tilde.session(), started)
+
+    assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "one\n"} =
+             Tilde.SSH.Delta.classify(started, streamed)
+
+    assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "two\n"} =
+             Tilde.SSH.Delta.classify(streamed, streamed_more)
+
+    assert {:tool_done, %Block{id: "tool_1", status: :success}} =
+             Tilde.SSH.Delta.classify(streamed_more, done)
+  end
+
   test "ssh shell applies tui keys to semantic session" do
     session =
       Tilde.session()

@@ -11,7 +11,7 @@ defmodule Tilde.SSH.Channel do
   @behaviour :ssh_server_channel
 
   alias Tilde.{Block, Input, Session, SessionRegistry, SessionServer}
-  alias Tilde.SSH.Command, as: SSHCommand
+  alias Tilde.SSH.{Command, Delta}
   alias Tilde.TUI.{Controller, Keys, Renderer, ViewRenderer}
   alias Tilde.View.Builder
 
@@ -341,7 +341,7 @@ defmodule Tilde.SSH.Channel do
   defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn
       :enter, {:cont, state} ->
-        case SSHCommand.parse(state.session.input.value) do
+        case Command.parse(state.session.input.value) do
           {:attach, session_id} ->
             {:cont, {:cont, attach_session(state, session_id)}}
 
@@ -370,28 +370,11 @@ defmodule Tilde.SSH.Channel do
   end
 
   defp render_change(%__MODULE__{} = state, %Session{} = old_session) do
-    cond do
-      input_only_update?(old_session, state.session) ->
-        render_input_change(state, old_session)
-        state
-
-      assistant_stream_finished?(old_session, state.session, state) ->
-        append_prompt(state)
-        %{state | streaming?: false}
-
-      status_only_update?(old_session, state.session) ->
-        state
-
-      new_blocks = new_blocks(old_session, state.session) ->
-        append_blocks(state, new_blocks, prompt?: prompt_after_blocks?(state.session, new_blocks))
-        %{state | streaming?: streaming_blocks?(new_blocks)}
-
-      delta = assistant_delta(old_session, state.session) ->
-        append_text(state, delta)
-        %{state | streaming?: true}
-
-      true ->
-        state
+    if assistant_stream_finished?(old_session, state.session, state) do
+      append_prompt(state)
+      %{state | streaming?: false}
+    else
+      render_delta_change(state, old_session, Delta.classify(old_session, state.session))
     end
   end
 
@@ -400,23 +383,44 @@ defmodule Tilde.SSH.Channel do
     state
   end
 
+  defp render_delta_change(%__MODULE__{} = state, old_session, :input_only) do
+    render_input_change(state, old_session)
+    state
+  end
+
+  defp render_delta_change(%__MODULE__{} = state, _old_session, :status_only), do: state
+  defp render_delta_change(%__MODULE__{} = state, _old_session, :none), do: state
+
+  defp render_delta_change(%__MODULE__{} = state, _old_session, {:new_blocks, blocks}) do
+    append_blocks(state, blocks, prompt?: prompt_after_blocks?(state.session, blocks))
+    %{state | streaming?: Delta.streaming_blocks?(blocks)}
+  end
+
+  defp render_delta_change(%__MODULE__{} = state, _old_session, {:assistant_delta, delta}) do
+    append_text(state, delta)
+    %{state | streaming?: true}
+  end
+
+  defp render_delta_change(
+         %__MODULE__{} = state,
+         _old_session,
+         {:tool_delta, _block, kind, delta}
+       ) do
+    append_tool_delta(state, kind, delta)
+    %{state | streaming?: true}
+  end
+
+  defp render_delta_change(%__MODULE__{} = state, _old_session, {:tool_done, _block}) do
+    if Map.has_key?(state.session.statuses, "model"),
+      do: state,
+      else: %{state | streaming?: false}
+  end
+
   defp stale_session?(%Session{} = current, %Session{} = incoming) do
     length(incoming.events) < length(current.events)
   end
 
   defp stale_session?(_current, _incoming), do: false
-
-  defp input_only_update?(%Session{} = old, %Session{} = new) do
-    old.input != new.input and
-      old.transcript == new.transcript and
-      old.widgets == new.widgets and
-      old.statuses == new.statuses
-  end
-
-  defp status_only_update?(%Session{} = old, %Session{} = new) do
-    old.input == new.input and old.transcript == new.transcript and old.widgets == new.widgets and
-      old.statuses != new.statuses
-  end
 
   defp assistant_stream_finished?(%Session{} = old, %Session{} = new, %__MODULE__{
          streaming?: true
@@ -426,36 +430,8 @@ defmodule Tilde.SSH.Channel do
 
   defp assistant_stream_finished?(_old, _new, _state), do: false
 
-  defp new_blocks(%Session{} = old, %Session{} = new) do
-    old_count = length(old.transcript.blocks)
-    new_count = length(new.transcript.blocks)
-
-    if new_count > old_count do
-      Enum.drop(new.transcript.blocks, old_count)
-    else
-      nil
-    end
-  end
-
-  defp assistant_delta(%Session{} = old, %Session{} = new) do
-    with %Block{kind: :message, role: :assistant, id: id, source: old_source} <-
-           List.last(old.transcript.blocks),
-         %Block{kind: :message, role: :assistant, id: ^id, source: new_source} <-
-           List.last(new.transcript.blocks),
-         true <- String.starts_with?(new_source, old_source),
-         delta when delta != "" <- String.replace_prefix(new_source, old_source, "") do
-      delta
-    else
-      _other -> nil
-    end
-  end
-
-  defp streaming_blocks?(blocks) do
-    Enum.any?(blocks, &match?(%Block{kind: :message, role: :assistant}, &1))
-  end
-
   defp prompt_after_blocks?(%Session{} = session, blocks) do
-    not streaming_blocks?(blocks) and not Map.has_key?(session.statuses, "model")
+    not Delta.streaming_blocks?(blocks) and not Map.has_key?(session.statuses, "model")
   end
 
   defp render(%__MODULE__{connection_ref: nil}), do: :ok
@@ -562,6 +538,10 @@ defmodule Tilde.SSH.Channel do
   end
 
   defp append_text(%__MODULE__{} = state, text) do
+    send_bytes(state, terminal_newlines(text))
+  end
+
+  defp append_tool_delta(%__MODULE__{} = state, _kind, text) do
     send_bytes(state, terminal_newlines(text))
   end
 
