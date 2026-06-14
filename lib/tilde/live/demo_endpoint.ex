@@ -31,6 +31,11 @@ defmodule Tilde.Live.DemoEndpoint do
     only: ~w(phoenix_live_view.min.js)
   )
 
+  plug(Plug.Parsers,
+    parsers: [:urlencoded],
+    pass: ["*/*"]
+  )
+
   plug(Plug.Session, @session_options)
   plug(Tilde.Live.DemoRouter)
 end

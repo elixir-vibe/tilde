@@ -31,6 +31,7 @@ defmodule Mix.Tasks.Tilde.Demo do
     password = Keyword.get(opts, :password, "tilde")
     host = Keyword.get(opts, :host, "localhost")
 
+    configure_auth(password)
     configure_llm()
     start_rate_limit()
     configure_endpoint(web_port, host)
@@ -52,6 +53,10 @@ defmodule Mix.Tasks.Tilde.Demo do
     """)
 
     Process.sleep(:infinity)
+  end
+
+  defp configure_auth(password) do
+    Application.put_env(:tilde, :demo_password, password)
   end
 
   defp configure_llm do

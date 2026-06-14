@@ -18,7 +18,8 @@ defmodule Tilde.SSH.Channel do
             width: 100,
             height: 30,
             session: nil,
-            session_server: nil
+            session_server: nil,
+            alternate_screen?: false
 
   @type t :: %__MODULE__{
           connection_ref: term(),
@@ -26,7 +27,8 @@ defmodule Tilde.SSH.Channel do
           width: pos_integer(),
           height: pos_integer(),
           session: Session.t() | nil,
-          session_server: SessionServer.name() | nil
+          session_server: SessionServer.name() | nil,
+          alternate_screen?: boolean()
         }
 
   @impl true
@@ -84,6 +86,7 @@ defmodule Tilde.SSH.Channel do
     :ssh_connection.reply_request(connection_ref, want_reply, :success, channel_id)
 
     state = %{state | connection_ref: connection_ref, channel_id: channel_id}
+    state = enter_alternate_screen(state)
     render(state)
     {:ok, state}
   end
@@ -128,7 +131,10 @@ defmodule Tilde.SSH.Channel do
   def handle_ssh_msg(_message, state), do: {:ok, state}
 
   @impl true
-  def terminate(_reason, _state), do: :ok
+  def terminate(_reason, state) do
+    leave_alternate_screen(state)
+    :ok
+  end
 
   defp apply_keys(%__MODULE__{session_server: nil} = state, keys) do
     apply_local_keys(state, keys)
@@ -156,7 +162,11 @@ defmodule Tilde.SSH.Channel do
   defp render(%__MODULE__{channel_id: nil}), do: :ok
 
   defp render(%__MODULE__{} = state) do
-    bytes = state.session |> Renderer.render(width: state.width) |> IO.iodata_to_binary()
+    bytes =
+      state.session
+      |> Renderer.render(width: state.width, height: state.height)
+      |> IO.iodata_to_binary()
+
     :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
   end
 
@@ -164,9 +174,26 @@ defmodule Tilde.SSH.Channel do
   defp close(%__MODULE__{channel_id: nil}), do: :ok
 
   defp close(%__MODULE__{} = state) do
+    leave_alternate_screen(state)
     :ssh_connection.exit_status(state.connection_ref, state.channel_id, 0)
     :ssh_connection.send_eof(state.connection_ref, state.channel_id)
   end
+
+  defp enter_alternate_screen(%__MODULE__{alternate_screen?: true} = state), do: state
+
+  defp enter_alternate_screen(%__MODULE__{} = state) do
+    send_bytes(state, "\e[?1049h")
+    %{state | alternate_screen?: true}
+  end
+
+  defp leave_alternate_screen(%__MODULE__{alternate_screen?: false}), do: :ok
+  defp leave_alternate_screen(%__MODULE__{} = state), do: send_bytes(state, "\e[?1049l")
+
+  defp send_bytes(%__MODULE__{connection_ref: nil}, _bytes), do: :ok
+  defp send_bytes(%__MODULE__{channel_id: nil}, _bytes), do: :ok
+
+  defp send_bytes(%__MODULE__{} = state, bytes),
+    do: :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
 
   defp non_zero(0, fallback), do: fallback
   defp non_zero(value, _fallback), do: value

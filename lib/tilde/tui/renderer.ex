@@ -20,10 +20,11 @@ defmodule Tilde.TUI.Renderer do
     width = Keyword.get(opts, :width, 80)
     ansi? = Keyword.get(opts, :ansi, true)
     opts = Keyword.put(opts, :ansi, ansi?)
-    body = render_body(session, width, opts)
+    height = Keyword.get(opts, :height)
+    body = session |> render_body(width, opts) |> maybe_clip_to_height(height)
 
     if ansi? do
-      [IO.ANSI.home(), IO.ANSI.clear(), erase_scrollback(), terminal_newlines(body)]
+      [IO.ANSI.home(), IO.ANSI.clear(), terminal_newlines(body)]
     else
       [body, "\n"]
     end
@@ -77,9 +78,16 @@ defmodule Tilde.TUI.Renderer do
     if status == "", do: "", else: Theme.muted(status, opts)
   end
 
-  # IO.ANSI does not expose CSI 3J. Full-frame SSH redraws need it so terminal
-  # scrollback does not accumulate duplicate frames after redraw/resize/toggle.
-  defp erase_scrollback, do: "\e[3J"
+  defp maybe_clip_to_height(body, nil), do: body
+
+  defp maybe_clip_to_height(body, height) when is_integer(height) and height > 0 do
+    body
+    |> String.split("\n")
+    |> Enum.take(-height)
+    |> Enum.join("\n")
+  end
+
+  defp maybe_clip_to_height(body, _height), do: body
 
   defp terminal_newlines(iodata) do
     iodata

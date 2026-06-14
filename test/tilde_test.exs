@@ -72,6 +72,7 @@ defmodule TildeTest do
   use ExUnit.Case, async: false
 
   import Phoenix.LiveViewTest
+  import Plug.Test
 
   alias Tilde.{
     Block,
@@ -319,7 +320,6 @@ defmodule TildeTest do
 
     assert rendered =~ IO.ANSI.clear()
     assert rendered =~ IO.ANSI.home()
-    assert rendered =~ "\e[3J"
     assert rendered =~ IO.ANSI.green_background()
     assert rendered =~ "# tilde"
 
@@ -334,6 +334,26 @@ defmodule TildeTest do
     assert String.ends_with?(plain, "> ")
     refute plain =~ "▌"
     refute String.ends_with?(rendered, ["\n", "\r"])
+  end
+
+  test "tui renderer clips full-frame output to terminal height" do
+    session =
+      Tilde.session(id: "session_1")
+      |> Session.append_events([
+        Tilde.user_message("one", id: "evt_one"),
+        Tilde.assistant_done("two", id: "evt_two"),
+        Tilde.user_message("three", id: "evt_three")
+      ])
+      |> Session.put_status("model", "thinking…")
+
+    rendered =
+      session |> Tilde.TUI.Renderer.render_to_string(width: 40, height: 6) |> strip_ansi()
+
+    refute rendered =~ "# tilde"
+    refute rendered =~ "one"
+    assert rendered =~ "three"
+    assert rendered =~ "model: thinking…\r\n\r\n> "
+    assert String.ends_with?(rendered, "> ")
   end
 
   test "tui renderer can render without ANSI for snapshots" do
@@ -1183,6 +1203,51 @@ defmodule TildeTest do
     assert html =~ "expand"
     assert html =~ "Apply the generated patch?"
     refute html =~ "background: no running jobs"
+  end
+
+  test "web demo requires password session" do
+    with_application_env(:demo_password, "secret", fn ->
+      conn =
+        :get
+        |> conn("/tilde")
+        |> init_test_session(%{})
+        |> Tilde.Live.DemoRouter.call([])
+
+      assert conn.status == 302
+      assert [location] = Plug.Conn.get_resp_header(conn, "location")
+      assert location =~ "/login?return_to=%2Ftilde"
+    end)
+  end
+
+  test "web demo login accepts configured password" do
+    with_application_env(:demo_password, "secret", fn ->
+      conn =
+        :post
+        |> conn("/login")
+        |> init_test_session(%{})
+        |> Tilde.Live.DemoAuth.create(%{
+          "password" => "secret",
+          "return_to" => "/tilde/auth-smoke"
+        })
+
+      assert conn.status == 302
+      assert Plug.Conn.get_session(conn, :tilde_demo_authenticated) == true
+      assert Plug.Conn.get_resp_header(conn, "location") == ["/tilde/auth-smoke"]
+    end)
+  end
+
+  test "web demo login rejects wrong password" do
+    with_application_env(:demo_password, "secret", fn ->
+      conn =
+        :post
+        |> conn("/login")
+        |> init_test_session(%{})
+        |> Tilde.Live.DemoAuth.create(%{"password" => "wrong", "return_to" => "/tilde"})
+
+      assert conn.status == 401
+      refute Plug.Conn.get_session(conn, :tilde_demo_authenticated)
+      assert conn.resp_body =~ "Incorrect password"
+    end)
   end
 
   test "live hooks expose ctrl-o focused block expansion JavaScript" do
