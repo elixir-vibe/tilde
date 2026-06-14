@@ -43,17 +43,6 @@ defmodule Tilde.Live.Styles do
       padding: 24px;
     }
 
-    .tilde-demo-nav {
-      max-width: 920px;
-      margin: 0 auto;
-      padding: 16px 24px 0;
-      display: flex;
-      gap: 1rem;
-      justify-content: space-between;
-      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-    .tilde-demo-nav a { color: var(--tilde-link); text-underline-offset: 2px; }
-
     .tilde-block { margin: 0 0 1.25rem; }
     .tilde-label, .tilde-muted, .tilde-tool-status, .tilde-key { color: var(--tilde-muted); }
     .tilde-label { margin-bottom: 0.25rem; }

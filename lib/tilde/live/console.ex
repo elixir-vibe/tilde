@@ -20,6 +20,7 @@ defmodule Tilde.Live.Console do
   attr(:input, :string, default: "")
   attr(:running?, :boolean, default: false)
   attr(:class, :any, default: nil)
+  attr(:footer_right, :string, default: "")
 
   def console(assigns) do
     assigns =
@@ -45,7 +46,7 @@ defmodule Tilde.Live.Console do
           <.widget :for={widget <- @below_widgets} widget={widget} />
         </section>
 
-        <.footer session={@session} />
+        <.footer session={@session} right={@footer_right} />
       </section>
     </main>
     """

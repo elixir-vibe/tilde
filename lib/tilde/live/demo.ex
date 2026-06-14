@@ -30,8 +30,7 @@ defmodule Tilde.Live.Demo do
      assign(socket,
        session_server: server,
        session: session,
-       running?: false,
-       new_session_path: new_session_path()
+       running?: false
      )}
   end
 
@@ -39,11 +38,12 @@ defmodule Tilde.Live.Demo do
   def render(assigns) do
     ~H"""
     {Phoenix.HTML.raw("<style>" <> Tilde.Live.Styles.css() <> "</style>")}
-    <nav class="tilde-demo-nav">
-      <.link navigate={@new_session_path}>New isolated session</.link>
-      <span class="tilde-muted">Try /help, /new, /session, /clear, /compact</span>
-    </nav>
-    <.console session={@session} input={@session.input.value} running?={@running?} />
+    <.console
+      session={@session}
+      input={@session.input.value}
+      running?={@running?}
+      footer_right="/help · /new"
+    />
     """
   end
 
@@ -152,7 +152,7 @@ defmodule Tilde.Live.Demo do
         - semantic transcript
         - LiveView renderer
 
-        `ctrl+o` expands tools.
+        `ctrl+o` expands tools. Type `/help` for commands or `/new` for an isolated session.
         """,
         id: "evt_demo_assistant"
       ),
@@ -180,8 +180,6 @@ defmodule Tilde.Live.Demo do
 
     %{session | transcript: transcript}
   end
-
-  defp new_session_path, do: "/tilde/s-#{System.unique_integer([:positive])}"
 
   defp compact(input) do
     input
