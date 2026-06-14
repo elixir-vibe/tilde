@@ -452,7 +452,7 @@ defmodule TildeTest do
     assert html =~ "tool_demo_tests"
     assert html =~ "ctrl+o to expand"
     assert html =~ "Apply the generated patch?"
-    assert html =~ "background: no running jobs"
+    refute html =~ "background: no running jobs"
   end
 
   test "live hooks expose ctrl-o focused block expansion JavaScript" do

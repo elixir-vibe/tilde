@@ -79,6 +79,11 @@ defmodule Tilde.Live.Styles do
 
     .tilde-tool-name { font-weight: 700; }
     .tilde-tool-args { color: var(--tilde-link); overflow-wrap: anywhere; }
+    .tilde-tool-status { font-size: 0.9rem; }
+    .tilde-tool-success .tilde-tool-status, .tilde-tool-done .tilde-tool-status { color: var(--tilde-success); }
+    .tilde-tool-error .tilde-tool-status { color: var(--tilde-error); }
+    .tilde-tool-running .tilde-tool-status, .tilde-tool-streaming .tilde-tool-status { color: var(--tilde-warning); }
+    .tilde-tool-queued, .tilde-tool-cancelled { opacity: 0.82; }
     .tilde-tool-metadata { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0 0; }
     .tilde-tool-metadata div { display: flex; gap: 0.25rem; }
     .tilde-tool-metadata dt { color: var(--tilde-muted); }
@@ -107,15 +112,22 @@ defmodule Tilde.Live.Styles do
     .tilde-choice-option.is-selected .tilde-choice-marker { color: var(--tilde-link); }
     .tilde-choice-description { color: var(--tilde-muted); margin-left: 0.75rem; }
 
-    .tilde-input {
+    .tilde-dock {
+      position: sticky;
+      bottom: 0;
+      z-index: 10;
+      background: var(--tilde-bg);
       border-top: 1px solid var(--tilde-line);
-      border-bottom: 1px solid var(--tilde-line);
+      padding: 0.75rem 0 0;
+      margin-top: 1.5rem;
+    }
+
+    .tilde-input {
       display: grid;
-      grid-template-columns: auto 1fr auto auto;
+      grid-template-columns: 1fr auto auto;
       gap: 0.75rem;
       align-items: start;
-      padding: 0.75rem 0;
-      margin: 1.5rem 0 0.75rem;
+      padding: 0 0 0.75rem;
     }
 
     .tilde-input textarea {
@@ -123,23 +135,14 @@ defmodule Tilde.Live.Styles do
       color: inherit;
       background: transparent;
       border: 0;
-      resize: vertical;
+      resize: none;
+      overflow: hidden;
       min-height: 1.55em;
+      max-height: 12rem;
       outline: none;
     }
 
     .tilde-footer { color: var(--tilde-muted); font-size: 0.9rem; }
-
-    .tilde-demo-hooks {
-      max-width: 920px;
-      margin: 1rem auto;
-      padding: 0 24px 24px;
-      color: var(--tilde-fg);
-      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    }
-
-    .tilde-demo-hooks summary { color: var(--tilde-link); cursor: pointer; }
-    .tilde-demo-hooks pre { border: 1px solid var(--tilde-line); overflow-x: auto; padding: 0.75rem; }
     """
   end
 end

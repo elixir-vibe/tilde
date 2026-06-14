@@ -24,7 +24,7 @@ defmodule Tilde.Live.Tool do
       <header class="tilde-tool-header">
         <span class="tilde-tool-name">{@view.name}</span>
         <span :if={@view.arg_summary != ""} class="tilde-tool-args">{@view.arg_summary}</span>
-        <span class="tilde-tool-status">{@view.status}</span>
+        <span class="tilde-tool-status" title={to_string(@view.status)}>{status_label(@view.status)}</span>
       </header>
 
       <dl :if={@view.metadata_rows != []} class="tilde-tool-metadata">
@@ -61,6 +61,15 @@ defmodule Tilde.Live.Tool do
     </article>
     """
   end
+
+  defp status_label(:queued), do: "queued"
+  defp status_label(:running), do: "running"
+  defp status_label(:streaming), do: "running"
+  defp status_label(:success), do: "✓"
+  defp status_label(:done), do: "✓"
+  defp status_label(:error), do: "error"
+  defp status_label(:cancelled), do: "cancelled"
+  defp status_label(status), do: status
 
   defp expandable?(%{expanded?: true}), do: true
   defp expandable?(%{hidden_lines: hidden}), do: hidden > 0

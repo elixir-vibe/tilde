@@ -34,13 +34,6 @@ defmodule Tilde.Live.Demo do
     ~H"""
     {Phoenix.HTML.raw("<style>" <> Tilde.Live.Styles.css() <> "</style>")}
     <.console session={@session} input={@session.input.value} running?={@running?} />
-    <details class="tilde-demo-hooks">
-      <summary>Keyboard hook</summary>
-      <p class="tilde-muted">
-        Add this hook to your LiveSocket setup, then focus a tool block and press ctrl+o.
-      </p>
-      <pre><code>{Tilde.Live.Hooks.js()}</code></pre>
-    </details>
     """
   end
 
@@ -151,9 +144,6 @@ defmodule Tilde.Live.Demo do
       &Block.update_display(&1, %{compact_limit: {:lines, 2}})
     )
     |> append_choice_block("choice_demo", choice)
-    |> Session.put_widget(Tilde.widget("status", :below_input, "background: no running jobs"))
-    |> Session.put_status("model", "demo")
-    |> Session.put_status("cwd", "~/Development/elixir-vibe/tilde")
   end
 
   defp append_choice_block(%Session{} = session, id, %Choice{} = choice) do

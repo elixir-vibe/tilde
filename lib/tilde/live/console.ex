@@ -38,13 +38,15 @@ defmodule Tilde.Live.Console do
         <.widget :for={widget <- @above_widgets} widget={widget} />
       </section>
 
-      <.input value={@input} running?={@running?} />
+      <section class="tilde-dock">
+        <.input value={@input} running?={@running?} />
 
-      <section :if={@below_widgets != []} class="tilde-widgets tilde-widgets-below">
-        <.widget :for={widget <- @below_widgets} widget={widget} />
+        <section :if={@below_widgets != []} class="tilde-widgets tilde-widgets-below">
+          <.widget :for={widget <- @below_widgets} widget={widget} />
+        </section>
+
+        <.footer session={@session} />
       </section>
-
-      <.footer session={@session} />
     </main>
     """
   end
@@ -54,10 +56,13 @@ defmodule Tilde.Live.Console do
   def widget(assigns) do
     ~H"""
     <aside id={@widget.id} class={["tilde-widget", "tilde-widget-#{@widget.placement}"]}>
-      {inspect(@widget.content)}
+      {widget_content(@widget.content)}
     </aside>
     """
   end
+
+  defp widget_content(content) when is_binary(content), do: content
+  defp widget_content(content), do: inspect(content)
 
   defp transcript(%{transcript: %Transcript{} = transcript}), do: transcript
   defp transcript(%{session: %Session{transcript: transcript}}), do: transcript
