@@ -41,6 +41,8 @@ defmodule Tilde.Live.Tool do
         </div>
       </dl>
 
+      <div :if={@view.waiting?} class="tilde-tool-waiting">Waiting…</div>
+
       <div :if={@view.streams != []} class="tilde-tool-streams">
         <section
           :for={stream <- @view.streams}

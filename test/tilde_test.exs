@@ -890,6 +890,23 @@ defmodule TildeTest do
     assert Enum.map(block.actions, & &1.id) == [:confirm, :cancel]
   end
 
+  test "pending empty tool blocks show waiting without status badges" do
+    session =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+
+    html = render_component(&Tilde.Live.Console.console/1, session: session)
+    tui = session |> Tilde.TUI.Renderer.render() |> Enum.join()
+
+    assert html =~ "bash"
+    assert html =~ "mix test"
+    assert html =~ "Waiting…"
+    refute html =~ "tilde-tool-status"
+    assert tui =~ "Waiting…"
+  end
+
   test "demo session renders a complete dogfood console" do
     session = Tilde.Live.Demo.demo_session()
     html = render_component(&Tilde.Live.Console.console/1, session: session)

@@ -178,6 +178,7 @@ defmodule Tilde.Live.Styles do
     .tilde-tool-segment-success { color: var(--tilde-success); }
     .tilde-tool-tags, .tilde-tool-suffix { margin-left: 0.65ch; }
     .tilde-tool-metadata { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0 0; }
+    .tilde-tool-waiting { color: var(--tilde-muted); margin-top: 0.75rem; }
     .tilde-tool-metadata div { display: flex; gap: 0.25rem; }
     .tilde-tool-metadata dt { color: var(--tilde-muted); }
     .tilde-tool-metadata dd { margin: 0; }

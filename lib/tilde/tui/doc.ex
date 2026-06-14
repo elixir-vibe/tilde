@@ -51,6 +51,7 @@ defmodule Tilde.TUI.Doc do
     concat([
       tool_header(view, opts),
       metadata_rows(view.metadata_rows, opts),
+      waiting_doc(view, opts),
       stream_docs(view.streams, opts),
       hidden_doc(view, opts)
     ])
@@ -150,6 +151,9 @@ defmodule Tilde.TUI.Doc do
   defp tool_call_suffix(nil, _opts), do: []
   defp tool_call_suffix("", _opts), do: []
   defp tool_call_suffix(suffix, opts), do: [Theme.muted("(#{suffix})", opts)]
+
+  defp waiting_doc(%{waiting?: true}, opts), do: prefix_line(Theme.muted("Waiting…", opts))
+  defp waiting_doc(_view, _opts), do: empty()
 
   defp metadata_rows([], _opts), do: empty()
 

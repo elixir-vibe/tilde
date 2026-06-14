@@ -49,6 +49,7 @@ defmodule Tilde.ToolView do
       call_suffix: call_suffix(block),
       arg_summary: arg_summary(block.args),
       metadata_rows: metadata_rows(block),
+      waiting?: waiting?(block, visible_lines, streams),
       lines: visible_lines,
       streams: streams,
       hidden_lines: hidden_lines,
@@ -58,6 +59,12 @@ defmodule Tilde.ToolView do
       metadata: block.metadata
     }
   end
+
+  defp waiting?(block, visible_lines, streams) do
+    pending?(block.status) and visible_lines == [] and Enum.all?(streams, &(&1.lines == []))
+  end
+
+  defp pending?(status), do: status in [:queued, :running, :streaming]
 
   defp line_limit(%Block{display: %{compact_limit: {:lines, limit}}}), do: limit
   defp line_limit(_block), do: 8
