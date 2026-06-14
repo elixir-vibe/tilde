@@ -20,6 +20,20 @@ defmodule Tilde.Live.Styles do
       --tilde-tool-bg: rgba(222, 214, 203, 0.35);
     }
 
+    html {
+      height: 100%;
+      background: var(--tilde-bg);
+      overflow: hidden;
+    }
+
+    body {
+      height: 100%;
+      margin: 0;
+      background: var(--tilde-bg);
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
     @media (prefers-color-scheme: dark) {
       :root {
         --tilde-bg: #11100f;
@@ -39,8 +53,20 @@ defmodule Tilde.Live.Styles do
       color: var(--tilde-fg);
       font: 16px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       max-width: 920px;
+      height: 100dvh;
+      box-sizing: border-box;
       margin: 0 auto;
       padding: 24px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tilde-transcript {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
     }
 
     .tilde-block { margin: 0 0 1.25rem; }
@@ -144,12 +170,11 @@ defmodule Tilde.Live.Styles do
     .tilde-choice-description { color: var(--tilde-muted); margin-left: 0.75rem; }
 
     .tilde-dock {
-      position: sticky;
-      bottom: 0;
+      flex: 0 0 auto;
       z-index: 10;
       background: var(--tilde-bg);
       border-top: 1px solid var(--tilde-line);
-      padding: 0.75rem 0 0;
+      padding: 0.75rem 0 max(0.25rem, env(safe-area-inset-bottom));
       margin-top: 1.5rem;
     }
 

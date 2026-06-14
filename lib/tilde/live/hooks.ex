@@ -16,14 +16,16 @@ defmodule Tilde.Live.Hooks do
         mounted() {
           this.shouldStickToBottom = true
           this.bottomThreshold = 80
+          this.scroller = this.el.querySelector("#tilde-transcript")
 
           this.isNearBottom = () => {
-            const doc = document.documentElement
-            return window.innerHeight + window.scrollY >= doc.scrollHeight - this.bottomThreshold
+            if (!this.scroller) return true
+            return this.scroller.scrollTop + this.scroller.clientHeight >= this.scroller.scrollHeight - this.bottomThreshold
           }
 
           this.scrollToBottom = () => {
-            window.scrollTo({ top: document.documentElement.scrollHeight })
+            if (!this.scroller) return
+            this.scroller.scrollTop = this.scroller.scrollHeight
           }
 
           this.stickToBottom = () => {
@@ -77,7 +79,7 @@ defmodule Tilde.Live.Hooks do
             this.pushEvent("tilde:toggle_expand", { id: block.dataset.blockId })
           }
 
-          window.addEventListener("scroll", this.handleScroll, { passive: true })
+          this.scroller && this.scroller.addEventListener("scroll", this.handleScroll, { passive: true })
           this.el.addEventListener("submit", this.handleSubmit)
           this.el.addEventListener("input", this.handleInput)
           this.el.addEventListener("keydown", this.handleKeydown)
@@ -91,7 +93,7 @@ defmodule Tilde.Live.Hooks do
         },
 
         destroyed() {
-          window.removeEventListener("scroll", this.handleScroll)
+          this.scroller && this.scroller.removeEventListener("scroll", this.handleScroll)
           this.el.removeEventListener("submit", this.handleSubmit)
           this.el.removeEventListener("input", this.handleInput)
           this.el.removeEventListener("keydown", this.handleKeydown)
