@@ -992,7 +992,7 @@ defmodule TildeTest do
 
     assert Enum.map(cell.lines, &Tilde.View.Helpers.plain_text/1) == [
              "bash mix test",
-             "cwd /tmp/app exit 0",
+             "cwd /tmp/app  exit 0",
              "ok"
            ]
 
@@ -1007,6 +1007,86 @@ defmodule TildeTest do
     assert strip_ansi(tui) =~ "bash mix test"
     assert strip_ansi(tui) =~ "ok"
     assert tui =~ IO.ANSI.bright()
+  end
+
+  test "Tilde semantic HEEx templates support assigns, message cells, and markdown" do
+    require Tilde.Template
+    require Tilde.Template.Live
+    require Tilde.Template.TUI
+
+    source = """
+    <.message role={@role}>
+      Hello <.title>{@name}</.title>
+    </.message>
+    <.markdown role="assistant">
+      **streaming** markdown
+    </.markdown>
+    """
+
+    [message, markdown] = Tilde.Template.to_cells!(source, assigns: %{role: "user", name: "Ada"})
+
+    assert message.kind == :message
+    assert message.role == :user
+    assert message.source == "Hello Ada"
+    assert Enum.any?(hd(message.lines).parts, &(&1.style == :title and &1.text == "Ada"))
+
+    assert markdown.kind == :message
+    assert markdown.role == :assistant
+    assert markdown.format == :markdown
+    assert markdown.source == "**streaming** markdown"
+
+    live =
+      source
+      |> Tilde.Template.Live.render!(assigns: %{role: "user", name: "Ada"})
+      |> rendered_to_string()
+
+    tui = Tilde.Template.TUI.render!(source, 50, assigns: %{role: "user", name: "Ada"})
+
+    assert live =~ "Hello"
+    assert strip_ansi(tui) =~ "Hello Ada"
+  end
+
+  test "Tilde semantic HEEx source walker supports lists, code blocks, and tables" do
+    require Tilde.Template
+
+    [cell] =
+      Tilde.Template.to_cells!("""
+      <.cell>
+        <ul><li>one</li><li><strong>two</strong></li></ul>
+        <pre>mix test\nok</pre>
+        <table>
+          <tr><th>Name</th><th>Status</th></tr>
+          <tr><td>CI</td><td><.success>green</.success></td></tr>
+        </table>
+      </.cell>
+      """)
+
+    assert Enum.map(cell.lines, &Tilde.View.Helpers.plain_text/1) == [
+             "• one",
+             "• two",
+             "mix test",
+             "ok",
+             "Name | Status",
+             "CI | green"
+           ]
+
+    assert [
+             %{style: :title, text: "Name"},
+             %{style: :muted, text: " | "},
+             %{style: :title, text: "Status"}
+           ] = Enum.at(cell.lines, 4).parts
+
+    assert Enum.any?(List.last(cell.lines).parts, &(&1.style == :success and &1.text == "green"))
+  end
+
+  test "Tilde semantic HEEx templates report missing assigns" do
+    require Tilde.Template
+
+    assert_raise KeyError, fn ->
+      Tilde.Template.to_cells!("""
+      <.message>Hello {@missing}</.message>
+      """)
+    end
   end
 
   test "shared tool view cell drives LiveView and TUI text" do

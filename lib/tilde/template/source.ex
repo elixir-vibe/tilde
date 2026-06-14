@@ -28,6 +28,7 @@ defmodule Tilde.Template.Source do
       ArgumentError,
       CompileError,
       FunctionClauseError,
+      KeyError,
       Phoenix.LiveView.TagEngine.Tokenizer.ParseError,
       RuntimeError,
       SyntaxError,
@@ -51,6 +52,11 @@ defmodule Tilde.Template.Source do
        when type in [:local_component, :remote_component] do
     case component_name(name) do
       "cell" -> [cell_from_attrs(attrs, children, env)]
+      "message" -> [message_from_attrs(attrs, children, env)]
+      "markdown" -> [message_from_attrs(attrs, children, env, format: :markdown)]
+      "tool" -> [template_cell_from_attrs(:tool, attrs, children, env)]
+      "choice" -> [template_cell_from_attrs(:choice, attrs, children, env)]
+      "suggest" -> [template_cell_from_attrs(:suggest, attrs, children, env)]
       _ -> []
     end
   end
@@ -70,14 +76,49 @@ defmodule Tilde.Template.Source do
 
   defp cell_from_attrs(attrs, children, env) do
     attrs = attrs_map(attrs, env)
+    lines = nodes_to_lines(children, env)
 
     Cell.new(
       kind: atom_attr(attrs, "kind", :template),
       role: atom_attr(attrs, "role", nil),
       state: atom_attr(attrs, "state", :normal),
-      lines: nodes_to_lines(children, env),
+      lines: lines,
+      source: lines_to_text(lines),
       padding_x: int_attr(attrs, "padding_x", 0),
       padding_y: int_attr(attrs, "padding_y", 0),
+      attrs: %{template: :source}
+    )
+  end
+
+  defp template_cell_from_attrs(role, attrs, children, env) do
+    attrs = attrs_map(attrs, env)
+    lines = nodes_to_lines(children, env)
+
+    Cell.new(
+      kind: :template,
+      role: role,
+      state: atom_attr(attrs, "state", :normal),
+      lines: lines,
+      source: lines_to_text(lines),
+      padding_x: int_attr(attrs, "padding_x", 1),
+      padding_y: int_attr(attrs, "padding_y", 1),
+      attrs: %{template: :source, semantic_kind: role}
+    )
+  end
+
+  defp message_from_attrs(attrs, children, env, opts \\ []) do
+    attrs = attrs_map(attrs, env)
+    lines = children |> nodes_to_parts(env) |> parts_to_lines(:normal)
+    format = Keyword.get(opts, :format, atom_attr(attrs, "format", :plain))
+
+    Cell.new(
+      kind: :message,
+      role: atom_attr(attrs, "role", :assistant),
+      format: format,
+      source: lines_to_text(lines),
+      lines: lines,
+      padding_x: 0,
+      padding_y: 0,
       attrs: %{template: :source}
     )
   end
@@ -109,6 +150,31 @@ defmodule Tilde.Template.Source do
     component_to_lines(name, attrs, children, env)
   end
 
+  defp node_to_lines({:block, :tag, name, _attrs, children, _meta, _close_meta}, env)
+       when name in ~w(ul ol tbody thead table),
+       do: nodes_to_lines(children, env)
+
+  defp node_to_lines({:block, :tag, "li", _attrs, children, _meta, _close_meta}, env) do
+    [Line.new([Text.new("• ") | nodes_to_parts(children, env)])]
+  end
+
+  defp node_to_lines({:block, :tag, "tr", _attrs, children, _meta, _close_meta}, env) do
+    cells = Enum.flat_map(children, &table_cell_parts(&1, env))
+
+    if cells == [] do
+      []
+    else
+      [Line.new(join_parts(cells, Text.new(" | ", :muted)))]
+    end
+  end
+
+  defp node_to_lines({:block, :tag, "pre", _attrs, children, _meta, _close_meta}, env) do
+    children
+    |> raw_text(env)
+    |> String.split("\n", trim: true)
+    |> Enum.map(&Line.new(Text.new(&1, :accent), role: :primary))
+  end
+
   defp node_to_lines({:block, :tag, name, _attrs, children, _meta, _close_meta}, env) do
     style = tag_style(name)
 
@@ -132,7 +198,10 @@ defmodule Tilde.Template.Source do
       "tool_call" ->
         [tool_call_line(attrs)]
 
-      inline when inline in ~w(title accent primary muted meta error success text) ->
+      "item" ->
+        [Line.new([Text.new("• ") | nodes_to_parts(children, env)])]
+
+      inline when inline in ~w(title accent primary muted meta error success text code) ->
         style = inline_style(inline, attrs)
         [Line.new(nodes_to_parts(children, env, style), role: role_for_style(style))]
 
@@ -148,8 +217,8 @@ defmodule Tilde.Template.Source do
   end
 
   defp node_to_parts({:text, text, _meta}, _env, forced_style) do
-    text = normalize_text(text)
-    if text == "", do: [], else: [Text.new(text, forced_style || :plain)]
+    text = normalize_part_text(text)
+    if String.trim(text) == "", do: [], else: [Text.new(text, forced_style || :plain)]
   end
 
   defp node_to_parts({:body_expr, expr, _meta}, env, forced_style) do
@@ -174,7 +243,7 @@ defmodule Tilde.Template.Source do
     attrs = attrs_map(attrs, env)
 
     case component_name(name) do
-      inline when inline in ~w(title accent primary muted meta error success text) ->
+      inline when inline in ~w(title accent primary muted meta error success text code) ->
         style = inline_style(inline, attrs)
         nodes_to_parts(children, env, forced_style || style)
 
@@ -192,6 +261,28 @@ defmodule Tilde.Template.Source do
     |> Enum.map(&Line.new(&1, role: role))
   end
 
+  defp table_cell_parts({:block, :tag, name, _attrs, children, _meta, _close_meta}, env)
+       when name in ~w(td th) do
+    [nodes_to_parts(children, env, if(name == "th", do: :title, else: nil))]
+  end
+
+  defp table_cell_parts(_node, _env), do: []
+
+  defp join_parts(parts, separator) do
+    parts
+    |> Enum.intersperse([separator])
+    |> List.flatten()
+  end
+
+  defp raw_text(nodes, env) do
+    Enum.map_join(nodes, fn
+      {:text, text, _meta} -> text
+      {:body_expr, expr, _meta} -> expr |> eval_expr(env) |> to_string()
+      {:block, _type, _name, _attrs, children, _meta, _close_meta} -> raw_text(children, env)
+      _node -> ""
+    end)
+  end
+
   defp line_from_text(text) do
     text = String.trim(text)
     if text == "", do: nil, else: Line.new(text)
@@ -206,6 +297,8 @@ defmodule Tilde.Template.Source do
       suffix: suffix
     )
   end
+
+  defp lines_to_text(lines), do: Enum.map_join(lines, "\n", &Helpers.plain_text/1)
 
   defp attrs_map(attrs, env) do
     Map.new(attrs, fn
@@ -254,8 +347,10 @@ defmodule Tilde.Template.Source do
     end
   end
 
+  defp allowed_atom("format", value, default), do: known_atom(value, ~w(plain markdown), default)
+
   defp allowed_atom("kind", value, default),
-    do: known_atom(value, ~w(template block message tool choice suggest), default)
+    do: known_atom(value, ~w(template block message widget), default)
 
   defp allowed_atom("role", value, default),
     do:
@@ -296,6 +391,7 @@ defmodule Tilde.Template.Source do
   defp style_atom("error"), do: :error
   defp style_atom("success"), do: :success
   defp style_atom("text"), do: :plain
+  defp style_atom("code"), do: :accent
 
   defp int_attr(attrs, name, default) do
     case Map.get(attrs, name) do
@@ -334,6 +430,25 @@ defmodule Tilde.Template.Source do
     text
     |> String.replace(["\r", "\n", "\t"], " ")
     |> String.split(" ", trim: true)
+    |> Enum.join(" ")
+  end
+
+  defp normalize_part_text(text) do
+    text
+    |> String.replace(["\r", "\n", "\t"], " ")
+    |> String.replace(<<194, 160>>, " ")
+    |> collapse_spaces()
+  end
+
+  defp collapse_spaces(text) do
+    text
+    |> String.split(" ", trim: false)
+    |> Enum.reduce([], fn
+      "", [] -> [""]
+      "", ["" | _] = acc -> acc
+      part, acc -> [part | acc]
+    end)
+    |> Enum.reverse()
     |> Enum.join(" ")
   end
 

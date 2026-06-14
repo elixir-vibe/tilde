@@ -1,11 +1,12 @@
 defmodule Tilde.Template.Components do
   @moduledoc """
-  HEEx components that carry Tilde semantic view intent.
+  Tilde-native semantic HEEx component names.
 
-  These are ordinary Phoenix function components, so they can be used from HEEx
-  templates. They emit small semantic markers that `Tilde.Template` maps back to
-  `Tilde.View.Cell`, `Tilde.View.Line`, and `Tilde.View.Text` before rendering to
-  LiveView, TUI, SSH, or text.
+  `Tilde.Template` reads these component names from Phoenix's HEEx source AST and
+  maps them directly to `Tilde.View.Cell`, `Tilde.View.Line`, and
+  `Tilde.View.Text`. The function bodies are also valid Phoenix components for
+  editor tooling and ordinary HEEx previews, but Tilde's semantic template path
+  does not parse rendered HTML.
   """
 
   use Phoenix.Component
@@ -29,6 +30,53 @@ defmodule Tilde.Template.Components do
     >
       {render_slot(@inner_block)}
     </section>
+    """
+  end
+
+  attr(:role, :string, default: "assistant")
+  attr(:format, :string, default: "plain")
+  slot(:inner_block, required: true)
+
+  def message(assigns) do
+    ~H"""
+    <article data-tilde-message="true" data-tilde-role={@role} data-tilde-format={@format}>{render_slot(@inner_block)}</article>
+    """
+  end
+
+  attr(:role, :string, default: "assistant")
+  slot(:inner_block, required: true)
+
+  def markdown(assigns) do
+    ~H"""
+    <article data-tilde-message="true" data-tilde-role={@role} data-tilde-format="markdown">{render_slot(@inner_block)}</article>
+    """
+  end
+
+  attr(:state, :string, default: "normal")
+  attr(:padding_x, :integer, default: 1)
+  attr(:padding_y, :integer, default: 1)
+  slot(:inner_block, required: true)
+
+  def tool(assigns) do
+    ~H"""
+    <section data-tilde-tool="true" data-tilde-state={@state} data-tilde-padding-x={@padding_x} data-tilde-padding-y={@padding_y}>{render_slot(@inner_block)}</section>
+    """
+  end
+
+  attr(:state, :string, default: "normal")
+  slot(:inner_block, required: true)
+
+  def choice(assigns) do
+    ~H"""
+    <section data-tilde-choice="true" data-tilde-state={@state}>{render_slot(@inner_block)}</section>
+    """
+  end
+
+  slot(:inner_block, required: true)
+
+  def suggest(assigns) do
+    ~H"""
+    <section data-tilde-suggest="true">{render_slot(@inner_block)}</section>
     """
   end
 
@@ -70,6 +118,17 @@ defmodule Tilde.Template.Components do
 
   slot(:inner_block, required: true)
   def success(assigns), do: styled(assigns, "success")
+
+  slot(:inner_block, required: true)
+  def code(assigns), do: styled(assigns, "accent")
+
+  slot(:inner_block, required: true)
+
+  def item(assigns) do
+    ~H"""
+    <div data-tilde-line="true" data-tilde-role="normal">• {render_slot(@inner_block)}</div>
+    """
+  end
 
   attr(:name, :string, required: true)
   attr(:segment, :string, default: nil)

@@ -60,6 +60,52 @@ transcript = Tilde.transcript(events)
 Tilde.Renderer.Text.render(transcript)
 ```
 
+## Semantic HEEx templates
+
+Tilde can parse a constrained, Tilde-native HEEx surface into semantic view cells:
+
+```elixir
+require Tilde.Template
+require Tilde.Template.TUI
+require Tilde.Template.Live
+
+source = """
+<.tool state="success">
+  <.tool_call name="bash" segment="mix test" />
+  <.line role="metadata"><.meta>cwd /tmp/app  exit 0</.meta></.line>
+  <.line role="primary"><.primary>ok</.primary></.line>
+</.tool>
+"""
+
+cells = Tilde.Template.to_cells!(source)
+ansi = Tilde.Template.TUI.render!(source, 80)
+live = Tilde.Template.Live.render!(source)
+```
+
+The pipeline is source-semantic, not rendered-HTML based:
+
+```text
+HEEx source
+  ↓ Phoenix.LiveView.TagEngine.Parser.parse!/2
+HEEx AST
+  ↓ Tilde.Template.Source
+Tilde.View.Cell / Tilde.View.Line / Tilde.View.Text
+  ↓
+LiveView / TUI / SSH renderers
+```
+
+Tilde does **not** parse rendered HTML and does not use terminal emulation. The
+supported template surface is intentionally Tilde-native: `<.cell>`, `<.message>`,
+`<.markdown>`, `<.tool>`, `<.choice>`, `<.suggest>`, `<.line>`, `<.tool_call>`,
+and inline roles such as `<.title>`, `<.accent>`, `<.meta>`, `<.primary>`,
+`<.muted>`, `<.error>`, `<.success>`, and `<.code>`. Basic source tags such as
+`<ul>/<li>`, `<pre>`, and `<table>/<tr>/<th>/<td>` are mapped directly from the
+HEEx source AST into text lines.
+
+Arbitrary Phoenix function components are not a template compatibility target.
+If a component should render to web, TUI, and SSH, model it as Tilde semantic
+view data rather than HTML.
+
 ## LiveView
 
 Tilde includes a LiveView renderer namespace in the same package:
