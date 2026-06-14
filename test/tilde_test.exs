@@ -201,6 +201,13 @@ defmodule TildeTest do
 
     assert {:ok, safe_html} = Tilde.Markdown.to_html("<script>alert(1)</script>")
     refute safe_html =~ "<script>"
+
+    assert {:ok, table_html} =
+             Tilde.Markdown.to_html("| name | status |\n| --- | ---: |\n| LiveView | ok |")
+
+    assert table_html =~ "<table>"
+    assert table_html =~ "<th>name</th>"
+    assert table_html =~ "<td>LiveView</td>"
   end
 
   test "live message renders markdown source with MDEx" do
@@ -210,6 +217,21 @@ defmodule TildeTest do
     assert html =~ "tilde-markdown"
     assert html =~ "<strong>bold</strong>"
     assert html =~ "<code>code</code>"
+  end
+
+  test "live markdown tables remain semantic HTML with terminal-like styling" do
+    block =
+      Block.message("msg_1", :assistant, "| name | status |\n| --- | --- |\n| LiveView | ok |")
+
+    html = render_component(&Tilde.Live.Message.message/1, block: block)
+    css = Tilde.Live.Styles.css()
+
+    assert html =~ "<table>"
+    assert html =~ "<th>name</th>"
+    assert html =~ "<td>LiveView</td>"
+    assert css =~ ".tilde-markdown table"
+    assert css =~ "padding: 0 var(--tilde-cell)"
+    assert css =~ "border: 1px solid var(--tilde-line)"
   end
 
   test "live message renders semantic runs as inline HTML" do

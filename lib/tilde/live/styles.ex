@@ -21,6 +21,7 @@ defmodule Tilde.Live.Styles do
       --tilde-tool-pending-bg: rgba(138, 90, 0, 0.10);
       --tilde-tool-success-bg: rgba(47, 125, 50, 0.10);
       --tilde-tool-error-bg: rgba(179, 38, 30, 0.10);
+      --tilde-cell: 1ch;
       --tilde-scrollbar-thumb: #b9aea1;
       --tilde-scrollbar-thumb-hover: #8f8378;
     }
@@ -136,12 +137,34 @@ defmodule Tilde.Live.Styles do
     .tilde-label, .tilde-muted, .tilde-key, .tilde-shortcut { color: var(--tilde-muted); }
     .tilde-label { margin-bottom: 0.25rem; }
     .tilde-message-body { white-space: normal; }
-    .tilde-markdown { white-space: normal; }
+    .tilde-markdown { white-space: normal; overflow-x: auto; }
     .tilde-plain-text { white-space: pre-wrap; }
     .tilde-markdown p, .tilde-markdown ul, .tilde-markdown ol, .tilde-markdown pre { margin: 0 0 0.75rem; }
     .tilde-markdown > :last-child { margin-bottom: 0; }
     .tilde-markdown a { color: var(--tilde-link); text-underline-offset: 2px; }
     .tilde-markdown pre { border: 1px solid var(--tilde-line); padding: 0.75rem; overflow-x: auto; }
+    .tilde-markdown table {
+      border-collapse: collapse;
+      border-spacing: 0;
+      font: inherit;
+      width: auto;
+      max-width: 100%;
+      margin: 0 0 1lh;
+    }
+    .tilde-markdown th,
+    .tilde-markdown td {
+      border: 1px solid var(--tilde-line);
+      padding: 0 var(--tilde-cell);
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    .tilde-markdown th {
+      color: var(--tilde-muted);
+      font-weight: 400;
+    }
+    .tilde-markdown th[align="center"], .tilde-markdown td[align="center"] { text-align: center; }
+    .tilde-markdown th[align="right"], .tilde-markdown td[align="right"] { text-align: right; }
     .tilde-markdown code { border: 1px solid var(--tilde-line); padding: 0 0.2em; }
     .tilde-markdown pre code { border: 0; padding: 0; }
     .tilde-run-muted { color: var(--tilde-muted); }
@@ -172,14 +195,14 @@ defmodule Tilde.Live.Styles do
     .tilde-tool-cancelled { opacity: 0.82; }
     .tilde-tool-call { min-width: 0; overflow-wrap: anywhere; }
     .tilde-tool-name { font-weight: 700; }
-    .tilde-tool-segment { margin-left: 0.65ch; }
+    .tilde-tool-segment { margin-left: var(--tilde-cell); }
     .tilde-tool-segment-accent { color: var(--tilde-link); }
     .tilde-tool-segment-muted, .tilde-tool-segment-dim, .tilde-tool-tags, .tilde-tool-suffix { color: var(--tilde-muted); }
     .tilde-tool-segment-success { color: var(--tilde-success); }
-    .tilde-tool-tags, .tilde-tool-suffix { margin-left: 0.65ch; }
+    .tilde-tool-tags, .tilde-tool-suffix { margin-left: var(--tilde-cell); }
     .tilde-tool-metadata { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0.5rem 0 0; }
     .tilde-tool-waiting { color: var(--tilde-muted); margin-top: 0.75rem; }
-    .tilde-tool-metadata div { display: flex; gap: 0.25rem; }
+    .tilde-tool-metadata div { display: flex; gap: var(--tilde-cell); }
     .tilde-tool-metadata dt { color: var(--tilde-muted); }
     .tilde-tool-metadata dd { margin: 0; }
     .tilde-tool-streams { display: grid; gap: 0.5rem; margin-top: 0.75rem; }
@@ -218,7 +241,7 @@ defmodule Tilde.Live.Styles do
     .tilde-suggest-row {
       display: grid;
       grid-template-columns: 14ch 1fr;
-      gap: 1rem;
+      gap: 2ch;
       width: 100%;
       font: inherit;
       color: inherit;
