@@ -796,6 +796,76 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
+  @tag timeout: 45_000
+  test "ssh sessions are private by default and attach only when explicit" do
+    skip_unless_executable("ssh")
+    skip_unless_executable("setsid")
+
+    with_application_env(:llm_enabled, false, fn ->
+      dir =
+        Path.join(
+          System.tmp_dir!(),
+          "tilde-ssh-isolation-test-#{System.unique_integer([:positive])}"
+        )
+
+      askpass = Path.join(dir, "askpass.sh")
+      File.mkdir_p!(dir)
+      File.write!(askpass, "#!/bin/sh\necho tilde\n")
+      File.chmod!(askpass, 0o700)
+
+      {:ok, pid} = Tilde.SSH.Demo.start_link(port: 0, system_dir: dir, password: "tilde")
+      [port: port] = :ssh.daemon_info(Tilde.SSH.Demo.daemon_ref(pid), [:port])
+
+      try do
+        stamp = System.unique_integer([:positive])
+        private_a = "AAA_PRIVATE_#{stamp}"
+        private_b = "BBB_PRIVATE_#{stamp}"
+
+        task_a = ssh_script(port, askpass, "printf '#{private_a}'; sleep 2")
+        task_b = ssh_script(port, askpass, "printf '#{private_b}'; sleep 2")
+
+        output_a = Task.await(task_a, 15_000)
+        output_b = Task.await(task_b, 15_000)
+
+        assert output_a =~ private_a
+        assert output_b =~ private_b
+        refute output_a =~ private_b
+        refute output_b =~ private_a
+
+        attached = "ssh-smoke-#{stamp}"
+        attached_a = "AAA_ATTACHED_#{stamp}"
+        attached_b = "BBB_ATTACHED_#{stamp}"
+
+        attach_a =
+          ssh_script(
+            port,
+            askpass,
+            "printf '/attach #{attached}\\r'; sleep 1; printf '#{attached_a}'; sleep 1; printf '\\r'; sleep 2"
+          )
+
+        attach_b =
+          ssh_script(
+            port,
+            askpass,
+            "printf '/attach #{attached}\\r'; sleep 1; printf '#{attached_b}'; sleep 4"
+          )
+
+        attached_output_a = Task.await(attach_a, 15_000)
+        attached_output_b = Task.await(attach_b, 15_000)
+
+        assert attached_output_a =~ "attached session: #{attached}"
+        assert attached_output_b =~ "attached session: #{attached}"
+        assert attached_output_b =~ attached_a
+        refute attached_output_a =~ attached_b
+        assert last_prompt(attached_output_b) =~ attached_b
+        refute last_prompt(attached_output_b) =~ attached_a
+      after
+        GenServer.stop(pid)
+        File.rm_rf!(dir)
+      end
+    end)
+  end
+
   test "semantic status events update and clear session statuses" do
     session =
       Tilde.session()
@@ -1327,6 +1397,45 @@ defmodule TildeTest do
   end
 
   defp strip_html(text), do: Regex.replace(~r/<[^>]+>/, text, "")
+
+  defp skip_unless_executable(executable) do
+    unless System.find_executable(executable) do
+      flunk("#{executable} executable is required for SSH integration coverage")
+    end
+  end
+
+  defp ssh_script(port, askpass, producer_script) do
+    Task.async(fn ->
+      command = """
+      (#{producer_script}) | timeout 10 setsid env \
+        SSH_ASKPASS="$TILDE_ASKPASS" \
+        SSH_ASKPASS_REQUIRE=force \
+        DISPLAY=:0 \
+        ssh tilde@localhost \
+          -p "$TILDE_PORT" \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          -o PreferredAuthentications=password \
+          -o PubkeyAuthentication=no
+      """
+
+      {output, _status} =
+        System.cmd("bash", ["-lc", command],
+          env: [{"TILDE_PORT", to_string(port)}, {"TILDE_ASKPASS", askpass}],
+          stderr_to_stdout: true
+        )
+
+      strip_ansi(output)
+    end)
+  end
+
+  defp last_prompt(output) do
+    output
+    |> String.split(["\r", "\n"], trim: true)
+    |> Enum.filter(&String.starts_with?(&1, ">"))
+    |> List.last()
+    |> Kernel.||("")
+  end
 
   defp restore_application_env(key, nil), do: Application.delete_env(:tilde, key)
   defp restore_application_env(key, previous), do: Application.put_env(:tilde, key, previous)

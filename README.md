@@ -166,7 +166,7 @@ Tilde.TUI.Keys.decode(<<15>>) #=> :toggle_expand
 
 ## SSH demo
 
-Tilde can expose the same semantic demo session over SSH as a terminal UI:
+Tilde can expose semantic sessions over SSH as terminal UIs:
 
 ```elixir
 # iex -S mix
@@ -208,9 +208,21 @@ esc        clear prompt text
 ctrl+c     clear prompt text, or quit when empty
 ```
 
-Prompt edits are stored as `Tilde.Input` state and `:input_changed` /
-`:input_submitted` events. Submitting input appends a user message to the same
-semantic transcript rendered by LiveView, TUI, and SSH.
+In the SSH demo, each new connection gets its own private session by default.
+Prompt edits are local to the SSH client, so two attached clients do not type
+into the same live input buffer. Submitting input appends a user message to the
+semantic transcript for that session.
+
+Use slash commands to control sessions:
+
+```text
+/session        show the current semantic session id
+/attach name    explicitly attach this SSH client to a named shared session
+/new name       create/navigate to a named isolated web session
+```
+
+After `/attach name`, multiple SSH clients and `/tilde/name` can observe the same
+submitted transcript, while each SSH client keeps its own prompt buffer.
 
 The SSH path has been dogfooded with OpenSSH through tmux. Terminal output uses
 CRLF line endings over SSH so remote terminals return to column zero correctly.
@@ -239,16 +251,17 @@ ssh tilde@localhost -p 4022 \
 
 Password: `tilde`.
 
-By default, the web and SSH renderers share the same `Tilde.SessionServer`, so
-input submitted over SSH appears in the web session and LiveView events mutate
-the same semantic session. The standalone demo also supports isolated web-only
-sessions at `/tilde/:session_id`; these are named through `Tilde.SessionRegistry`
-without creating dynamic atoms. Use `--web-port`, `--ssh-port`, or `--password`
-to customize the task.
+By default, each SSH connection gets a fresh private session. This prevents
+unrelated terminal clients from seeing each other’s prompt text or transcript.
+To share intentionally, run `/attach <session_id>` in SSH/TUI and open
+`/tilde/<session_id>` in the browser. Named sessions are stored through
+`Tilde.SessionRegistry` without creating dynamic atoms. Use `--web-port`,
+`--ssh-port`, or `--password` to customize the task.
 
 The demo includes a small renderer-neutral slash command layer through
-`Tilde.Command`. Commands such as `/help`, `/session`, `/clear`, `/compact`, and
-`/new [name]` are parsed from semantic input and work across LiveView and TUI/SSH.
+`Tilde.Command`. Commands such as `/help`, `/session`, `/attach <name>`,
+`/clear`, `/compact`, and `/new [name]` are parsed from semantic input and work
+across LiveView and TUI/SSH.
 The web demo also exposes a “New isolated session” link, which is UI sugar over
 `/new`.
 
@@ -287,9 +300,9 @@ Tilde.SessionServer.apply_key(:demo, {:text, "h"})
 Tilde.SessionServer.append_event(:demo, Tilde.input_submitted("hello"))
 ```
 
-`Tilde.Live.Demo` and `Tilde.SSH.Demo` both default to the package-wide
-`Tilde.SessionServer`, so a demo LiveView and demo SSH channel can observe and
-mutate the same semantic session.
+`Tilde.Live.Demo` uses named sessions for `/tilde/:session_id`. `Tilde.SSH.Demo`
+creates a private named session for each new SSH connection by default and can
+explicitly attach a channel to a named session with `/attach <session_id>`.
 
 ## Display state
 
