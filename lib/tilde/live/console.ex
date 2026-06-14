@@ -12,7 +12,7 @@ defmodule Tilde.Live.Console do
   import Tilde.Live.Footer
   import Tilde.Live.Input
 
-  alias Tilde.{Session, Transcript}
+  alias Tilde.{Session, Suggest, Transcript}
 
   attr(:id, :string, default: "tilde-console")
   attr(:session, :any, default: nil)
@@ -57,13 +57,43 @@ defmodule Tilde.Live.Console do
   def widget(assigns) do
     ~H"""
     <aside id={@widget.id} class={["tilde-widget", "tilde-widget-#{@widget.placement}"]}>
-      {widget_content(@widget.content)}
+      <.widget_content content={@widget.content} />
     </aside>
     """
   end
 
-  defp widget_content(content) when is_binary(content), do: content
-  defp widget_content(content), do: inspect(content)
+  attr(:content, :any, required: true)
+
+  def widget_content(%{content: %Suggest{} = suggest} = assigns) do
+    assigns = assign(assigns, :suggest, suggest)
+
+    ~H"""
+    <section class="tilde-suggest" data-suggest-trigger={@suggest.trigger} data-suggest-query={@suggest.query}>
+      <div class="tilde-suggest-title">{@suggest.title}</div>
+      <div class="tilde-suggest-items">
+        <button
+          :for={item <- @suggest.items}
+          type="button"
+          class="tilde-suggest-row"
+          phx-click="tilde:complete_input"
+          phx-value-insert={item.insert}
+        >
+          <code>{item.label}</code>
+          <span>{item.description}</span>
+        </button>
+      </div>
+    </section>
+    """
+  end
+
+  def widget_content(assigns) do
+    ~H"""
+    {widget_text(@content)}
+    """
+  end
+
+  defp widget_text(content) when is_binary(content), do: content
+  defp widget_text(content), do: inspect(content)
 
   defp transcript(%{transcript: %Transcript{} = transcript}), do: transcript
   defp transcript(%{session: %Session{transcript: transcript}}), do: transcript

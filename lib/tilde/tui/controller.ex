@@ -34,6 +34,13 @@ defmodule Tilde.TUI.Controller do
     change_input(session, Input.insert(session.input, text))
   end
 
+  def apply_key(%Session{} = session, :tab) do
+    case Tilde.Command.completion(session.input.value) do
+      nil -> {:cont, session}
+      completion -> change_input(session, Input.put_value(session.input, completion))
+    end
+  end
+
   def apply_key(%Session{} = session, :backspace) do
     change_input(session, Input.backspace(session.input))
   end

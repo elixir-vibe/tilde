@@ -8,7 +8,7 @@ defmodule Tilde.TUI.Doc do
 
   import Inspect.Algebra, only: [concat: 2, empty: 0]
 
-  alias Tilde.{Block, Session, ToolView, Transcript}
+  alias Tilde.{Block, Session, Suggest, ToolView, Transcript}
   alias Tilde.TUI.Theme
 
   @doc "Builds an algebra document for a session."
@@ -101,9 +101,27 @@ defmodule Tilde.TUI.Doc do
   defp widgets(%Session{} = session, opts) do
     session.widgets
     |> Enum.flat_map(fn {_placement, widgets} -> widgets end)
-    |> Enum.map(fn widget -> Theme.muted("#{widget.id}: #{inspect(widget.content)}", opts) end)
+    |> Enum.map(&widget_doc(&1, opts))
     |> join_docs(newline())
   end
+
+  defp widget_doc(%{content: %Suggest{} = suggest}, opts) do
+    rows =
+      suggest.items
+      |> Enum.map(fn item ->
+        concat([
+          "  ",
+          Theme.accent(item.label, opts),
+          String.duplicate(" ", max(1, 12 - String.length(item.label))),
+          item.description
+        ])
+      end)
+      |> join_docs(newline())
+
+    concat([Theme.muted(suggest.title, opts), newline(), rows])
+  end
+
+  defp widget_doc(widget, opts), do: Theme.muted("#{widget.id}: #{inspect(widget.content)}", opts)
 
   defp tool_header(view, opts) do
     [

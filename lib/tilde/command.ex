@@ -7,6 +7,15 @@ defmodule Tilde.Command do
 
   defstruct name: nil, args: "", raw: ""
 
+  @commands [
+    %{label: "/help", insert: "/help", description: "Show this help"},
+    %{label: "/new", insert: "/new ", description: "Start an isolated web session"},
+    %{label: "/session", insert: "/session", description: "Show current session details"},
+    %{label: "/clear", insert: "/clear", description: "Clear this session"},
+    %{label: "/compact", insert: "/compact", description: "Trim older session history"},
+    %{label: "/quit", insert: "/quit", description: "Quit in SSH/TUI; not applicable on web"}
+  ]
+
   @type t :: %__MODULE__{name: String.t(), args: String.t(), raw: String.t()}
   @type effect ::
           :ok
@@ -47,6 +56,45 @@ defmodule Tilde.Command do
   @doc "Returns true when input is a slash command."
   @spec command?(String.t()) :: boolean()
   def command?(input), do: match?({:ok, _command}, parse(input))
+
+  @doc "Returns command suggestions for slash input."
+  @spec suggestions(String.t()) :: Tilde.Suggest.t() | nil
+  def suggestions(input) when is_binary(input) do
+    input = String.trim_leading(input)
+
+    case input do
+      <<"/", query::binary>> ->
+        query = String.downcase(query)
+
+        items =
+          Enum.filter(@commands, fn %{label: label} ->
+            label |> String.trim_leading("/") |> String.starts_with?(query)
+          end)
+
+        if items == [],
+          do: nil,
+          else:
+            Tilde.Suggest.new(
+              id: "command-suggestions",
+              title: "commands",
+              trigger: "/",
+              query: query,
+              items: items
+            )
+
+      _other ->
+        nil
+    end
+  end
+
+  @doc "Returns the first command completion for slash input."
+  @spec completion(String.t()) :: String.t() | nil
+  def completion(input) when is_binary(input) do
+    case suggestions(input) do
+      %Tilde.Suggest{items: [%{insert: insert} | _]} -> insert
+      _other -> nil
+    end
+  end
 
   @doc "Runs a command against a session and returns semantic effects."
   @spec run(t(), Session.t(), keyword()) :: [effect()]

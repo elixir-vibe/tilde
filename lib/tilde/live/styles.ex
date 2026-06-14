@@ -107,6 +107,25 @@ defmodule Tilde.Live.Styles do
       text-underline-offset: 2px;
     }
 
+    .tilde-suggest-title { color: var(--tilde-muted); margin-bottom: 0.35rem; }
+    .tilde-suggest-items { display: grid; gap: 0.15rem; }
+    .tilde-suggest-row {
+      display: grid;
+      grid-template-columns: 14ch 1fr;
+      gap: 1rem;
+      width: 100%;
+      font: inherit;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      padding: 0.1rem 0;
+      text-align: left;
+      cursor: pointer;
+    }
+    .tilde-suggest-row:hover { color: var(--tilde-link); }
+    .tilde-suggest-row code { color: var(--tilde-link); border: 0; padding: 0; }
+    .tilde-suggest-row span { color: var(--tilde-muted); }
+
     .tilde-choice-options { display: grid; gap: 0.35rem; margin-top: 0.75rem; }
     .tilde-choice-option { text-align: left; text-decoration: none; color: var(--tilde-fg); }
     .tilde-choice-option.is-selected .tilde-choice-marker { color: var(--tilde-link); }

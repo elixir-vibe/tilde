@@ -131,14 +131,17 @@ defmodule Tilde.Session do
   end
 
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_changed} = event) do
-    put_input(
-      session,
-      Input.put_value(session.input, event.text || "", cursor: input_cursor(event))
-    )
+    value = event.text || ""
+
+    session
+    |> put_input(Input.put_value(session.input, value, cursor: input_cursor(event)))
+    |> put_command_suggestions(value)
   end
 
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_submitted}) do
-    put_input(session, Input.clear(session.input))
+    session
+    |> put_input(Input.clear(session.input))
+    |> delete_widget("command-suggestions")
   end
 
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :status_changed} = event) do
@@ -156,6 +159,13 @@ defmodule Tilde.Session do
 
   defp update_status(%__MODULE__{} = session, key, value),
     do: %{session | statuses: Map.put(session.statuses, key, value)}
+
+  defp put_command_suggestions(%__MODULE__{} = session, value) do
+    case Tilde.Command.suggestions(value) do
+      nil -> delete_widget(session, "command-suggestions")
+      suggest -> put_widget(session, Widget.new("command-suggestions", :above_input, suggest))
+    end
+  end
 
   defp replace_widget(widgets, %Widget{id: id} = widget) do
     [widget | reject_widget(widgets, id)]

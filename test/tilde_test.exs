@@ -283,6 +283,24 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
+  test "command suggestions are semantic widgets and TUI tab completes them" do
+    assert %Tilde.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
+    assert Enum.map(items, & &1.label) == ["/compact"]
+    assert Tilde.Command.completion("/co") == "/compact"
+
+    session = Session.append_event(Tilde.session(), Tilde.input_changed("/co"))
+    assert [suggest_widget] = Session.widgets(session, :above_input)
+    assert %Tilde.Suggest{} = suggest_widget.content
+
+    html = render_component(&Tilde.Live.Console.console/1, session: session)
+    assert html =~ "tilde-suggest"
+    assert html =~ "/compact"
+    assert html =~ "phx-click=\"tilde:complete_input\""
+
+    assert {:cont, completed} = Tilde.TUI.Controller.apply_key(session, :tab)
+    assert completed.input.value == "/compact"
+  end
+
   test "slash commands parse and apply semantic effects" do
     assert {:ok, %Tilde.Command{name: "help"}} = Tilde.Command.parse("/help")
 
