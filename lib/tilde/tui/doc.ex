@@ -6,7 +6,7 @@ defmodule Tilde.TUI.Doc do
   document is not durable state; it is derived from semantic Tilde blocks.
   """
 
-  import Inspect.Algebra, only: [concat: 2, empty: 0, line: 0, nest: 2]
+  import Inspect.Algebra, only: [concat: 2, empty: 0]
 
   alias Tilde.{Block, Session, ToolView, Transcript}
   alias Tilde.TUI.Theme
@@ -14,14 +14,14 @@ defmodule Tilde.TUI.Doc do
   @doc "Builds an algebra document for a session."
   @spec session(Session.t(), keyword()) :: Inspect.Algebra.t()
   def session(%Session{} = session, opts \\ []) do
-    docs = [
+    [
       header(opts),
       transcript(session.transcript, opts),
       widgets(session, opts),
       footer(session, opts)
     ]
-
-    docs |> Enum.reject(&empty_doc?/1) |> join_docs(blank_line())
+    |> Enum.reject(&empty_doc?/1)
+    |> join_docs(blank_line())
   end
 
   @doc "Builds an algebra document for a transcript."
@@ -39,8 +39,8 @@ defmodule Tilde.TUI.Doc do
   def block(%Block{kind: :message} = block, opts) do
     concat([
       Theme.muted(to_string(block.role), opts),
-      line(),
-      nest(text_doc(message_text(block)), 2)
+      newline(),
+      text_doc(message_text(block), indent: 2)
     ])
   end
 
@@ -60,11 +60,18 @@ defmodule Tilde.TUI.Doc do
       choice.options
       |> Enum.map(fn option ->
         marker = if option.id in choice.selected, do: "[x]", else: "[ ]"
-        concat([Theme.accent(marker, opts), " ", option.label, option_description(option, opts)])
-      end)
-      |> join_docs(line())
 
-    concat([Theme.title(choice.question, opts), line(), nest(options, 2)])
+        concat([
+          "  ",
+          Theme.accent(marker, opts),
+          " ",
+          option.label,
+          option_description(option, opts)
+        ])
+      end)
+      |> join_docs(newline())
+
+    concat([Theme.title(choice.question, opts), newline(), options])
   end
 
   def block(%Block{kind: kind}, opts), do: Theme.muted("#{kind}", opts)
@@ -72,10 +79,7 @@ defmodule Tilde.TUI.Doc do
   defp header(opts), do: Theme.title("# tilde", opts)
 
   defp footer(%Session{} = session, opts) do
-    status =
-      session.statuses
-      |> Enum.map_join(" · ", fn {key, value} -> "#{key}: #{value}" end)
-
+    status = Enum.map_join(session.statuses, " · ", fn {key, value} -> "#{key}: #{value}" end)
     if status == "", do: empty(), else: Theme.muted(status, opts)
   end
 
@@ -83,7 +87,7 @@ defmodule Tilde.TUI.Doc do
     session.widgets
     |> Enum.flat_map(fn {_placement, widgets} -> widgets end)
     |> Enum.map(fn widget -> Theme.muted("#{widget.id}: #{inspect(widget.content)}", opts) end)
-    |> join_docs(line())
+    |> join_docs(newline())
   end
 
   defp tool_header(view, opts) do
@@ -111,23 +115,24 @@ defmodule Tilde.TUI.Doc do
     streams
     |> Enum.reject(fn stream -> stream.lines == [] and stream.hidden_lines == 0 end)
     |> Enum.map(&stream_doc(&1, length(streams), opts))
-    |> join_docs(line())
+    |> join_docs(newline())
     |> prefix_line()
   end
 
   defp stream_doc(stream, stream_count, opts) do
     label =
       if stream_count > 1,
-        do: concat([Theme.muted("#{stream.kind}", opts), line()]),
+        do: concat([Theme.muted("#{stream.kind}", opts), newline()]),
         else: empty()
 
     body =
       stream.lines
       |> Enum.map(&stream_line(&1, stream.kind, opts))
       |> hidden_stream_lines(stream, opts)
-      |> join_docs(line())
+      |> Enum.map(&concat(["  ", &1]))
+      |> join_docs(newline())
 
-    concat([label, nest(body, 2)])
+    concat([label, body])
   end
 
   defp stream_line(line, :stderr, opts), do: Theme.error(line, opts)
@@ -150,10 +155,7 @@ defmodule Tilde.TUI.Doc do
     prefix_line(Theme.muted("… #{view.hidden_lines} more lines (ctrl+o to expand)", opts))
   end
 
-  defp message_text(%Block{runs: [_ | _] = runs}) do
-    Enum.map_join(runs, & &1.text)
-  end
-
+  defp message_text(%Block{runs: [_ | _] = runs}), do: Enum.map_join(runs, & &1.text)
   defp message_text(%Block{source: source}), do: source
 
   defp option_description(%{description: description}, opts),
@@ -161,16 +163,19 @@ defmodule Tilde.TUI.Doc do
 
   defp option_description(_option, _opts), do: ""
 
-  defp text_doc(text) do
+  defp text_doc(text, opts) do
+    indent = String.duplicate(" ", Keyword.get(opts, :indent, 0))
+
     text
     |> String.trim_trailing()
     |> String.split("\n")
-    |> join_docs(line())
+    |> Enum.map(&(indent <> &1))
+    |> join_docs(newline())
   end
 
-  defp blank_line, do: concat([line(), line()])
-
-  defp prefix_line(doc), do: concat([line(), doc])
+  defp blank_line, do: "\n\n"
+  defp prefix_line(doc), do: concat([newline(), doc])
+  defp newline, do: "\n"
 
   defp non_empty_doc(""), do: empty()
   defp non_empty_doc(doc), do: doc

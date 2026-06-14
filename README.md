@@ -158,6 +158,9 @@ r       redraw
 q       quit
 ```
 
+The SSH path has been dogfooded with OpenSSH through tmux. Terminal output uses
+CRLF line endings over SSH so remote terminals return to column zero correctly.
+
 ## Display state
 
 Expansion is renderer state, not content mutation:

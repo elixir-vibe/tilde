@@ -17,14 +17,24 @@ defmodule Tilde.TUI.Renderer do
   def render(%Session{} = session, opts \\ []) do
     width = Keyword.get(opts, :width, 80)
     ansi? = Keyword.get(opts, :ansi, true)
-    doc = Doc.session(session, Keyword.put(opts, :ansi, ansi?))
+    # Keep ANSI styling out of Inspect.Algebra documents so width calculations
+    # are based on visible text, not escape byte length. For now ANSI mode only
+    # controls screen management; semantic color can be applied after layout in
+    # a later renderer pass.
+    doc = Doc.session(session, Keyword.put(opts, :ansi, false))
     body = Inspect.Algebra.format(doc, width)
 
     if ansi? do
-      [IO.ANSI.clear(), IO.ANSI.home(), body, "\n"]
+      [IO.ANSI.clear(), IO.ANSI.home(), terminal_newlines(body), "\r\n"]
     else
       [body, "\n"]
     end
+  end
+
+  defp terminal_newlines(iodata) do
+    iodata
+    |> IO.iodata_to_binary()
+    |> String.replace("\n", "\r\n")
   end
 
   @doc "Renders a session and converts the result to a binary."
