@@ -27,6 +27,22 @@ defmodule TildeTest.ToolRenderer do
   def result(_block, _opts), do: Tilde.ToolRenderer.result_view(lines: ["custom result"])
 end
 
+defmodule TildeTest.TemplateComponents do
+  use Phoenix.Component
+
+  attr(:title, :string, required: true)
+  slot(:inner_block, required: true)
+
+  def panel(assigns) do
+    ~H"""
+    <section class="tilde-panel">
+      <h2>{@title}</h2>
+      <p>{render_slot(@inner_block)}</p>
+    </section>
+    """
+  end
+end
+
 defmodule TildeTest.LLMBackend do
   @behaviour Tilde.LLM.Backend
 
@@ -969,6 +985,44 @@ defmodule TildeTest do
     assert block.kind == :choice
     assert block.choice.selected == ["no"]
     assert Enum.map(block.actions, & &1.id) == [:confirm, :cancel]
+  end
+
+  test "HEEx templates with imported components render through semantic Tilde views" do
+    import Tilde.Template
+    import Tilde.Template.TUI
+    import TildeTest.TemplateComponents
+
+    _component_import_is_used_for_heex_resolution = &panel/1
+    assigns = %{name: "Ada"}
+
+    [cell] =
+      to_cells!(
+        """
+        <.panel title="Greeting">
+          Hello <strong>{@name}</strong>
+        </.panel>
+        """,
+        assigns: assigns
+      )
+
+    assert Enum.map(cell.lines, &Tilde.View.Helpers.plain_text/1) == ["Greeting", "Hello Ada"]
+    assert [%{style: :title, text: "Greeting"}] = hd(cell.lines).parts
+    assert Enum.any?(List.last(cell.lines).parts, &(&1.style == :title and &1.text == "Ada"))
+
+    tui =
+      render!(
+        """
+        <.panel title="Greeting">
+          Hello <strong>{@name}</strong>
+        </.panel>
+        """,
+        40,
+        assigns: assigns
+      )
+
+    assert strip_ansi(tui) =~ "Greeting"
+    assert strip_ansi(tui) =~ "Hello Ada"
+    assert tui =~ IO.ANSI.bright()
   end
 
   test "shared tool view cell drives LiveView and TUI text" do
