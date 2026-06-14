@@ -11,6 +11,11 @@ defmodule Tilde.Command do
     %{label: "/help", insert: "/help", description: "Show this help"},
     %{label: "/new", insert: "/new ", description: "Start an isolated web session"},
     %{label: "/attach", insert: "/attach ", description: "Attach SSH/TUI to a named session"},
+    %{
+      label: "/detach",
+      insert: "/detach",
+      description: "Detach SSH/TUI to a new private session"
+    },
     %{label: "/session", insert: "/session", description: "Show current session details"},
     %{label: "/clear", insert: "/clear", description: "Clear this session"},
     %{label: "/compact", insert: "/compact", description: "Trim older session history"},
@@ -30,6 +35,7 @@ defmodule Tilde.Command do
   - `/help` — Show this help
   - `/new [name]` — Start an isolated web session
   - `/attach <name>` — Attach SSH/TUI to a named session
+  - `/detach` — Detach SSH/TUI to a new private session
   - `/session` — Show current session details
   - `/clear` — Clear this session
   - `/compact` — Trim older session history
@@ -144,6 +150,14 @@ defmodule Tilde.Command do
   def run(%__MODULE__{name: "attach", args: args}, %Session{}, _opts) do
     id = Tilde.SessionRegistry.normalize_id(args)
     [assistant("SSH/TUI can attach to this session with `/attach #{id}`. Web: /tilde/#{id}")]
+  end
+
+  def run(%__MODULE__{name: "detach"}, %Session{}, _opts) do
+    [
+      assistant(
+        "SSH/TUI detaches with `/detach`; web sessions can navigate to another `/tilde/:id`."
+      )
+    ]
   end
 
   def run(%__MODULE__{name: "quit"}, %Session{}, _opts) do

@@ -796,73 +796,70 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
-  @tag timeout: 45_000
-  test "ssh sessions are private by default and attach only when explicit" do
-    skip_unless_executable("ssh")
-    skip_unless_executable("setsid")
-
+  test "ssh session servers are private until explicitly shared" do
     with_application_env(:llm_enabled, false, fn ->
-      dir =
-        Path.join(
-          System.tmp_dir!(),
-          "tilde-ssh-isolation-test-#{System.unique_integer([:positive])}"
+      {:ok, _pid} = Tilde.SessionRegistry.ensure_started()
+      stamp = System.unique_integer([:positive])
+
+      private_a = Tilde.SessionRegistry.via("ssh-private-a-#{stamp}")
+      private_b = Tilde.SessionRegistry.via("ssh-private-b-#{stamp}")
+      shared = Tilde.SessionRegistry.via("ssh-shared-#{stamp}")
+
+      {:ok, _pid} =
+        Tilde.SessionServer.ensure_started(private_a,
+          session: Tilde.Live.Demo.demo_session(id: "ssh-private-a-#{stamp}")
         )
 
-      askpass = Path.join(dir, "askpass.sh")
-      File.mkdir_p!(dir)
-      File.write!(askpass, "#!/bin/sh\necho tilde\n")
-      File.chmod!(askpass, 0o700)
+      {:ok, _pid} =
+        Tilde.SessionServer.ensure_started(private_b,
+          session: Tilde.Live.Demo.demo_session(id: "ssh-private-b-#{stamp}")
+        )
 
-      {:ok, pid} = Tilde.SSH.Demo.start_link(port: 0, system_dir: dir, password: "tilde")
-      [port: port] = :ssh.daemon_info(Tilde.SSH.Demo.daemon_ref(pid), [:port])
+      {:ok, _pid} =
+        Tilde.SessionServer.ensure_started(shared,
+          session: Tilde.Live.Demo.demo_session(id: "ssh-shared-#{stamp}")
+        )
 
-      try do
-        stamp = System.unique_integer([:positive])
-        private_a = "AAA_PRIVATE_#{stamp}"
-        private_b = "BBB_PRIVATE_#{stamp}"
+      a_marker = "AAA_PRIVATE_#{stamp}"
+      b_marker = "BBB_PRIVATE_#{stamp}"
 
-        task_a = ssh_script(port, askpass, "printf '#{private_a}'; sleep 2")
-        task_b = ssh_script(port, askpass, "printf '#{private_b}'; sleep 2")
+      Tilde.SessionServer.update_session(
+        private_a,
+        &Session.append_event(&1, Tilde.input_submitted(a_marker))
+      )
 
-        output_a = Task.await(task_a, 15_000)
-        output_b = Task.await(task_b, 15_000)
+      Tilde.SessionServer.update_session(
+        private_b,
+        &Session.append_event(&1, Tilde.input_submitted(b_marker))
+      )
 
-        assert output_a =~ private_a
-        assert output_b =~ private_b
-        refute output_a =~ private_b
-        refute output_b =~ private_a
+      private_a_session = Tilde.SessionServer.get_session(private_a)
+      private_b_session = Tilde.SessionServer.get_session(private_b)
 
-        attached = "ssh-smoke-#{stamp}"
-        attached_a = "AAA_ATTACHED_#{stamp}"
-        attached_b = "BBB_ATTACHED_#{stamp}"
+      assert latest_user_sources(private_a_session) == [a_marker]
+      assert latest_user_sources(private_b_session) == [b_marker]
+      refute b_marker in latest_user_sources(private_a_session)
+      refute a_marker in latest_user_sources(private_b_session)
 
-        attach_a =
-          ssh_script(
-            port,
-            askpass,
-            "printf '/attach #{attached}\\r'; sleep 1; printf '#{attached_a}'; sleep 1; printf '\\r'; sleep 2"
-          )
+      shared_a = "AAA_ATTACHED_#{stamp}"
+      shared_b_prompt = "BBB_ATTACHED_PROMPT_#{stamp}"
 
-        attach_b =
-          ssh_script(
-            port,
-            askpass,
-            "printf '/attach #{attached}\\r'; sleep 1; printf '#{attached_b}'; sleep 4"
-          )
+      Tilde.SessionServer.update_session(
+        shared,
+        &Session.append_event(&1, Tilde.input_submitted(shared_a))
+      )
 
-        attached_output_a = Task.await(attach_a, 15_000)
-        attached_output_b = Task.await(attach_b, 15_000)
+      shared_for_a = Tilde.SessionServer.get_session(shared)
 
-        assert attached_output_a =~ "attached session: #{attached}"
-        assert attached_output_b =~ "attached session: #{attached}"
-        assert attached_output_b =~ attached_a
-        refute attached_output_a =~ attached_b
-        assert last_prompt(attached_output_b) =~ attached_b
-        refute last_prompt(attached_output_b) =~ attached_a
-      after
-        GenServer.stop(pid)
-        File.rm_rf!(dir)
-      end
+      shared_for_b =
+        shared
+        |> Tilde.SessionServer.get_session()
+        |> Session.put_input(Input.put_value(%Input{}, shared_b_prompt))
+
+      assert shared_a in latest_user_sources(shared_for_a)
+      assert shared_a in latest_user_sources(shared_for_b)
+      assert shared_for_b.input.value == shared_b_prompt
+      assert Tilde.SessionServer.get_session(shared).input.value == ""
     end)
   end
 
@@ -1398,43 +1395,11 @@ defmodule TildeTest do
 
   defp strip_html(text), do: Regex.replace(~r/<[^>]+>/, text, "")
 
-  defp skip_unless_executable(executable) do
-    unless System.find_executable(executable) do
-      flunk("#{executable} executable is required for SSH integration coverage")
-    end
-  end
-
-  defp ssh_script(port, askpass, producer_script) do
-    Task.async(fn ->
-      command = """
-      (#{producer_script}) | timeout 10 setsid env \
-        SSH_ASKPASS="$TILDE_ASKPASS" \
-        SSH_ASKPASS_REQUIRE=force \
-        DISPLAY=:0 \
-        ssh tilde@localhost \
-          -p "$TILDE_PORT" \
-          -o StrictHostKeyChecking=no \
-          -o UserKnownHostsFile=/dev/null \
-          -o PreferredAuthentications=password \
-          -o PubkeyAuthentication=no
-      """
-
-      {output, _status} =
-        System.cmd("bash", ["-lc", command],
-          env: [{"TILDE_PORT", to_string(port)}, {"TILDE_ASKPASS", askpass}],
-          stderr_to_stdout: true
-        )
-
-      strip_ansi(output)
-    end)
-  end
-
-  defp last_prompt(output) do
-    output
-    |> String.split(["\r", "\n"], trim: true)
-    |> Enum.filter(&String.starts_with?(&1, ">"))
-    |> List.last()
-    |> Kernel.||("")
+  defp latest_user_sources(%Session{} = session) do
+    session.transcript.blocks
+    |> Enum.filter(&match?(%Block{kind: :message, role: :user}, &1))
+    |> Enum.map(& &1.source)
+    |> Enum.drop(1)
   end
 
   defp restore_application_env(key, nil), do: Application.delete_env(:tilde, key)

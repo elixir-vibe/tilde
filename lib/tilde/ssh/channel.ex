@@ -22,6 +22,7 @@ defmodule Tilde.SSH.Channel do
             session_server: nil,
             session_mode: :private,
             session_id: nil,
+            attached?: false,
             streaming?: false
 
   @type t :: %__MODULE__{
@@ -33,6 +34,7 @@ defmodule Tilde.SSH.Channel do
           session_server: SessionServer.name() | nil,
           session_mode: :private | :shared,
           session_id: String.t() | nil,
+          attached?: boolean(),
           streaming?: boolean()
         }
 
@@ -151,11 +153,11 @@ defmodule Tilde.SSH.Channel do
   defp route_session(%__MODULE__{session_mode: :shared, session_server: server} = state)
        when not is_nil(server) do
     session = SessionServer.subscribe(server)
-    %{state | session: session, session_id: session.id}
+    %{state | session: session, session_id: session.id, attached?: true}
   end
 
   defp route_session(%__MODULE__{} = state) do
-    attach_session(state, private_session_id(), announce?: false)
+    attach_session(state, private_session_id(), announce?: false, attached?: false)
   end
 
   defp private_session_id do
@@ -186,27 +188,58 @@ defmodule Tilde.SSH.Channel do
       | session_server: server,
         session: session,
         session_id: session_id,
+        attached?: Keyword.get(opts, :attached?, true),
         streaming?: false
     }
 
-    if Keyword.get(opts, :announce?, true), do: render_attached_session(state)
+    if Keyword.get(opts, :announce?, true),
+      do: render_session_snapshot(state, Keyword.get(opts, :label, "attached session"))
+
     state
   end
 
-  defp attach_command(input) when is_binary(input) do
+  defp detach_session(%__MODULE__{} = state) do
+    attach_session(state, private_session_id(),
+      attached?: false,
+      label: "detached to private session"
+    )
+  end
+
+  defp show_session_info(%__MODULE__{} = state) do
+    state = clear_local_prompt(state)
+    render_session_info(state)
+    state
+  end
+
+  defp clear_local_prompt(%__MODULE__{} = state) do
+    session =
+      state.session
+      |> Session.put_input(Input.clear(state.session.input))
+      |> put_local_command_suggestions("")
+
+    %{state | session: session}
+  end
+
+  defp ssh_command(input) when is_binary(input) do
     case Tilde.Command.parse(input) do
       {:ok, %Tilde.Command{name: "attach", args: args}} when args != "" ->
-        {:ok, SessionRegistry.normalize_id(args)}
+        {:attach, SessionRegistry.normalize_id(args)}
 
       {:ok, %Tilde.Command{name: "attach"}} ->
-        {:ok, "shared"}
+        {:attach, "shared"}
+
+      {:ok, %Tilde.Command{name: "detach"}} ->
+        :detach
+
+      {:ok, %Tilde.Command{name: "session"}} ->
+        :session
 
       _other ->
-        :error
+        :submit
     end
   end
 
-  defp attach_command(_input), do: :error
+  defp ssh_command(_input), do: :submit
 
   defp submit_local_input(
          server,
@@ -328,9 +361,18 @@ defmodule Tilde.SSH.Channel do
   defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn
       :enter, {:cont, state} ->
-        case attach_command(state.session.input.value) do
-          {:ok, session_id} -> {:cont, {:cont, attach_session(state, session_id)}}
-          :error -> submit_local_input(server, state)
+        case ssh_command(state.session.input.value) do
+          {:attach, session_id} ->
+            {:cont, {:cont, attach_session(state, session_id)}}
+
+          :detach ->
+            {:cont, {:cont, detach_session(state)}}
+
+          :session ->
+            {:cont, {:cont, show_session_info(state)}}
+
+          :submit ->
+            submit_local_input(server, state)
         end
 
       key, {:cont, state} ->
@@ -448,7 +490,7 @@ defmodule Tilde.SSH.Channel do
     :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
   end
 
-  defp render_attached_session(%__MODULE__{} = state) do
+  defp render_session_snapshot(%__MODULE__{} = state, label) do
     snapshot =
       state.session
       |> Renderer.render(width: state.width, height: state.height, clear?: false)
@@ -458,10 +500,40 @@ defmodule Tilde.SSH.Channel do
       "\r",
       IO.ANSI.clear_line(),
       IO.ANSI.faint(),
-      "attached session: #{state.session_id}",
+      label,
+      ": #{state.session_id}",
       IO.ANSI.normal(),
       "\r\n\r\n",
       snapshot
+    ])
+  end
+
+  defp render_session_info(%__MODULE__{} = state) do
+    mode = if state.attached?, do: "attached", else: "private"
+
+    send_bytes(state, [
+      "\r",
+      IO.ANSI.clear_line(),
+      IO.ANSI.faint(),
+      "session: ",
+      IO.ANSI.normal(),
+      state.session_id || state.session.id,
+      "\r\n",
+      IO.ANSI.faint(),
+      "mode: ",
+      IO.ANSI.normal(),
+      mode,
+      "\r\n",
+      IO.ANSI.faint(),
+      "web: ",
+      IO.ANSI.normal(),
+      "/tilde/#{state.session_id || state.session.id}",
+      "\r\n",
+      IO.ANSI.faint(),
+      "commands: ",
+      IO.ANSI.normal(),
+      "/attach <name> · /detach · /session",
+      "\r\n\r\n"
     ])
   end
 

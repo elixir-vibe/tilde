@@ -216,8 +216,9 @@ semantic transcript for that session.
 Use slash commands to control sessions:
 
 ```text
-/session        show the current semantic session id
+/session        show the current semantic session id and mode
 /attach name    explicitly attach this SSH client to a named shared session
+/detach         leave an attached session for a fresh private SSH session
 /new name       create/navigate to a named isolated web session
 ```
 
@@ -260,8 +261,8 @@ To share intentionally, run `/attach <session_id>` in SSH/TUI and open
 
 The demo includes a small renderer-neutral slash command layer through
 `Tilde.Command`. Commands such as `/help`, `/session`, `/attach <name>`,
-`/clear`, `/compact`, and `/new [name]` are parsed from semantic input and work
-across LiveView and TUI/SSH.
+`/detach`, `/clear`, `/compact`, and `/new [name]` are parsed from semantic input
+and work across LiveView and TUI/SSH.
 The web demo also exposes a “New isolated session” link, which is UI sugar over
 `/new`.
 
@@ -301,8 +302,9 @@ Tilde.SessionServer.append_event(:demo, Tilde.input_submitted("hello"))
 ```
 
 `Tilde.Live.Demo` uses named sessions for `/tilde/:session_id`. `Tilde.SSH.Demo`
-creates a private named session for each new SSH connection by default and can
-explicitly attach a channel to a named session with `/attach <session_id>`.
+creates a private named session for each new SSH connection by default, can
+explicitly attach a channel to a named session with `/attach <session_id>`, and
+can return to a fresh private session with `/detach`.
 
 ## Display state
 
