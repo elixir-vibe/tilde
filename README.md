@@ -153,10 +153,18 @@ requests, channel data, and window resize events directly.
 Initial keys:
 
 ```text
-ctrl+o  toggle first tool block
-r       redraw
-q       quit
+ctrl+o     toggle first tool block
+r          redraw when the prompt is empty
+q          quit when the prompt is empty
+enter      submit prompt text as a semantic user message
+backspace  edit prompt text
+esc        clear prompt text
+ctrl+c     clear prompt text, or quit when empty
 ```
+
+Prompt edits are stored as `Tilde.Input` state and `:input_changed` /
+`:input_submitted` events. Submitting input appends a user message to the same
+semantic transcript rendered by LiveView, TUI, and SSH.
 
 The SSH path has been dogfooded with OpenSSH through tmux. Terminal output uses
 CRLF line endings over SSH so remote terminals return to column zero correctly.

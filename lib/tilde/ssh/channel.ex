@@ -70,16 +70,14 @@ defmodule Tilde.SSH.Channel do
   end
 
   def handle_ssh_msg({:ssh_cm, _connection_ref, {:data, _channel_id, 0, data}}, state) do
-    key = Keys.decode(data)
-
-    case Controller.apply_key(state.session, key) do
-      {:cont, session} ->
-        state = %{state | session: session}
+    state
+    |> apply_keys(Keys.decode_many(data))
+    |> case do
+      {:cont, state} ->
         render(state)
         {:ok, state}
 
-      {:halt, session} ->
-        state = %{state | session: session}
+      {:halt, state} ->
         close(state)
         {:stop, state.channel_id, state}
     end
@@ -112,6 +110,15 @@ defmodule Tilde.SSH.Channel do
 
   @impl true
   def terminate(_reason, _state), do: :ok
+
+  defp apply_keys(%__MODULE__{} = state, keys) do
+    Enum.reduce_while(keys, {:cont, state}, fn key, {:cont, state} ->
+      case Controller.apply_key(state.session, key) do
+        {:cont, session} -> {:cont, {:cont, %{state | session: session}}}
+        {:halt, session} -> {:halt, {:halt, %{state | session: session}}}
+      end
+    end)
+  end
 
   defp render(%__MODULE__{connection_ref: nil}), do: :ok
   defp render(%__MODULE__{channel_id: nil}), do: :ok

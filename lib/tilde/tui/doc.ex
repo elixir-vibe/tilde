@@ -18,6 +18,7 @@ defmodule Tilde.TUI.Doc do
       header(opts),
       transcript(session.transcript, opts),
       widgets(session, opts),
+      input_prompt(session, opts),
       footer(session, opts)
     ]
     |> Enum.reject(&empty_doc?/1)
@@ -81,6 +82,20 @@ defmodule Tilde.TUI.Doc do
   defp footer(%Session{} = session, opts) do
     status = Enum.map_join(session.statuses, " · ", fn {key, value} -> "#{key}: #{value}" end)
     if status == "", do: empty(), else: Theme.muted(status, opts)
+  end
+
+  defp input_prompt(%Session{} = session, opts) do
+    value = session.input.value
+    cursor = min(session.input.cursor, String.length(value))
+    {left, right} = value |> String.graphemes() |> Enum.split(cursor)
+
+    concat([
+      Theme.accent(">", opts),
+      " ",
+      Enum.join(left),
+      Theme.muted("▌", opts),
+      Enum.join(right)
+    ])
   end
 
   defp widgets(%Session{} = session, opts) do

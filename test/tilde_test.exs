@@ -17,7 +17,18 @@ defmodule TildeTest do
 
   import Phoenix.LiveViewTest
 
-  alias Tilde.{Block, Choice, Display, Renderer, Run, Session, Stream, ToolView, Transcript}
+  alias Tilde.{
+    Block,
+    Choice,
+    Display,
+    Input,
+    Renderer,
+    Run,
+    Session,
+    Stream,
+    ToolView,
+    Transcript
+  }
 
   doctest Tilde
 
@@ -196,6 +207,7 @@ defmodule TildeTest do
     assert rendered =~ "stderr"
     assert rendered =~ "warning"
     assert rendered =~ "model: demo"
+    assert rendered =~ "> ▌"
   end
 
   test "tui renderer can render without ANSI for snapshots" do
@@ -240,6 +252,35 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
+  test "semantic input events update input state and submit transcript messages" do
+    session =
+      Tilde.session()
+      |> Session.append_event(Tilde.input_changed("hello", metadata: %{cursor: 5}))
+
+    assert %Input{value: "hello", cursor: 5} = session.input
+    assert session.transcript.blocks == []
+
+    submitted = Session.append_event(session, Tilde.input_submitted("hello"))
+
+    assert submitted.input.value == ""
+    assert [%Block{role: :user, source: "hello"}] = submitted.transcript.blocks
+  end
+
+  test "tui controller edits and submits semantic input" do
+    assert {:cont, session} = Tilde.TUI.Controller.apply_key(Tilde.session(), {:text, "h"})
+    assert {:cont, session} = Tilde.TUI.Controller.apply_key(session, {:text, "i"})
+    assert session.input.value == "hi"
+
+    assert {:cont, session} = Tilde.TUI.Controller.apply_key(session, :backspace)
+    assert session.input.value == "h"
+
+    assert {:cont, session} = Tilde.TUI.Controller.apply_key(session, {:text, "!"})
+    assert {:cont, submitted} = Tilde.TUI.Controller.apply_key(session, :enter)
+
+    assert submitted.input.value == ""
+    assert [%Block{role: :user, source: "h!"}] = submitted.transcript.blocks
+  end
+
   test "tui controller applies keys to semantic session" do
     session =
       Tilde.session()
@@ -278,7 +319,22 @@ defmodule TildeTest do
     assert Tilde.TUI.Keys.decode("\t") == :tab
     assert Tilde.TUI.Keys.decode("\e[Z") == :backtab
     assert Tilde.TUI.Keys.decode("\r") == :enter
+    assert Tilde.TUI.Keys.decode(<<127>>) == :backspace
+    assert Tilde.TUI.Keys.decode(<<27>>) == :cancel
+    assert Tilde.TUI.Keys.decode(<<3>>) == :interrupt
     assert Tilde.TUI.Keys.decode("a") == {:text, "a"}
+
+    assert Tilde.TUI.Keys.decode_many("q\r") == [:quit]
+    assert Tilde.TUI.Keys.decode_many("r\r") == [:redraw]
+
+    assert Tilde.TUI.Keys.decode_many("hello\r") == [
+             {:text, "h"},
+             {:text, "e"},
+             {:text, "l"},
+             {:text, "l"},
+             {:text, "o"},
+             :enter
+           ]
   end
 
   test "text renderer produces pi-like transcript snapshots" do

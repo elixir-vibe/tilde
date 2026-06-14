@@ -14,6 +14,8 @@ defmodule Tilde.Event do
           | :tool_stream
           | :tool_done
           | :block_display_changed
+          | :input_changed
+          | :input_submitted
           | :status_changed
 
   @type t :: %__MODULE__{

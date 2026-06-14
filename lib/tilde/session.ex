@@ -7,7 +7,7 @@ defmodule Tilde.Session do
   state or maintain equivalent assigns in a LiveView process.
   """
 
-  alias Tilde.{Block, BlockList, Event, Transcript, Widget}
+  alias Tilde.{Block, BlockList, Event, Input, Transcript, Widget}
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -15,6 +15,7 @@ defmodule Tilde.Session do
           transcript: Transcript.t(),
           widgets: %{optional(Widget.placement()) => [Widget.t()]},
           statuses: map(),
+          input: Input.t(),
           metadata: map()
         }
 
@@ -23,6 +24,7 @@ defmodule Tilde.Session do
             transcript: %Transcript{},
             widgets: %{},
             statuses: %{},
+            input: %Input{},
             metadata: %{}
 
   @doc "Creates an empty session."
@@ -30,6 +32,7 @@ defmodule Tilde.Session do
   def new(opts \\ []) do
     %__MODULE__{
       id: Keyword.get(opts, :id, unique_id()),
+      input: Keyword.get(opts, :input, %Input{}),
       metadata: Keyword.get(opts, :metadata, %{})
     }
   end
@@ -38,6 +41,8 @@ defmodule Tilde.Session do
   @spec append_event(t(), Event.t()) :: t()
   def append_event(%__MODULE__{} = session, %Event{} = event) do
     events = session.events ++ [event]
+
+    session = apply_session_event(session, event)
 
     %{
       session
@@ -72,6 +77,10 @@ defmodule Tilde.Session do
   @spec widgets(t(), Widget.placement()) :: [Widget.t()]
   def widgets(%__MODULE__{} = session, placement), do: Map.get(session.widgets, placement, [])
 
+  @doc "Replaces the current semantic input state."
+  @spec put_input(t(), Input.t()) :: t()
+  def put_input(%__MODULE__{} = session, %Input{} = input), do: %{session | input: input}
+
   @doc "Sets a named status value."
   @spec put_status(t(), String.t(), term()) :: t()
   def put_status(%__MODULE__{} = session, key, value) when is_binary(key) do
@@ -102,6 +111,23 @@ defmodule Tilde.Session do
       when is_binary(block_id) and is_binary(option_id) do
     update_block(session, block_id, &Block.select_choice(&1, option_id))
   end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_changed} = event) do
+    put_input(
+      session,
+      Input.put_value(session.input, event.text || "", cursor: input_cursor(event))
+    )
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_submitted}) do
+    put_input(session, Input.clear(session.input))
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{}), do: session
+
+  defp input_cursor(%Event{metadata: %{cursor: cursor}}) when is_integer(cursor), do: cursor
+  defp input_cursor(%Event{text: text}) when is_binary(text), do: String.length(text)
+  defp input_cursor(_event), do: 0
 
   defp replace_widget(widgets, %Widget{id: id} = widget) do
     [widget | reject_widget(widgets, id)]

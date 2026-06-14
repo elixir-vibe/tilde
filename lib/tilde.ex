@@ -28,6 +28,18 @@ defmodule Tilde do
     Event.new(:assistant_done, Keyword.put(opts, :text, text))
   end
 
+  @doc "Creates an input-changed event."
+  @spec input_changed(String.t(), keyword()) :: Event.t()
+  def input_changed(text, opts \\ []) when is_binary(text) do
+    Event.new(:input_changed, Keyword.put(opts, :text, text))
+  end
+
+  @doc "Creates an input-submitted event."
+  @spec input_submitted(String.t(), keyword()) :: Event.t()
+  def input_submitted(text, opts \\ []) when is_binary(text) do
+    Event.new(:input_submitted, Keyword.put(opts, :text, text))
+  end
+
   @doc "Creates a tool-started event."
   @spec tool_started(String.t(), map(), keyword()) :: Event.t()
   def tool_started(name, args \\ %{}, opts \\ []) when is_binary(name) and is_map(args) do

@@ -31,6 +31,12 @@ defmodule Tilde.Transcript do
     append_or_update_assistant(transcript, event)
   end
 
+  def apply_event(%Event{type: :input_changed}, %__MODULE__{} = transcript), do: transcript
+
+  def apply_event(%Event{type: :input_submitted} = event, %__MODULE__{} = transcript) do
+    append_block(transcript, Block.message(block_id(event), :user, event.text || ""))
+  end
+
   def apply_event(%Event{type: :assistant_done} = event, %__MODULE__{} = transcript) do
     block = Block.message(block_id(event), :assistant, event.text || "")
     append_block(transcript, block)
