@@ -100,6 +100,32 @@ defmodule TildeTest do
     assert session.statuses["model"] == "sonnet"
   end
 
+  test "session updates blocks for LiveView event handlers" do
+    choice = Tilde.choice("Pick one", [{"a", "A"}, {"b", "B"}])
+
+    session =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+      |> Session.update_block("tool_1", &Block.update_display(&1, %{compact_limit: {:lines, 1}}))
+      |> then(fn session ->
+        transcript = %{
+          session.transcript
+          | blocks: session.transcript.blocks ++ [Block.choice("choice_1", choice)]
+        }
+
+        %{session | transcript: transcript}
+      end)
+      |> Session.toggle_expand("tool_1")
+      |> Session.select_choice("choice_1", "b")
+
+    assert [%Block{display: %{expanded?: true}}, %Block{choice: selected_choice}] =
+             session.transcript.blocks
+
+    assert selected_choice.selected == ["b"]
+  end
+
   test "choice blocks model pi-like selection without renderer coupling" do
     choice =
       "Proceed?"
@@ -111,6 +137,17 @@ defmodule TildeTest do
     assert block.kind == :choice
     assert block.choice.selected == ["no"]
     assert Enum.map(block.actions, & &1.id) == [:confirm, :cancel]
+  end
+
+  test "demo session renders a complete dogfood console" do
+    session = Tilde.Live.Demo.demo_session()
+    html = render_component(&Tilde.Live.Console.console/1, session: session)
+
+    assert html =~ "Build a pi-like console"
+    assert html =~ "tool_demo_tests"
+    assert html =~ "ctrl+o to expand"
+    assert html =~ "Apply the generated patch?"
+    assert html =~ "background: no running jobs"
   end
 
   test "live console renders transcript, widgets, input, and footer" do

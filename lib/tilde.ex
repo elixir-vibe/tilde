@@ -81,7 +81,7 @@ defmodule Tilde do
   def widget(id, placement, content, opts \\ []), do: Widget.new(id, placement, content, opts)
 
   @doc "Creates choice state."
-  @spec choice(String.t(), [Choice.option()], keyword()) :: Choice.t()
+  @spec choice(String.t(), [Choice.option_input()], keyword()) :: Choice.t()
   def choice(question, options, opts \\ []), do: Choice.new(question, options, opts)
 
   @doc "Creates a transcript choice block."

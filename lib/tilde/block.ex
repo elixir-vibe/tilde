@@ -112,6 +112,20 @@ defmodule Tilde.Block do
     %{block | display: Display.merge(block.display, attrs)}
   end
 
+  @doc "Toggles expanded display state for a block."
+  @spec toggle_expand(t()) :: t()
+  def toggle_expand(%__MODULE__{} = block) do
+    %{block | display: Display.toggle(block.display)}
+  end
+
+  @doc "Selects an option in a choice block."
+  @spec select_choice(t(), String.t()) :: t()
+  def select_choice(%__MODULE__{kind: :choice, choice: %Choice{} = choice} = block, option_id) do
+    %{block | choice: Choice.select(choice, option_id)}
+  end
+
+  def select_choice(%__MODULE__{} = block, _option_id), do: block
+
   defp upsert_stream([], kind, chunk), do: [Stream.new(kind) |> Stream.append(chunk)]
 
   defp upsert_stream([%Stream{kind: kind} = stream | rest], kind, chunk) do

@@ -3,7 +3,7 @@ defmodule Tilde.Transcript do
   Reducer from append-only events to semantic transcript blocks.
   """
 
-  alias Tilde.{Block, Event}
+  alias Tilde.{Block, BlockList, Event}
 
   @type t :: %__MODULE__{
           blocks: [Block.t()],
@@ -79,14 +79,9 @@ defmodule Tilde.Transcript do
     %{transcript | blocks: transcript.blocks ++ [block]}
   end
 
-  defp update_block(%__MODULE__{} = transcript, nil, _fun), do: transcript
-
   defp update_block(%__MODULE__{} = transcript, id, fun) when is_function(fun, 1) do
-    %{transcript | blocks: Enum.map(transcript.blocks, &update_matching_block(&1, id, fun))}
+    %{transcript | blocks: BlockList.update(transcript.blocks, id, fun)}
   end
-
-  defp update_matching_block(%Block{id: id} = block, id, fun), do: fun.(block)
-  defp update_matching_block(%Block{} = block, _id, _fun), do: block
 
   defp has_block?(%__MODULE__{} = transcript, id) do
     Enum.any?(transcript.blocks, &(&1.id == id))

@@ -14,6 +14,7 @@ defmodule Tilde.Choice do
           optional(:description) => String.t(),
           optional(:metadata) => map()
         }
+  @type option_input :: option() | {term(), term()} | {term(), term(), term()}
 
   @type t :: %__MODULE__{
           question: String.t(),
@@ -32,7 +33,7 @@ defmodule Tilde.Choice do
             metadata: %{}
 
   @doc "Creates choice state."
-  @spec new(String.t(), [option()], keyword()) :: t()
+  @spec new(String.t(), [option_input()], keyword()) :: t()
   def new(question, options, opts \\ []) when is_binary(question) and is_list(options) do
     %__MODULE__{
       question: question,
@@ -65,6 +66,9 @@ defmodule Tilde.Choice do
         option
         |> Map.put(:id, to_string(id))
         |> Map.put(:label, to_string(label))
+
+      {id, label, description} ->
+        %{id: to_string(id), label: to_string(label), description: to_string(description)}
 
       {id, label} ->
         %{id: to_string(id), label: to_string(label)}

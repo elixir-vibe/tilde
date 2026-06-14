@@ -7,7 +7,7 @@ defmodule Tilde.Session do
   state or maintain equivalent assigns in a LiveView process.
   """
 
-  alias Tilde.{Event, Transcript, Widget}
+  alias Tilde.{Block, BlockList, Event, Transcript, Widget}
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -76,6 +76,31 @@ defmodule Tilde.Session do
   @spec put_status(t(), String.t(), term()) :: t()
   def put_status(%__MODULE__{} = session, key, value) when is_binary(key) do
     %{session | statuses: Map.put(session.statuses, key, value)}
+  end
+
+  @doc "Updates a transcript block by id."
+  @spec update_block(t(), String.t(), (Block.t() -> Block.t())) :: t()
+  def update_block(%__MODULE__{} = session, block_id, fun)
+      when is_binary(block_id) and is_function(fun, 1) do
+    transcript = %{
+      session.transcript
+      | blocks: BlockList.update(session.transcript.blocks, block_id, fun)
+    }
+
+    %{session | transcript: transcript}
+  end
+
+  @doc "Toggles compact/expanded display state for a block."
+  @spec toggle_expand(t(), String.t()) :: t()
+  def toggle_expand(%__MODULE__{} = session, block_id) when is_binary(block_id) do
+    update_block(session, block_id, &Block.toggle_expand/1)
+  end
+
+  @doc "Selects an option in a choice block."
+  @spec select_choice(t(), String.t(), String.t()) :: t()
+  def select_choice(%__MODULE__{} = session, block_id, option_id)
+      when is_binary(block_id) and is_binary(option_id) do
+    update_block(session, block_id, &Block.select_choice(&1, option_id))
   end
 
   defp replace_widget(widgets, %Widget{id: id} = widget) do

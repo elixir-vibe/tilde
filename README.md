@@ -76,6 +76,17 @@ choice blocks, widgets, input, and footer/statusline content. They emit ordinary
 LiveView events such as `tilde:toggle_expand`; parent LiveViews decide how to
 apply those events to session/transcript state.
 
+A self-contained dogfood demo LiveView is included:
+
+```elixir
+# router.ex
+live "/tilde", Tilde.Live.Demo
+```
+
+It exercises tool expansion, choice selection, input submission, widgets, and
+footer status using `Tilde.Session` helpers such as `toggle_expand/2` and
+`select_choice/3`.
+
 ## Display state
 
 Expansion is renderer state, not content mutation:
