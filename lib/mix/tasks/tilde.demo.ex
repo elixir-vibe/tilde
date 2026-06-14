@@ -31,6 +31,7 @@ defmodule Mix.Tasks.Tilde.Demo do
     password = Keyword.get(opts, :password, "tilde")
     host = Keyword.get(opts, :host, "localhost")
 
+    configure_llm()
     configure_endpoint(web_port, host)
     start_pubsub()
     start_session_server()
@@ -50,6 +51,16 @@ defmodule Mix.Tasks.Tilde.Demo do
     """)
 
     Process.sleep(:infinity)
+  end
+
+  defp configure_llm do
+    Application.put_env(:tilde, :llm_enabled, true)
+
+    Application.put_env(
+      :jido_ai,
+      :react_token_secret,
+      String.duplicate("tilde_demo_react_secret", 4)
+    )
   end
 
   defp configure_endpoint(web_port, host) do

@@ -12,6 +12,20 @@ defmodule TildeTest.KeyProvider do
   def ensure_system_dir(path, _opts), do: {:ok, path}
 end
 
+defmodule TildeTest.LLMBackend do
+  @behaviour Tilde.LLM.Backend
+
+  @impl true
+  def respond(session, _opts), do: {:ok, "echo: #{Tilde.LLM.latest_user_text(session)}"}
+end
+
+defmodule TildeTest.FailingLLMBackend do
+  @behaviour Tilde.LLM.Backend
+
+  @impl true
+  def respond(_session, _opts), do: {:error, :boom}
+end
+
 defmodule TildeTest do
   use ExUnit.Case, async: false
 
@@ -255,6 +269,109 @@ defmodule TildeTest do
     assert_receive {:tilde_session_updated, "mirror_test", ^updated}
 
     GenServer.stop(pid)
+  end
+
+  test "session server leaves submissions alone when LLM responses are disabled" do
+    with_application_env(:llm_enabled, false, fn ->
+      name = :"tilde_session_server_llm_disabled_test_#{System.unique_integer([:positive])}"
+
+      assert {:ok, pid} =
+               Tilde.SessionServer.start_link(
+                 name: name,
+                 session: Tilde.session(id: "llm_disabled")
+               )
+
+      assert %Session{} = Tilde.SessionServer.subscribe(name)
+
+      updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+
+      assert [%Block{role: :user, source: "hello"}] = updated.transcript.blocks
+      assert_receive {:tilde_session_updated, "llm_disabled", ^updated}
+
+      refute_receive {:tilde_session_updated, "llm_disabled",
+                      %Session{transcript: %{blocks: [_, _]}}},
+                     50
+
+      GenServer.stop(pid)
+    end)
+  end
+
+  test "session server appends async assistant replies through configured LLM backend" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.LLMBackend, fn ->
+        name = :"tilde_session_server_llm_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.SessionServer.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_test")
+                 )
+
+        assert %Session{} = Tilde.SessionServer.subscribe(name)
+
+        Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+
+        assert_receive {:tilde_session_updated, "llm_test",
+                        %Session{transcript: %{blocks: [_user]}}}
+
+        assert_receive {:tilde_session_updated, "llm_test",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "echo: hello"}
+                            ]
+                          }
+                        }}
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
+  test "session server turns LLM backend failures into public assistant messages" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.FailingLLMBackend, fn ->
+        name = :"tilde_session_server_llm_failure_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.SessionServer.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_failure")
+                 )
+
+        assert %Session{} = Tilde.SessionServer.subscribe(name)
+
+        Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+
+        assert_receive {:tilde_session_updated, "llm_failure",
+                        %Session{transcript: %{blocks: [_user]}}}
+
+        assert_receive {:tilde_session_updated, "llm_failure",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{
+                                role: :assistant,
+                                source: "The model is unavailable right now. Please try again."
+                              }
+                            ]
+                          }
+                        }}
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
+  test "jido LLM backend reports a missing OpenRouter key before calling the runtime" do
+    previous = System.get_env("OPENROUTER_API_KEY")
+    System.delete_env("OPENROUTER_API_KEY")
+
+    assert Tilde.LLM.Jido.respond(Tilde.session()) == {:error, :missing_openrouter_api_key}
+
+    if previous, do: System.put_env("OPENROUTER_API_KEY", previous)
   end
 
   test "session server applies TUI keys for mirrored renderers" do

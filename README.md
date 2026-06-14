@@ -197,6 +197,23 @@ Both renderers share the same `Tilde.SessionServer`, so input submitted over SSH
 appears in the web session and LiveView events mutate the same semantic session.
 Use `--web-port`, `--ssh-port`, or `--password` to customize the task.
 
+## LLM runtime
+
+Tilde keeps its semantic session/event model as the source of truth and delegates
+model/runtime orchestration to a behaviour-backed LLM boundary. The default
+backend is `Tilde.LLM.Jido`, which uses `Tilde.Agent` (`Jido.AI.Agent`) with
+ReqLLM/OpenRouter. The demo enables automatic assistant replies; set
+`OPENROUTER_API_KEY` to use the configured model:
+
+```elixir
+config :tilde,
+  llm_backend: Tilde.LLM.Jido,
+  llm_model: "openrouter:~anthropic/claude-haiku-latest"
+```
+
+Without an API key, submissions remain semantic user messages and the demo shows
+a clear configuration message instead of crashing.
+
 ## Mirrored sessions
 
 `Tilde.SessionServer` owns a single semantic `%Tilde.Session{}` process and

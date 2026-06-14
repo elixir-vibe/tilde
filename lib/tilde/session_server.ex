@@ -9,10 +9,10 @@ defmodule Tilde.SessionServer do
 
   use GenServer
 
-  alias Tilde.Session
+  alias Tilde.{Event, LLM, Session}
   alias Tilde.TUI.Controller
 
-  defstruct session: nil, subscribers: %{}
+  defstruct session: nil, subscribers: %{}, responding?: false
 
   @type name :: GenServer.name()
   @type update_message :: {:tilde_session_updated, String.t(), Session.t()}
@@ -95,29 +95,88 @@ defmodule Tilde.SessionServer do
   end
 
   def handle_call({:update_session, fun}, _from, state) do
+    previous = state.session
     state = %{state | session: fun.(state.session)}
     broadcast(state)
+    state = maybe_start_llm_response(previous, state)
     {:reply, state.session, state}
   end
 
   def handle_call({:apply_key, key}, _from, state) do
     case Controller.apply_key(state.session, key) do
       {:cont, session} ->
+        previous = state.session
         state = %{state | session: session}
         broadcast(state)
+        state = maybe_start_llm_response(previous, state)
         {:reply, {:cont, session}, state}
 
       {:halt, session} ->
+        previous = state.session
         state = %{state | session: session}
         broadcast(state)
+        state = maybe_start_llm_response(previous, state)
         {:reply, {:halt, session}, state}
     end
   end
 
   @impl true
+  def handle_info({:tilde_llm_response, {:ok, text}}, state) do
+    state = %{
+      state
+      | responding?: false,
+        session: Session.append_event(state.session, Tilde.assistant_done(text))
+    }
+
+    broadcast(state)
+    {:noreply, state}
+  end
+
+  def handle_info({:tilde_llm_response, {:error, reason}}, state) do
+    text = llm_error_message(reason)
+
+    state = %{
+      state
+      | responding?: false,
+        session: Session.append_event(state.session, Tilde.assistant_done(text))
+    }
+
+    broadcast(state)
+    {:noreply, state}
+  end
+
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
     {:noreply, update_in(state.subscribers, &Map.delete(&1, ref))}
   end
+
+  defp maybe_start_llm_response(_previous, %__MODULE__{responding?: true} = state), do: state
+
+  defp maybe_start_llm_response(previous, %__MODULE__{} = state) do
+    if LLM.enabled?() and new_input_submitted?(previous, state.session) do
+      server = self()
+      session = state.session
+
+      Task.start(fn -> send(server, {:tilde_llm_response, LLM.respond(session)}) end)
+      %{state | responding?: true}
+    else
+      state
+    end
+  end
+
+  defp new_input_submitted?(%Session{} = previous, %Session{} = session) do
+    length(session.events) > length(previous.events) and
+      last_event_type(session) == :input_submitted
+  end
+
+  defp last_event_type(%Session{events: [%Event{} | _] = events}),
+    do: events |> List.last() |> Map.get(:type)
+
+  defp last_event_type(_session), do: nil
+
+  defp llm_error_message(:missing_openrouter_api_key),
+    do: "The model is not configured yet. Set OPENROUTER_API_KEY to enable assistant replies."
+
+  defp llm_error_message(_reason), do: "The model is unavailable right now. Please try again."
 
   defp broadcast(%__MODULE__{} = state) do
     message = {:tilde_session_updated, state.session.id, state.session}
