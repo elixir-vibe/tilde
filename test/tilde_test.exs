@@ -951,10 +951,10 @@ defmodule TildeTest do
     assert {:new_blocks, [%Block{kind: :tool, id: "tool_1"}]} =
              Tilde.SSH.Delta.classify(Tilde.session(), started)
 
-    assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "one\n"} =
+    assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "one\n", true} =
              Tilde.SSH.Delta.classify(started, streamed)
 
-    assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "two\n"} =
+    assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "two\n", false} =
              Tilde.SSH.Delta.classify(streamed, streamed_more)
 
     assert {:tool_done, %Block{id: "tool_1", status: :success}} =
@@ -1397,6 +1397,7 @@ defmodule TildeTest do
     assert html =~ "mix test"
     assert html =~ "ok"
     assert html =~ "server running"
+    assert html =~ "session: session_1"
     assert html =~ "model: sonnet"
   end
 

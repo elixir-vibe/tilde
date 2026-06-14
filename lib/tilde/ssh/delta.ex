@@ -15,7 +15,7 @@ defmodule Tilde.SSH.Delta do
           | :input_only
           | {:new_blocks, [Block.t()]}
           | {:assistant_delta, String.t()}
-          | {:tool_delta, Block.t(), Stream.kind(), String.t()}
+          | {:tool_delta, Block.t(), Stream.kind(), String.t(), boolean()}
           | {:tool_done, Block.t()}
 
   @doc "Classifies a session transition for append-oriented SSH rendering."
@@ -96,8 +96,8 @@ defmodule Tilde.SSH.Delta do
 
   defp tool_delta(%Session{} = old, %Session{} = new) do
     with {%Block{} = old_tool, %Block{} = new_tool} <- changed_tool_pair(old, new),
-         {kind, delta} <- stream_delta(old_tool, new_tool) do
-      {:tool_delta, new_tool, kind, delta}
+         {kind, delta, first?} <- stream_delta(old_tool, new_tool) do
+      {:tool_delta, new_tool, kind, delta, first?}
     else
       _other -> nil
     end
@@ -137,7 +137,7 @@ defmodule Tilde.SSH.Delta do
       new_text = Stream.text(new_stream)
 
       if String.starts_with?(new_text, old_text) and new_text != old_text do
-        {kind, String.replace_prefix(new_text, old_text, "")}
+        {kind, String.replace_prefix(new_text, old_text, ""), old_text == ""}
       end
     end)
   end

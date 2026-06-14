@@ -404,9 +404,9 @@ defmodule Tilde.SSH.Channel do
   defp render_delta_change(
          %__MODULE__{} = state,
          _old_session,
-         {:tool_delta, _block, kind, delta}
+         {:tool_delta, _block, kind, delta, first?}
        ) do
-    append_tool_delta(state, kind, delta)
+    append_tool_delta(state, kind, delta, first?)
     %{state | streaming?: true}
   end
 
@@ -541,7 +541,18 @@ defmodule Tilde.SSH.Channel do
     send_bytes(state, terminal_newlines(text))
   end
 
-  defp append_tool_delta(%__MODULE__{} = state, _kind, text) do
+  defp append_tool_delta(%__MODULE__{} = state, kind, text, true) do
+    send_bytes(state, [
+      "\r\n",
+      IO.ANSI.faint(),
+      to_string(kind),
+      IO.ANSI.normal(),
+      "\r\n",
+      terminal_newlines(text)
+    ])
+  end
+
+  defp append_tool_delta(%__MODULE__{} = state, _kind, text, false) do
     send_bytes(state, terminal_newlines(text))
   end
 

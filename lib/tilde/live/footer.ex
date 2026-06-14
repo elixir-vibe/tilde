@@ -10,16 +10,27 @@ defmodule Tilde.Live.Footer do
   attr(:right, :string, default: "")
 
   def footer(assigns) do
-    assigns = assign(assigns, :status_text, status_text(assigns.session))
+    assigns =
+      assigns
+      |> assign(:session_text, session_text(assigns.session))
+      |> assign(:status_text, status_text(assigns.session))
 
     ~H"""
     <footer class="tilde-footer">
       <span>{@left}</span>
-      <span :if={@status_text != ""} class="tilde-muted">{@status_text}</span>
+      <span class="tilde-muted">
+        <span :if={@session_text != ""}>{@session_text}</span>
+        <span :if={@session_text != "" and @status_text != ""}> · </span>
+        <span :if={@status_text != ""}>{@status_text}</span>
+      </span>
       <span>{@right}</span>
     </footer>
     """
   end
+
+  defp session_text(nil), do: ""
+  defp session_text(%{id: id}) when is_binary(id), do: "session: #{id}"
+  defp session_text(_session), do: ""
 
   defp status_text(nil), do: ""
   defp status_text(%{statuses: statuses}) when map_size(statuses) == 0, do: ""

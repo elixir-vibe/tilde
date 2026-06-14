@@ -289,6 +289,10 @@ session events so shared demo history stays bounded.
 
 ## Mirrored sessions
 
+See [`docs/session-model.md`](docs/session-model.md) for the full web/SSH/TUI
+session model, including private SSH sessions, `/attach`, `/detach`, local
+prompt buffers, and normal-screen append rendering.
+
 `Tilde.SessionServer` owns a single semantic `%Tilde.Session{}` process and
 broadcasts `{:tilde_session_updated, session_id, session}` to subscribers.
 Renderers can subscribe to the same server to mirror one session without sharing
@@ -316,6 +320,39 @@ Tilde.display_changed("tool_1", %{expanded?: true})
 
 A web renderer might expose this through a button and `ctrl+o`; a future ANSI
 renderer can expose the same action as a terminal keybinding.
+
+## Minimal examples
+
+Create and render a semantic session as text:
+
+```elixir
+session =
+  Tilde.session(id: "demo")
+  |> Tilde.Session.append_event(Tilde.user_message("Run tests"))
+  |> Tilde.Session.append_event(Tilde.assistant_done("I'll run `mix test`."))
+
+Tilde.Renderer.Text.render(session.transcript)
+```
+
+Own a shared semantic session process:
+
+```elixir
+{:ok, _pid} = Tilde.SessionServer.start_link(name: :demo, session: Tilde.session(id: "demo"))
+Tilde.SessionServer.append_event(:demo, Tilde.input_submitted("hello"))
+```
+
+Mount the demo LiveView in a Phoenix router:
+
+```elixir
+live "/tilde", Tilde.Live.Demo, :index
+live "/tilde/:session_id", Tilde.Live.Demo, :index
+```
+
+Start the SSH demo transport:
+
+```elixir
+{:ok, _pid} = Tilde.SSH.Demo.start_link(port: 4022, password: "tilde")
+```
 
 ## Development
 
