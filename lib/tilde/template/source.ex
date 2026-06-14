@@ -294,6 +294,7 @@ defmodule Tilde.Template.Source do
 
     Helpers.tool_call(to_string(Map.fetch!(attrs, "name")),
       segments: if(segment in [nil, ""], do: [], else: [%{text: segment, style: :accent}]),
+      tags: List.wrap(Map.get(attrs, "tags", [])),
       suffix: suffix
     )
   end

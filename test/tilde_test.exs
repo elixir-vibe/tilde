@@ -1102,6 +1102,8 @@ defmodule TildeTest do
 
     [block] = session.transcript.blocks
     cell = Tilde.View.Builder.block(block)
+
+    assert cell.attrs.template == :source
     live = render_component(&Tilde.Live.ViewRenderer.cell/1, cell: cell)
     live_text = strip_html(live)
     tui = cell |> Tilde.TUI.ViewRenderer.render(60, ansi: true) |> strip_ansi()
@@ -1155,6 +1157,10 @@ defmodule TildeTest do
     session = Tilde.Live.Demo.demo_session()
     html = render_component(&Tilde.Live.Console.console/1, session: session)
 
+    tool_cell =
+      session.transcript.blocks |> Enum.find(&(&1.kind == :tool)) |> Tilde.View.Builder.block()
+
+    assert tool_cell.attrs.template == :source
     assert html =~ "Build a pi-like console"
     assert html =~ "tool_demo_tests"
     assert html =~ "tilde-tool-success"

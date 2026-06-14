@@ -132,6 +132,7 @@ defmodule Tilde.Template.Components do
 
   attr(:name, :string, required: true)
   attr(:segment, :string, default: nil)
+  attr(:tags, :list, default: [])
   attr(:suffix, :string, default: nil)
 
   def tool_call(assigns) do

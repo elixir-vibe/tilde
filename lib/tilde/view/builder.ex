@@ -4,6 +4,7 @@ defmodule Tilde.View.Builder do
   """
 
   alias Tilde.{Block, Choice, Suggest, ToolView, View.Cell, Widget}
+  alias Tilde.Template.Source
   alias Tilde.View.Helpers, as: H
 
   @doc "Builds a view cell from a transcript block."
@@ -24,16 +25,14 @@ defmodule Tilde.View.Builder do
   def block(%Block{kind: :tool} = block) do
     view = ToolView.view(block)
 
-    Cell.new(
+    view
+    |> tool_template_cell()
+    |> Map.merge(%{
       id: block.id,
       kind: :tool,
-      state: tool_state(view.status),
-      lines: tool_lines(view),
       actions: view.actions,
-      attrs: %{block: block, view: view},
-      padding_x: 1,
-      padding_y: 1
-    )
+      attrs: %{block: block, view: view, template: :source}
+    })
   end
 
   def block(%Block{kind: :choice, choice: %Choice{} = choice} = block) do
@@ -91,50 +90,95 @@ defmodule Tilde.View.Builder do
   defp tool_state(:cancelled), do: :cancelled
   defp tool_state(_status), do: :normal
 
-  defp tool_lines(view) do
+  defp tool_template_cell(view) do
+    lines = tool_template_lines(view)
+    assigns = tool_template_assigns(view, lines)
+
+    {:ok, [cell]} =
+      Source.to_cells(
+        tool_template_source(lines),
+        [assigns: assigns],
+        __ENV__
+      )
+
+    cell
+  end
+
+  defp tool_template_source(lines) do
+    body =
+      lines
+      |> Enum.with_index()
+      |> Enum.map_join("\n", fn
+        {{:metadata, _value}, index} ->
+          ~s|  <.line role="metadata"><.meta>{Enum.at(@lines, #{index})}</.meta></.line>|
+
+        {{:primary, _value}, index} ->
+          ~s|  <.line role="primary"><.primary>{Enum.at(@lines, #{index})}</.primary></.line>|
+
+        {{:muted, _value}, index} ->
+          ~s|  <.line role="muted"><.muted>{Enum.at(@lines, #{index})}</.muted></.line>|
+
+        {{:hint, _value}, index} ->
+          ~s|  <.line role="hint"><.muted>{Enum.at(@lines, #{index})}</.muted></.line>|
+      end)
+
+    """
+    <.cell kind="tool" state={@state} padding_x={1} padding_y={1}>
+      <.tool_call name={@name} segment={@segment} tags={@tags} suffix={@suffix} />
+    #{body}
+    </.cell>
+    """
+  end
+
+  defp tool_template_assigns(view, lines) do
+    %{
+      state: tool_state(view.status),
+      name: view.name,
+      segment: tool_segment(view.call_segments),
+      tags: view.call_tags,
+      suffix: view.call_suffix,
+      lines: Enum.map(lines, fn {_role, value} -> value end)
+    }
+  end
+
+  defp tool_template_lines(view) do
     [
-      tool_call_line(view),
-      metadata_line(view.metadata_rows),
-      waiting_line(view),
-      stream_lines(view),
-      hidden_line(view)
+      metadata_entry(view.metadata_rows),
+      waiting_entry(view),
+      stream_entries(view),
+      hidden_entry(view)
     ]
     |> List.flatten()
     |> Enum.reject(&is_nil/1)
   end
 
-  defp tool_call_line(view) do
-    H.tool_call(view.name,
-      segments: view.call_segments,
-      tags: view.call_tags,
-      suffix: view.call_suffix
-    )
-  end
+  defp tool_segment([]), do: nil
+  defp tool_segment(segments), do: Enum.map_join(segments, " ", &Map.fetch!(&1, :text))
 
-  defp metadata_line([]), do: nil
+  defp metadata_entry([]), do: nil
 
-  defp metadata_line(rows),
-    do: rows |> Enum.map_join("  ", fn {key, value} -> "#{key} #{value}" end) |> H.metadata()
+  defp metadata_entry(rows),
+    do: {:metadata, Enum.map_join(rows, "  ", fn {key, value} -> "#{key} #{value}" end)}
 
-  defp waiting_line(%{waiting?: true}), do: H.muted("Waiting…")
-  defp waiting_line(_view), do: nil
+  defp waiting_entry(%{waiting?: true}), do: {:muted, "Waiting…"}
+  defp waiting_entry(_view), do: nil
 
-  defp stream_lines(%{streams: [], lines: lines}),
-    do: Enum.map(lines, &("  #{&1}" |> H.primary()))
+  defp stream_entries(%{streams: [], lines: lines}),
+    do: Enum.map(lines, &{:primary, "  #{&1}"})
 
-  defp stream_lines(%{streams: streams}) do
+  defp stream_entries(%{streams: streams}) do
     visible_streams =
       Enum.reject(streams, fn stream -> stream.lines == [] and stream.hidden_lines == 0 end)
 
     label? = multiple?(streams)
 
     Enum.flat_map(visible_streams, fn stream ->
-      label = if label?, do: [H.muted(stream.kind)], else: []
-      visible = Enum.map(stream.lines, &("  #{&1}" |> H.primary()))
+      label = if label?, do: [{:muted, stream.kind}], else: []
+      visible = Enum.map(stream.lines, &{:primary, "  #{&1}"})
 
       hidden =
         if stream.hidden_lines > 0,
-          do: [H.muted("  … #{stream.hidden_lines} more #{stream.kind} lines")],
+          do: [{:muted, "  … #{stream.hidden_lines} more #{stream.kind} lines"}],
           else: []
 
       label ++ visible ++ hidden
@@ -144,9 +188,9 @@ defmodule Tilde.View.Builder do
   defp multiple?([_, _ | _]), do: true
   defp multiple?(_streams), do: false
 
-  defp hidden_line(%{hidden_lines: 0, expanded?: false}), do: nil
-  defp hidden_line(%{hidden_lines: 0, expanded?: true}), do: H.collapse_hint()
-  defp hidden_line(view), do: H.hint("… #{view.hidden_lines} more lines (ctrl+o to expand)")
+  defp hidden_entry(%{hidden_lines: 0, expanded?: false}), do: nil
+  defp hidden_entry(%{hidden_lines: 0, expanded?: true}), do: {:hint, "(ctrl+o to collapse)"}
+  defp hidden_entry(view), do: {:hint, "… #{view.hidden_lines} more lines (ctrl+o to expand)"}
 
   defp choice_lines(choice) do
     [H.line(choice.question, role: :title)] ++
