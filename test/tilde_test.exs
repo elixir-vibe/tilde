@@ -210,6 +210,22 @@ defmodule TildeTest do
     assert table_html =~ "<td>LiveView</td>"
   end
 
+  test "markdown renderer can complete streaming fragments with MDEx" do
+    assert {:ok, bold_html} = Tilde.Markdown.to_html("**Fol", streaming: true)
+    assert bold_html =~ "<strong>Fol</strong>"
+
+    assert {:ok, table_html} =
+             Tilde.Markdown.to_html("| surface | renderer\n| --- | ---\n| web | LiveView",
+               streaming: true
+             )
+
+    assert table_html =~ "<table>"
+    assert table_html =~ "<td>LiveView</td>"
+
+    assert {:ok, safe_html} = Tilde.Markdown.to_html("<script>alert(1)</script>", streaming: true)
+    refute safe_html =~ "<script>"
+  end
+
   test "live message renders markdown source with MDEx" do
     block = Block.message("msg_1", :assistant, "**bold** and `code`")
     html = render_component(&Tilde.Live.Message.message/1, block: block)

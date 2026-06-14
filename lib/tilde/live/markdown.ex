@@ -8,7 +8,7 @@ defmodule Tilde.Live.Markdown do
   alias Tilde.Markdown
 
   attr(:source, :string, required: true)
-  attr(:options, :list, default: [])
+  attr(:options, :list, default: [streaming: true])
 
   def markdown(assigns) do
     assigns = assign(assigns, :rendered, Markdown.to_html(assigns.source, assigns.options))

@@ -20,9 +20,19 @@ defmodule Tilde.Markdown.MDEx do
   @impl true
   def to_html(markdown, opts \\ []) when is_binary(markdown) do
     if Code.ensure_loaded?(MDEx) do
-      {:ok, :erlang.apply(MDEx, :to_html!, [markdown, options(opts)])}
+      {:ok, render(markdown, options(opts))}
     else
       {:error, :mdex_not_available}
+    end
+  end
+
+  defp render(markdown, opts) do
+    if Keyword.get(opts, :streaming, false) do
+      MDEx.new(opts)
+      |> MDEx.Document.put_markdown(markdown)
+      |> MDEx.to_html!()
+    else
+      MDEx.to_html!(markdown, opts)
     end
   end
 
