@@ -189,6 +189,41 @@ defmodule TildeTest do
     assert rendered =~ "hello"
   end
 
+  test "ssh key generation uses Erlang public_key PEM host keys" do
+    dir = Path.join(System.tmp_dir!(), "tilde-ssh-test-#{System.unique_integer([:positive])}")
+
+    assert {:ok, ^dir} = Tilde.SSH.Keys.ensure_system_dir(dir)
+    key_path = Path.join(dir, "ssh_host_rsa_key")
+    assert File.exists?(key_path)
+
+    assert [{:RSAPrivateKey, _key, :not_encrypted}] =
+             key_path |> File.read!() |> :public_key.pem_decode()
+
+    File.rm_rf!(dir)
+  end
+
+  test "ssh demo daemon starts with generated host keys" do
+    dir =
+      Path.join(System.tmp_dir!(), "tilde-ssh-daemon-test-#{System.unique_integer([:positive])}")
+
+    assert {:ok, pid} = Tilde.SSH.Demo.start_link(port: 0, system_dir: dir)
+    assert is_pid(Tilde.SSH.Demo.daemon_ref(pid))
+    GenServer.stop(pid)
+    File.rm_rf!(dir)
+  end
+
+  test "ssh shell applies tui keys to semantic session" do
+    session =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+
+    assert {:cont, toggled} = Tilde.SSH.Shell.apply_key(session, :toggle_expand)
+    assert [%Block{display: %{expanded?: true}}] = toggled.transcript.blocks
+    assert {:halt, ^toggled} = Tilde.SSH.Shell.apply_key(toggled, :quit)
+  end
+
   test "tui key decoder maps terminal bytes to semantic actions" do
     assert Tilde.TUI.Keys.decode(<<15>>) == :toggle_expand
     assert Tilde.TUI.Keys.decode("q") == :quit

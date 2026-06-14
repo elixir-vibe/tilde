@@ -40,6 +40,7 @@ Initial modules:
 - `Tilde.Live.Markdown` — LiveView Markdown renderer with plain-text fallback
 - `Tilde.Live.Run` — semantic inline rendering for bold, underline, code, links, and tones
 - `Tilde.TUI.*` — Inspect.Algebra + `IO.ANSI` terminal renderer building blocks
+- `Tilde.SSH.*` — Erlang/OTP SSH demo server using generated `:public_key` host keys
 
 ## Example
 
@@ -113,6 +114,42 @@ Minimal key decoding is available through `Tilde.TUI.Keys`:
 
 ```elixir
 Tilde.TUI.Keys.decode(<<15>>) #=> :toggle_expand
+```
+
+## SSH demo
+
+Tilde can expose the same semantic demo session over SSH as a terminal UI:
+
+```elixir
+# iex -S mix
+{:ok, _pid} = Tilde.SSH.Demo.start_link(port: 4022)
+```
+
+Then connect with OpenSSH:
+
+```sh
+ssh tilde@localhost -p 4022 \
+  -o StrictHostKeyChecking=no \
+  -o UserKnownHostsFile=/dev/null
+```
+
+Password:
+
+```text
+tilde
+```
+
+The demo generates a PEM RSA host key via Erlang/OTP `:public_key` in
+`_build/tilde_ssh/system`; it does not call `ssh-keygen`. The SSH shell is not an
+OS shell or PTY emulator. SSH is only the transport for the semantic Tilde
+session rendered through `Tilde.TUI.Renderer`.
+
+Initial keys:
+
+```text
+ctrl+o  toggle first tool block
+r       redraw
+q       quit
 ```
 
 ## Display state
