@@ -5,6 +5,8 @@ defmodule Tilde.Live.Choice do
 
   use Phoenix.Component
 
+  import Tilde.Live.Shortcut
+
   attr(:block, :any, required: true)
   attr(:select_event, :string, default: "tilde:select_choice")
   attr(:action_event, :string, default: "tilde:choice_action")
@@ -42,7 +44,7 @@ defmodule Tilde.Live.Choice do
           phx-value-block-id={@block.id}
           phx-value-action-id={action.id}
         >
-          {action.label}<span :if={action.key} class="tilde-key"> {action.key}</span>
+          {action.label}<.shortcut :if={action.key} key={action.key} />
         </button>
       </footer>
     </article>

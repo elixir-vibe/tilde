@@ -896,7 +896,9 @@ defmodule TildeTest do
 
     assert html =~ "Build a pi-like console"
     assert html =~ "tool_demo_tests"
-    assert html =~ "ctrl+o to expand"
+    assert html =~ "tilde-shortcut-key"
+    assert html =~ "ctrl+o"
+    assert html =~ "expand"
     assert html =~ "Apply the generated patch?"
     refute html =~ "background: no running jobs"
   end

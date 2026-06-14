@@ -44,7 +44,7 @@ defmodule Tilde.Live.Styles do
     }
 
     .tilde-block { margin: 0 0 1.25rem; }
-    .tilde-label, .tilde-muted, .tilde-tool-status, .tilde-key { color: var(--tilde-muted); }
+    .tilde-label, .tilde-muted, .tilde-tool-status, .tilde-key, .tilde-shortcut { color: var(--tilde-muted); }
     .tilde-label { margin-bottom: 0.25rem; }
     .tilde-message-body { white-space: normal; }
     .tilde-markdown { white-space: normal; }
@@ -107,6 +107,18 @@ defmodule Tilde.Live.Styles do
       text-underline-offset: 2px;
     }
 
+    .tilde-shortcut { display: inline-flex; gap: 0.35em; align-items: baseline; margin-left: 0.35em; }
+    .tilde-shortcut:first-child { margin-left: 0; }
+    .tilde-shortcut-key {
+      font: inherit;
+      color: var(--tilde-muted);
+      border: 1px solid var(--tilde-line);
+      border-radius: 0;
+      padding: 0 0.25em;
+      background: transparent;
+    }
+    .tilde-shortcut-label { color: var(--tilde-link); }
+
     .tilde-suggest-title { color: var(--tilde-muted); margin-bottom: 0.35rem; }
     .tilde-suggest-items { display: grid; gap: 0.15rem; }
     .tilde-suggest-row {
@@ -162,6 +174,11 @@ defmodule Tilde.Live.Styles do
     }
 
     .tilde-footer { color: var(--tilde-muted); font-size: 0.9rem; }
+
+    @media (max-width: 640px), (pointer: coarse) {
+      .tilde-shortcut-key { display: none; }
+      .tilde-shortcut { margin-left: 0; }
+    }
     """
   end
 end

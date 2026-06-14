@@ -5,6 +5,8 @@ defmodule Tilde.Live.Tool do
 
   use Phoenix.Component
 
+  import Tilde.Live.Shortcut
+
   alias Tilde.ToolView
 
   attr(:block, :any, required: true)
@@ -55,7 +57,11 @@ defmodule Tilde.Live.Tool do
           phx-click={@toggle_event}
           phx-value-id={@block.id}
         >
-          {if @view.expanded?, do: "collapse", else: "ctrl+o to expand"}
+          <%= if @view.expanded? do %>
+            collapse
+          <% else %>
+            <.shortcut key="ctrl+o" label="expand" />
+          <% end %>
         </button>
       </footer>
     </article>
