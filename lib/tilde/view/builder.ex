@@ -4,6 +4,7 @@ defmodule Tilde.View.Builder do
   """
 
   alias Tilde.{Block, Choice, Suggest, ToolView, View.Cell, Widget}
+  alias Tilde.View.Helpers, as: H
 
   @doc "Builds a view cell from a transcript block."
   @spec block(Block.t()) :: Cell.t()
@@ -103,33 +104,23 @@ defmodule Tilde.View.Builder do
   end
 
   defp tool_call_line(view) do
-    [
-      view.name,
-      Enum.map(view.call_segments, &to_string(&1.text)),
-      tags(view.call_tags),
-      suffix(view.call_suffix)
-    ]
-    |> List.flatten()
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.join(" ")
+    H.tool_call(view.name,
+      segments: view.call_segments,
+      tags: view.call_tags,
+      suffix: view.call_suffix
+    )
   end
-
-  defp tags([]), do: []
-  defp tags(tags), do: ["[#{Enum.join(tags, ", ")}]"]
-
-  defp suffix(nil), do: []
-  defp suffix(""), do: []
-  defp suffix(suffix), do: ["(#{suffix})"]
 
   defp metadata_line([]), do: nil
 
   defp metadata_line(rows),
-    do: Enum.map_join(rows, "  ", fn {key, value} -> "#{key} #{value}" end)
+    do: rows |> Enum.map_join("  ", fn {key, value} -> "#{key} #{value}" end) |> H.metadata()
 
-  defp waiting_line(%{waiting?: true}), do: "Waiting…"
+  defp waiting_line(%{waiting?: true}), do: H.muted("Waiting…")
   defp waiting_line(_view), do: nil
 
-  defp stream_lines(%{streams: [], lines: lines}), do: Enum.map(lines, &"  #{&1}")
+  defp stream_lines(%{streams: [], lines: lines}),
+    do: Enum.map(lines, &("  #{&1}" |> H.primary()))
 
   defp stream_lines(%{streams: streams}) do
     visible_streams =
@@ -138,12 +129,12 @@ defmodule Tilde.View.Builder do
     label? = multiple?(streams)
 
     Enum.flat_map(visible_streams, fn stream ->
-      label = if label?, do: [to_string(stream.kind)], else: []
-      visible = Enum.map(stream.lines, &"  #{&1}")
+      label = if label?, do: [H.muted(stream.kind)], else: []
+      visible = Enum.map(stream.lines, &("  #{&1}" |> H.primary()))
 
       hidden =
         if stream.hidden_lines > 0,
-          do: ["  … #{stream.hidden_lines} more #{stream.kind} lines"],
+          do: [H.muted("  … #{stream.hidden_lines} more #{stream.kind} lines")],
           else: []
 
       label ++ visible ++ hidden
@@ -154,15 +145,15 @@ defmodule Tilde.View.Builder do
   defp multiple?(_streams), do: false
 
   defp hidden_line(%{hidden_lines: 0, expanded?: false}), do: nil
-  defp hidden_line(%{hidden_lines: 0, expanded?: true}), do: "(ctrl+o to collapse)"
-  defp hidden_line(view), do: "… #{view.hidden_lines} more lines (ctrl+o to expand)"
+  defp hidden_line(%{hidden_lines: 0, expanded?: true}), do: H.collapse_hint()
+  defp hidden_line(view), do: H.hint("… #{view.hidden_lines} more lines (ctrl+o to expand)")
 
   defp choice_lines(choice) do
-    [choice.question] ++
+    [H.line(choice.question, role: :title)] ++
       Enum.map(choice.options, fn option ->
         marker = if option.id in choice.selected, do: "[x]", else: "[ ]"
         description = if Map.get(option, :description), do: " — #{option.description}", else: ""
-        "#{marker} #{option.label}#{description}"
+        H.line("#{marker} #{option.label}#{description}")
       end)
   end
 end

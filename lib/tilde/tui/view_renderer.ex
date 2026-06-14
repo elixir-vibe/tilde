@@ -4,7 +4,7 @@ defmodule Tilde.TUI.ViewRenderer do
   """
 
   alias Tilde.TUI.{Markdown, Theme}
-  alias Tilde.View.Cell
+  alias Tilde.View.{Cell, Helpers, Line, Text}
 
   @doc "Renders a cell to terminal text."
   @spec render(Cell.t(), pos_integer(), keyword()) :: String.t()
@@ -53,9 +53,9 @@ defmodule Tilde.TUI.ViewRenderer do
     |> Enum.map(&(prefix <> &1))
   end
 
-  defp render_cell_line(line, inner_width, cell, opts, index) do
-    text = line |> to_string() |> truncate(inner_width)
-    styled = style_line(text, cell, index, opts)
+  defp render_cell_line(line, inner_width, cell, opts, _index) do
+    text = line |> Helpers.plain_text() |> truncate(inner_width)
+    styled = styled_line(line, text, opts)
 
     padded =
       String.duplicate(" ", cell.padding_x) <>
@@ -64,26 +64,34 @@ defmodule Tilde.TUI.ViewRenderer do
     state(padded, cell.state, opts)
   end
 
-  defp style_line(text, %Cell{kind: :tool, padding_y: padding_y}, padding_y, opts) do
-    if Keyword.get(opts, :ansi, true), do: style_tool_call(text), else: text
+  defp styled_line(%Line{} = line, _text, opts) do
+    line.parts
+    |> Enum.map_join(&styled_part(&1, opts))
+    |> truncate(String.length(Helpers.plain_text(line)))
   end
 
-  defp style_line(text, _cell, _index, _opts), do: text
+  defp styled_line(_line, text, _opts), do: text
 
-  defp style_tool_call(""), do: ""
-
-  defp style_tool_call(text) do
-    case String.split(text, " ", parts: 2) do
-      [name, rest] ->
-        IO.ANSI.bright() <>
-          name <>
-          IO.ANSI.normal() <>
-          IO.ANSI.black() <> " " <> IO.ANSI.underline() <> rest <> IO.ANSI.no_underline()
-
-      [name] ->
-        IO.ANSI.bright() <> name <> IO.ANSI.normal() <> IO.ANSI.black()
-    end
+  defp styled_part(%Text{text: text} = part, opts) do
+    if Keyword.get(opts, :ansi, true), do: styled_part(part), else: text
   end
+
+  defp styled_part(%Text{text: text, style: :title}),
+    do: IO.ANSI.bright() <> text <> IO.ANSI.normal() <> IO.ANSI.black()
+
+  defp styled_part(%Text{text: text, style: :accent}),
+    do: IO.ANSI.underline() <> text <> IO.ANSI.no_underline()
+
+  defp styled_part(%Text{text: text, style: :muted}),
+    do: IO.ANSI.faint() <> text <> IO.ANSI.normal() <> IO.ANSI.black()
+
+  defp styled_part(%Text{text: text, style: :error}),
+    do: IO.ANSI.red() <> text <> IO.ANSI.black()
+
+  defp styled_part(%Text{text: text, style: :success}),
+    do: IO.ANSI.green() <> text <> IO.ANSI.black()
+
+  defp styled_part(%Text{text: text}), do: text
 
   defp state(text, :pending, opts), do: Theme.tool_pending(text, opts)
   defp state(text, :success, opts), do: Theme.tool_success(text, opts)

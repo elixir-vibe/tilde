@@ -9,7 +9,7 @@ defmodule Tilde.Live.ViewRenderer do
   import Tilde.Live.Run
   import Tilde.Live.Shortcut
 
-  alias Tilde.View.Cell
+  alias Tilde.View.{Cell, Helpers, Line, Text}
 
   attr(:cell, Cell, required: true)
 
@@ -43,11 +43,11 @@ defmodule Tilde.Live.ViewRenderer do
       tabindex="0"
     >
       <header class="tilde-tool-header">
-        <span class="tilde-tool-call">{List.first(@cell.lines)}</span>
+        <span class="tilde-tool-call"><.view_line line={List.first(@cell.lines)} /></span>
       </header>
 
       <div :if={@body_lines != []} class="tilde-tool-cell-lines">
-        <div :for={line <- @body_lines} class="tilde-tool-cell-line">{line}</div>
+        <div :for={line <- @body_lines} class="tilde-tool-cell-line"><.view_line line={line} /></div>
       </div>
 
       <footer :if={tool_expandable?(@view)} class="tilde-tool-footer">
@@ -73,12 +73,12 @@ defmodule Tilde.Live.ViewRenderer do
     assigns =
       assigns
       |> assign(:choice, assigns.cell.attrs.choice)
-      |> assign(:question, List.first(assigns.cell.lines) || "")
+      |> assign(:question, List.first(assigns.cell.lines) || Helpers.line(""))
       |> assign(:option_lines, Enum.drop(assigns.cell.lines, 1))
 
     ~H"""
     <article id={@cell.id} class="tilde-block tilde-choice" data-block-id={@cell.id} tabindex="0">
-      <div class="tilde-choice-question">{@question}</div>
+      <div class="tilde-choice-question"><.view_line line={@question} /></div>
 
       <div class="tilde-choice-options">
         <button
@@ -89,7 +89,7 @@ defmodule Tilde.Live.ViewRenderer do
           phx-value-block-id={@cell.id}
           phx-value-option-id={option.id}
         >
-          {line}
+          <.view_line line={line} />
         </button>
       </div>
 
@@ -134,8 +134,38 @@ defmodule Tilde.Live.ViewRenderer do
   def cell(assigns) do
     ~H"""
     <%= for line <- @cell.lines do %>
-      <div>{line}</div>
+      <div><.view_line line={line} /></div>
     <% end %>
+    """
+  end
+
+  attr(:line, :any, required: true)
+
+  def view_line(%{line: %Line{} = line} = assigns) do
+    assigns = assign(assigns, :parts, line.parts)
+
+    ~H"""
+    <.view_part :for={part <- @parts} part={part} />
+    """
+  end
+
+  def view_line(%{line: :blank} = assigns) do
+    ~H"""
+    <br />
+    """
+  end
+
+  def view_line(assigns) do
+    ~H"""
+    {@line}
+    """
+  end
+
+  attr(:part, Text, required: true)
+
+  def view_part(assigns) do
+    ~H"""
+    <span class={"tilde-view-text-#{@part.style}"}>{@part.text}</span>
     """
   end
 

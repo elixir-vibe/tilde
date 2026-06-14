@@ -167,6 +167,14 @@ defmodule Tilde.Live.Styles do
     .tilde-markdown th[align="right"], .tilde-markdown td[align="right"] { text-align: right; }
     .tilde-markdown code { border: 1px solid var(--tilde-line); padding: 0 0.2em; }
     .tilde-markdown pre code { border: 0; padding: 0; }
+    .tilde-view-text-title { font-weight: 700; }
+    .tilde-view-text-accent { color: var(--tilde-link); }
+    .tilde-view-text-muted, .tilde-view-text-shortcut { color: var(--tilde-muted); }
+    .tilde-view-text-primary { color: var(--tilde-fg); }
+    .tilde-view-text-success { color: var(--tilde-success); }
+    .tilde-view-text-error { color: var(--tilde-error); }
+    .tilde-view-text-warning { color: var(--tilde-warning); }
+
     .tilde-run-muted { color: var(--tilde-muted); }
     .tilde-run-accent { color: var(--tilde-link); }
     .tilde-run-error { color: var(--tilde-error); }

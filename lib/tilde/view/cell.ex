@@ -7,6 +7,7 @@ defmodule Tilde.View.Cell do
   """
 
   alias Tilde.Run
+  alias Tilde.View.Line
 
   defstruct id: nil,
             kind: :block,
@@ -22,7 +23,7 @@ defmodule Tilde.View.Cell do
             padding_y: 1
 
   @type state :: :normal | :pending | :success | :error | :cancelled
-  @type line :: String.t() | [Run.t()]
+  @type line :: String.t() | Line.t() | :blank | [Run.t()]
 
   @type t :: %__MODULE__{
           id: String.t() | nil,

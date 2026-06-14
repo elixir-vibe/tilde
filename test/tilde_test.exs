@@ -985,11 +985,13 @@ defmodule TildeTest do
     [block] = session.transcript.blocks
     cell = Tilde.View.Builder.block(block)
     live = render_component(&Tilde.Live.ViewRenderer.cell/1, cell: cell)
+    live_text = strip_html(live)
     tui = cell |> Tilde.TUI.ViewRenderer.render(60, ansi: true) |> strip_ansi()
 
     for line <- cell.lines do
-      assert live =~ line
-      assert tui =~ line
+      text = Tilde.View.Helpers.plain_text(line)
+      assert live_text =~ text
+      assert tui =~ text
     end
   end
 
@@ -1110,6 +1112,8 @@ defmodule TildeTest do
   defp strip_ansi(text) do
     Regex.replace(~r/\e\[[0-9;]*[A-Za-z]/, text, "")
   end
+
+  defp strip_html(text), do: Regex.replace(~r/<[^>]+>/, text, "")
 
   defp restore_application_env(key, nil), do: Application.delete_env(:tilde, key)
   defp restore_application_env(key, previous), do: Application.put_env(:tilde, key, previous)
