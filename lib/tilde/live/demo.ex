@@ -76,6 +76,16 @@ defmodule Tilde.Live.Demo do
     {:noreply, assign(socket, session: session)}
   end
 
+  def handle_event("tilde:input_changed", %{"input" => input}, socket) do
+    session =
+      SessionServer.update_session(
+        socket.assigns.session_server,
+        &Session.append_event(&1, Tilde.input_changed(input))
+      )
+
+    {:noreply, assign(socket, session: session)}
+  end
+
   def handle_event("tilde:submit", %{"input" => input}, socket) do
     session =
       SessionServer.update_session(socket.assigns.session_server, fn session ->

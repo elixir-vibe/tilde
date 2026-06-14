@@ -46,8 +46,9 @@ defmodule Tilde.Live.Styles do
     .tilde-block { margin: 0 0 1.25rem; }
     .tilde-label, .tilde-muted, .tilde-tool-status, .tilde-key { color: var(--tilde-muted); }
     .tilde-label { margin-bottom: 0.25rem; }
-    .tilde-message-body { white-space: pre-wrap; }
+    .tilde-message-body { white-space: normal; }
     .tilde-markdown { white-space: normal; }
+    .tilde-plain-text { white-space: pre-wrap; }
     .tilde-markdown p, .tilde-markdown ul, .tilde-markdown ol, .tilde-markdown pre { margin: 0 0 0.75rem; }
     .tilde-markdown > :last-child { margin-bottom: 0; }
     .tilde-markdown a { color: var(--tilde-link); text-underline-offset: 2px; }

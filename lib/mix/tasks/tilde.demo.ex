@@ -18,8 +18,8 @@ defmodule Mix.Tasks.Tilde.Demo do
 
   @shortdoc "Runs the mirrored Tilde LiveView + SSH demo"
 
-  @switches [web_port: :integer, ssh_port: :integer, password: :string]
-  @aliases [w: :web_port, s: :ssh_port, p: :password]
+  @switches [web_port: :integer, ssh_port: :integer, password: :string, host: :string]
+  @aliases [w: :web_port, s: :ssh_port, p: :password, h: :host]
 
   @impl true
   def run(argv) do
@@ -29,8 +29,9 @@ defmodule Mix.Tasks.Tilde.Demo do
     web_port = Keyword.get(opts, :web_port, 4000)
     ssh_port = Keyword.get(opts, :ssh_port, 4022)
     password = Keyword.get(opts, :password, "tilde")
+    host = Keyword.get(opts, :host, "localhost")
 
-    configure_endpoint(web_port)
+    configure_endpoint(web_port, host)
     start_pubsub()
     start_session_server()
     start_endpoint()
@@ -51,9 +52,11 @@ defmodule Mix.Tasks.Tilde.Demo do
     Process.sleep(:infinity)
   end
 
-  defp configure_endpoint(web_port) do
+  defp configure_endpoint(web_port, host) do
     Application.put_env(:tilde, Tilde.Live.DemoEndpoint,
       adapter: Bandit.PhoenixAdapter,
+      url: [scheme: "https", host: host, port: 443],
+      check_origin: ["https://#{host}"],
       http: [ip: {127, 0, 0, 1}, port: web_port],
       server: true,
       secret_key_base: String.duplicate("tilde_demo_secret", 5),
