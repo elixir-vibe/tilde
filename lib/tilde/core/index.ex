@@ -207,14 +207,36 @@ defmodule Tilde.Core.Index do
 
   defp submit_input(%__MODULE__{} = index, input) do
     input
+    |> String.trim()
+    |> case do
+      "" ->
+        continue(index)
+
+      input ->
+        continue(index, [session_submission_outcome(input)])
+    end
+  end
+
+  defp session_submission_outcome(input) do
+    input
     |> Command.parse()
     |> case do
       {:ok, %Command{} = command} ->
-        effects = Command.run(command, Tilde.session(id: "index"), [])
-        continue(index, Outcome.from_command_effects(effects))
+        command_submission_outcome(command, input)
 
       :error ->
-        continue(index)
+        Outcome.open_session(Command.new_session_id(""), submit: input)
+    end
+  end
+
+  defp command_submission_outcome(%Command{} = command, input) do
+    command
+    |> Command.run(Tilde.session(id: "index"), [])
+    |> Outcome.from_command_effects()
+    |> Enum.find(&match?(%Outcome{type: :open_session}, &1))
+    |> case do
+      %Outcome{payload: %{id: id}} -> Outcome.open_session(id, submit: input)
+      _other -> Outcome.open_session(Command.new_session_id(""), submit: input)
     end
   end
 

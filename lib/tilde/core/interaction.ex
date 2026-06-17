@@ -53,8 +53,11 @@ defmodule Tilde.Core.Interaction.Outcome do
   @spec complete_input(String.t()) :: t()
   def complete_input(input), do: %__MODULE__{type: :complete_input, payload: %{input: input}}
 
-  @spec open_session(String.t()) :: t()
-  def open_session(id), do: %__MODULE__{type: :open_session, payload: %{id: id}}
+  @spec open_session(String.t(), keyword()) :: t()
+  def open_session(id, opts \\ []) do
+    payload = %{id: id} |> maybe_put(:submit, Keyword.get(opts, :submit))
+    %__MODULE__{type: :open_session, payload: payload}
+  end
 
   @spec open_index() :: t()
   def open_index, do: %__MODULE__{type: :open_index, payload: %{}}
@@ -72,4 +75,7 @@ defmodule Tilde.Core.Interaction.Outcome do
       _effect -> []
     end)
   end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

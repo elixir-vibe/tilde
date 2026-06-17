@@ -4,7 +4,7 @@ defmodule Tilde.Transport.SSH.Outcome do
   alias Tilde.Core.Interaction.Outcome
 
   @type handler :: (term() -> term())
-  @type session_handler :: (term(), String.t() -> term())
+  @type session_handler :: (term(), String.t(), map() -> term())
 
   @spec apply(term(), [Outcome.t()], keyword()) :: term()
   def apply(state, outcomes, opts) when is_list(outcomes) and is_list(opts) do
@@ -16,8 +16,8 @@ defmodule Tilde.Transport.SSH.Outcome do
       %Outcome{type: :complete_input}, state ->
         state
 
-      %Outcome{type: :open_session, payload: %{id: id}}, state ->
-        attach.(state, id)
+      %Outcome{type: :open_session, payload: %{id: id} = payload}, state ->
+        attach.(state, id, payload)
 
       %Outcome{type: :open_index}, state ->
         detach.(state)

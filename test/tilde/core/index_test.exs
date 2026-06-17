@@ -77,6 +77,20 @@ defmodule Tilde.Core.IndexTest do
 
     result
     |> assert_interaction_cont()
-    |> assert_outcome(:open_session, id: "interaction-demo")
+    |> assert_outcome(:open_session, id: "interaction-demo", submit: "/new interaction-demo")
+  end
+
+  test "index submits non-navigation actions by creating a real session" do
+    result = Index.apply_interaction(Index.new(), Interaction.submit("hello from index"))
+
+    result
+    |> assert_interaction_cont()
+    |> assert_outcome(:open_session, submit: "hello from index")
+
+    result = Index.apply_interaction(Index.new(), Interaction.submit("/help"))
+
+    result
+    |> assert_interaction_cont()
+    |> assert_outcome(:open_session, submit: "/help")
   end
 end

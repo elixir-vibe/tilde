@@ -16,11 +16,11 @@ defmodule Tilde.Transport.OutcomeAdapterTest do
           Outcome.open_index(),
           Outcome.show_session_info()
         ],
-        attach: fn state, id -> [{:attach, id} | state] end,
+        attach: fn state, id, payload -> [{:attach, id, payload} | state] end,
         detach: fn state -> [:detach | state] end,
         show_session_info: fn state -> [:session_info | state] end
       )
 
-    assert Enum.reverse(state) == [{:attach, "demo"}, :detach, :session_info]
+    assert Enum.reverse(state) == [{:attach, "demo", %{id: "demo"}}, :detach, :session_info]
   end
 end

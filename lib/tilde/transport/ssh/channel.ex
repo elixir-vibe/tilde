@@ -174,7 +174,7 @@ defmodule Tilde.Transport.SSH.Channel do
     SessionRegistry.via(session_id)
   end
 
-  defp attach_session(%__MODULE__{} = state, session_id, opts \\ []) do
+  defp attach_session(%__MODULE__{} = state, session_id, opts) do
     session_id = SessionRegistry.normalize_id(session_id)
     old_server = state.session_server
     server = session_server_for(session_id)
@@ -191,7 +191,14 @@ defmodule Tilde.Transport.SSH.Channel do
           )
       )
 
-    session = SessionServer.subscribe(server)
+    session =
+      case Keyword.get(opts, :submit) do
+        input when is_binary(input) ->
+          SessionServer.append_event(server, Tilde.input_submitted(input))
+
+        _other ->
+          SessionServer.subscribe(server)
+      end
 
     state = %{
       state
@@ -308,7 +315,7 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp apply_outcomes(%__MODULE__{} = state, outcomes) do
     SSHOutcome.apply(state, outcomes,
-      attach: &attach_session/2,
+      attach: fn state, id, payload -> attach_session(state, id, Map.to_list(payload)) end,
       detach: &detach_session/1,
       show_session_info: &show_session_info/1
     )

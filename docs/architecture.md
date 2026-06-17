@@ -111,6 +111,11 @@ The web root and SSH/TUI entry point are an index/home surface, not a hidden dem
 session. `Tilde.Core.Index` owns input, selection, command suggestions, and real
 session suggestions from `Tilde.Session.Registry`.
 
+The index is navigation/discovery only. Selecting a session opens that session.
+Every other submitted action creates or opens a real session and submits the
+input there; arbitrary prompts and transcript-producing commands must not execute
+against the index itself.
+
 `Tilde.Index.View` composes that state into `Tilde.Core.Widget` trees. LiveView
 and SSH/TUI render the same widget composition through their adapters.
 
