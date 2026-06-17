@@ -70,6 +70,12 @@ through this loader so storage writes have a matching resume path.
 `Tilde.Session.Summary.list/0` combines live registry summaries with persisted
 storage summaries. Live sessions win when the same id exists in both places.
 
+`Tilde.Storage.Setup.migrate/1` runs the storage migrations through Ecto. QuackDB
+integration tests are tagged `:quackdb_integration` and excluded by default; run
+them with `TILDE_QUACKDB_INTEGRATION=1` plus either `QUACKDB_TEST_URI` /
+`QUACKDB_TEST_TOKEN` for an external Quack server or `QUACKDB_TEST_DUCKDB=managed`
+where the managed DuckDB Quack server is supported.
+
 QuackDB-backed storage must use Ecto, Ecto migrations, and QuackDB's Ecto/query
 DSL. Do not use raw SQL strings or ad hoc SQL fragments for Tilde storage.
 

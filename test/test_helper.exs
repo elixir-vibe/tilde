@@ -1,5 +1,9 @@
 ExUnit.start()
 
+unless System.get_env("TILDE_QUACKDB_INTEGRATION") in ["1", "true"] do
+  ExUnit.configure(exclude: [quackdb_integration: true])
+end
+
 for support <- [
       "../test_helpers/assertions/session.ex",
       "../test_helpers/assertions/interaction.ex",
