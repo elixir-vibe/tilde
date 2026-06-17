@@ -184,7 +184,7 @@ ssh tilde@localhost -p 4022 \
 Password:
 
 ```text
-tilde
+printed by mix tilde.demo; override with --password or TILDE_DEMO_PASSWORD
 ```
 
 The demo generates a PEM RSA host key through the configured
@@ -250,7 +250,7 @@ ssh tilde@localhost -p 4022 \
   -o UserKnownHostsFile=/dev/null
 ```
 
-Password: `tilde`.
+Password: printed by `mix tilde.demo`; override with `--password` or `TILDE_DEMO_PASSWORD`.
 
 By default, each SSH connection gets a fresh private session. This prevents
 unrelated terminal clients from seeing each other’s prompt text or transcript.
@@ -351,7 +351,7 @@ live "/tilde/:session_id", Tilde.Demo.Live, :index
 Start the SSH demo transport:
 
 ```elixir
-{:ok, _pid} = Tilde.Transport.SSH.Demo.start_link(port: 4022, password: "tilde")
+{:ok, _pid} = Tilde.Transport.SSH.Demo.start_link(port: 4022, password: "use-a-long-random-password")
 ```
 
 ## Development

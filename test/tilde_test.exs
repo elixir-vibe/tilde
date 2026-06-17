@@ -1438,6 +1438,20 @@ defmodule TildeTest do
     assert Enum.any?(updated.transcript.blocks, &(&1.source =~ "Build a pi-like console"))
   end
 
+  test "demo password is generated once when not configured" do
+    previous = Application.get_env(:tilde, :demo_password)
+    Application.delete_env(:tilde, :demo_password)
+
+    first = Tilde.Demo.Password.get()
+    second = Tilde.Demo.Password.get()
+
+    assert first == second
+    assert byte_size(first) >= 32
+    assert Tilde.Demo.Password.valid?(first)
+
+    restore_application_env(:demo_password, previous)
+  end
+
   test "web demo requires password session" do
     with_application_env(:demo_password, "secret", fn ->
       conn =

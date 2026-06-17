@@ -11,7 +11,7 @@ defmodule Mix.Tasks.Tilde.Demo do
         -o StrictHostKeyChecking=no \
         -o UserKnownHostsFile=/dev/null
 
-  Password: `tilde`.
+  Password: #{Tilde.Demo.Password.help()}.
   """
 
   use Mix.Task
@@ -28,10 +28,9 @@ defmodule Mix.Tasks.Tilde.Demo do
     {opts, _args, _invalid} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)
     web_port = Keyword.get(opts, :web_port, 4000)
     ssh_port = Keyword.get(opts, :ssh_port, 4022)
-    password = Keyword.get(opts, :password, "tilde")
+    password = Tilde.Demo.Password.configure(opts)
     host = Keyword.get(opts, :host, "localhost")
 
-    configure_auth(password)
     configure_llm()
     start_rate_limit()
     configure_endpoint(web_port, host)
@@ -55,10 +54,6 @@ defmodule Mix.Tasks.Tilde.Demo do
     """)
 
     Process.sleep(:infinity)
-  end
-
-  defp configure_auth(password) do
-    Application.put_env(:tilde, :demo_password, password)
   end
 
   defp configure_llm do

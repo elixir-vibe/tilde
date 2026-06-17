@@ -28,7 +28,7 @@ defmodule Tilde.Demo.Auth do
   end
 
   def create(conn, %{"password" => password} = params) do
-    if Plug.Crypto.secure_compare(password, password()) do
+    if Tilde.Demo.Password.valid?(password) do
       conn
       |> configure_session(renew: true)
       |> put_session(@session_key, true)
@@ -50,10 +50,6 @@ defmodule Tilde.Demo.Auth do
   end
 
   defp authenticated?(conn), do: get_session(conn, @session_key) == true
-
-  defp password do
-    Application.get_env(:tilde, :demo_password, "tilde")
-  end
 
   defp return_to(conn), do: conn.params["return_to"] || current_request_path(conn)
 
