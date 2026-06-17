@@ -1,7 +1,7 @@
 @layer tokens, reset, layout, components, utilities;
 
 @import "./tilde/tokens.css" layer(tokens);
-@import "./tilde/reset.css" layer(reset);
+@import "../node_modules/modern-normalize/modern-normalize.css" layer(reset);
 @import "./tilde/layout.css" layer(layout);
 
 @import "./tilde/components/message.css" layer(components);

@@ -7,7 +7,8 @@ defmodule Tilde.Core.Session do
   state or maintain equivalent assigns in a LiveView process.
   """
 
-  alias Tilde.Core.{Block, BlockList, Event, Input, Suggest, Transcript, Widget}
+  alias ReqLLM.StreamChunk
+  alias Tilde.Core.{AssistantTurn, Block, BlockList, Event, Input, Suggest, Transcript, Widget}
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -15,6 +16,7 @@ defmodule Tilde.Core.Session do
           transcript: Transcript.t(),
           widgets: %{optional(Widget.placement()) => [Widget.t()]},
           statuses: map(),
+          assistant: AssistantTurn.t(),
           input: Input.t(),
           metadata: map()
         }
@@ -24,8 +26,17 @@ defmodule Tilde.Core.Session do
             transcript: %Transcript{},
             widgets: %{},
             statuses: %{},
+            assistant: %AssistantTurn{},
             input: %Input{},
             metadata: %{}
+
+  @doc "Returns true while the assistant is waiting for first model output."
+  @spec assistant_waiting?(t()) :: boolean()
+  def assistant_waiting?(%__MODULE__{assistant: assistant}), do: AssistantTurn.waiting?(assistant)
+
+  @doc "Returns true while the assistant turn is active."
+  @spec assistant_active?(t()) :: boolean()
+  def assistant_active?(%__MODULE__{assistant: assistant}), do: AssistantTurn.active?(assistant)
 
   @doc "Creates an empty session."
   @spec new(keyword()) :: t()
@@ -96,7 +107,16 @@ defmodule Tilde.Core.Session do
         events = Enum.take(session.events, -value)
 
         replay =
-          append_events(%{session | events: [], transcript: %Transcript{}, statuses: %{}}, events)
+          append_events(
+            %{
+              session
+              | events: [],
+                transcript: %Transcript{},
+                statuses: %{},
+                assistant: %AssistantTurn{}
+            },
+            events
+          )
 
         %{replay | input: session.input, widgets: session.widgets, metadata: session.metadata}
 
@@ -185,6 +205,36 @@ defmodule Tilde.Core.Session do
     session
     |> put_input(Input.clear(session.input))
     |> delete_widget("command-suggestions")
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :assistant_turn_started} = event) do
+    %{session | assistant: AssistantTurn.waiting(event.block_id)}
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :assistant_delta} = event) do
+    chunk = StreamChunk.text(event.text || "", event.metadata)
+    %{session | assistant: AssistantTurn.apply_chunk(session.assistant, chunk)}
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :tool_started} = event) do
+    chunk = StreamChunk.tool_call(event.name || "tool", event.args || %{}, event.metadata)
+    %{session | assistant: AssistantTurn.apply_chunk(session.assistant, chunk)}
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :assistant_done}) do
+    %{session | assistant: AssistantTurn.done(session.assistant)}
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :assistant_turn_finished}) do
+    %{session | assistant: AssistantTurn.done(session.assistant)}
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :assistant_turn_error} = event) do
+    %{session | assistant: AssistantTurn.error(session.assistant, event.result || event.text)}
+  end
+
+  defp apply_session_event(%__MODULE__{} = session, %Event{type: :assistant_turn_cancelled}) do
+    %{session | assistant: AssistantTurn.cancelled(session.assistant)}
   end
 
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :status_changed} = event) do

@@ -64,17 +64,18 @@ defmodule Tilde.Transport.SSH.Delta do
     old.input != new.input and
       old.transcript == new.transcript and
       old.widgets == new.widgets and
-      old.statuses == new.statuses
+      old.statuses == new.statuses and
+      old.assistant == new.assistant
   end
 
   defp status_only?(%Session{} = old, %Session{} = new) do
     old.input == new.input and old.transcript == new.transcript and old.widgets == new.widgets and
-      old.statuses != new.statuses
+      old.assistant == new.assistant and old.statuses != new.statuses
   end
 
   defp widgets_changed?(%Session{} = old, %Session{} = new) do
     old.widgets != new.widgets and old.transcript == new.transcript and
-      old.statuses == new.statuses
+      old.statuses == new.statuses and old.assistant == new.assistant
   end
 
   defp new_blocks(%Session{} = old, %Session{} = new) do

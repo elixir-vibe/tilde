@@ -412,7 +412,7 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp render_delta_change(%__MODULE__{} = state, _old_session, {:tool_done, _block}) do
-    if Map.has_key?(state.session.statuses, "model"),
+    if Session.assistant_active?(state.session),
       do: state,
       else: %{state | streaming?: false}
   end
@@ -426,13 +426,13 @@ defmodule Tilde.Transport.SSH.Channel do
   defp assistant_stream_finished?(%Session{} = old, %Session{} = new, %__MODULE__{
          streaming?: true
        }) do
-    Map.has_key?(old.statuses, "model") and not Map.has_key?(new.statuses, "model")
+    Session.assistant_active?(old) and not Session.assistant_active?(new)
   end
 
   defp assistant_stream_finished?(_old, _new, _state), do: false
 
   defp prompt_after_blocks?(%Session{} = session, blocks) do
-    not Delta.streaming_blocks?(blocks) and not Map.has_key?(session.statuses, "model")
+    not Delta.streaming_blocks?(blocks) and not Session.assistant_active?(session)
   end
 
   defp render(%__MODULE__{connection_ref: nil}), do: :ok

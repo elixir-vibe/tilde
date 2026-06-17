@@ -2,6 +2,7 @@ defmodule TildeTest.Driver do
   @moduledoc "Shared pipeline-friendly user-behavior test driver API for Tilde transports."
 
   import ExUnit.Assertions
+  import TildeTest.SessionAssertions
 
   @type state :: struct()
   @type key :: :up | :down | :tab | :backtab | :enter | :escape | :ctrl_o | atom()
@@ -89,14 +90,14 @@ defmodule TildeTest.Driver do
   @doc "Asserts the assistant pending indicator is visible in the transport."
   @spec assert_pending(state()) :: state()
   def assert_pending(state) do
-    assert session(state).statuses["model"] == "thinking…"
+    state |> session() |> assert_assistant_waiting()
     assert_text(state, "thinking…")
   end
 
   @doc "Refutes the assistant pending status."
   @spec refute_pending(state()) :: state()
   def refute_pending(state) do
-    refute Map.has_key?(session(state).statuses, "model")
+    state |> session() |> refute_assistant_waiting()
     state
   end
 

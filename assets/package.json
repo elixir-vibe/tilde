@@ -1,6 +1,7 @@
 {
   "private": true,
   "devDependencies": {
+    "modern-normalize": "^3.0.1",
     "playwright": "^1.58.0"
   },
   "scripts": {

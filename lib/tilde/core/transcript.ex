@@ -66,6 +66,15 @@ defmodule Tilde.Core.Transcript do
     end)
   end
 
+  def apply_event(%Event{type: type}, %__MODULE__{} = transcript)
+      when type in [
+             :assistant_turn_started,
+             :assistant_turn_finished,
+             :assistant_turn_error,
+             :assistant_turn_cancelled
+           ],
+      do: transcript
+
   def apply_event(%Event{type: :status_changed} = event, %__MODULE__{} = transcript) do
     key = event.name || "status"
     value = event.status || event.text

@@ -41,11 +41,27 @@ defmodule Tilde do
   end
 
   @doc "Creates a status-changed event. Pass `nil` to clear the status."
-  @spec status_changed(String.t(), String.t() | nil, keyword()) :: Event.t()
-  def status_changed(name, text, opts \\ [])
-      when is_binary(name) and (is_binary(text) or is_nil(text)) do
-    Event.new(:status_changed, opts |> Keyword.put(:name, name) |> Keyword.put(:text, text))
+  @spec status_changed(String.t(), term(), keyword()) :: Event.t()
+  def status_changed(name, value, opts \\ []) when is_binary(name) do
+    Event.new(:status_changed, opts |> Keyword.put(:name, name) |> Keyword.put(:text, value))
   end
+
+  @doc "Creates an event marking the assistant turn as waiting for first output."
+  @spec assistant_turn_started(keyword()) :: Event.t()
+  def assistant_turn_started(opts \\ []), do: Event.new(:assistant_turn_started, opts)
+
+  @doc "Creates an event marking the assistant turn as finished."
+  @spec assistant_turn_finished(keyword()) :: Event.t()
+  def assistant_turn_finished(opts \\ []), do: Event.new(:assistant_turn_finished, opts)
+
+  @doc "Creates an event marking the assistant turn as failed."
+  @spec assistant_turn_error(term(), keyword()) :: Event.t()
+  def assistant_turn_error(reason, opts \\ []),
+    do: Event.new(:assistant_turn_error, Keyword.put(opts, :result, reason))
+
+  @doc "Creates an event marking the assistant turn as cancelled."
+  @spec assistant_turn_cancelled(keyword()) :: Event.t()
+  def assistant_turn_cancelled(opts \\ []), do: Event.new(:assistant_turn_cancelled, opts)
 
   @doc "Creates a tool-started event."
   @spec tool_started(String.t(), map(), keyword()) :: Event.t()

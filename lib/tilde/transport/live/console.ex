@@ -75,6 +75,6 @@ defmodule Tilde.Transport.Live.Console do
   defp widgets(%Session{} = session, placement), do: Session.widgets(session, placement)
   defp widgets(_session, _placement), do: []
 
-  defp pending?(%Session{statuses: %{"model" => "thinking…"}}), do: true
+  defp pending?(%Session{} = session), do: Session.assistant_waiting?(session)
   defp pending?(_session), do: false
 end

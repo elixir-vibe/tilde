@@ -15,11 +15,35 @@ Tilde events
 
 - append-only events
 - reduced transcript blocks
-- transient status values
+- transient status values for generic footer/demo state
+- one strict assistant-turn lifecycle
 - widgets such as command suggestions
 - metadata
 
 Renderers derive output from this state. ANSI escape sequences, DOM nodes, terminal cursor movement, and SSH channel details are renderer concerns only.
+
+## Assistant lifecycle
+
+Assistant progress is not encoded in generic statuses and must not be inferred from display strings such as `"thinking…"`.
+
+`Tilde.Core.Session` owns a `Tilde.Core.AssistantTurn` with explicit phases:
+
+```text
+:idle -> :waiting -> :streaming | :tooling | :thinking -> :done
+                                |-> :error
+                                |-> :cancelled
+```
+
+The lifecycle is driven by semantic events:
+
+- `:assistant_turn_started` starts a turn in `:waiting`
+- `:assistant_delta` moves the turn to `:streaming`
+- `:tool_started` moves the turn to `:tooling`
+- `:assistant_turn_finished` marks completion
+- `:assistant_turn_error` records failure
+- `:assistant_turn_cancelled` records cancellation
+
+Renderers should use session helpers such as `Session.assistant_waiting?/1` and `Session.assistant_active?/1`. Generic `statuses` remain available for unrelated labels such as the selected model name, but they do not own assistant lifecycle.
 
 ## Web sessions
 

@@ -94,7 +94,9 @@ defmodule TildeDriverTest do
       test "pending assistant status is visible" do
         session =
           Tilde.session()
-          |> Tilde.Core.Session.append_event(Tilde.status_changed("model", "thinking…"))
+          |> Tilde.Core.Session.append_event(
+            Tilde.assistant_turn_started(block_id: "msg_assistant_pending")
+          )
 
         unquote(driver)
         |> Driver.open(session: session)

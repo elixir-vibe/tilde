@@ -27,7 +27,6 @@ format/lint checks.
 ```text
 assets/css/tilde/
   tokens.css
-  reset.css
   layout.css
   components/
     message.css
@@ -49,8 +48,9 @@ assets/css/tilde/
 @layer tokens, reset, layout, components, utilities;
 ```
 
-Add new component CSS under `components/` and import it from `app.css` in the
-component layer.
+The reset layer imports `modern-normalize` directly from npm; do not add a local
+wrapper file for package CSS. Add new component CSS under `components/` and
+import it from `app.css` in the component layer.
 
 ## Naming rules
 

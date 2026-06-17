@@ -56,8 +56,8 @@ defmodule Tilde.Session.PromptLifecycle do
       state
       |> update_session(fn session ->
         session
-        |> Session.append_event(Tilde.status_changed("model", nil))
         |> maybe_append_done(state.prompt_block_id, text)
+        |> Session.append_event(Tilde.assistant_turn_finished(block_id: state.prompt_block_id))
       end)
       |> Map.merge(%{
         responding?: false,
@@ -78,8 +78,10 @@ defmodule Tilde.Session.PromptLifecycle do
       state
       |> update_session(fn session ->
         session
-        |> Session.append_event(Tilde.status_changed("model", nil))
         |> Session.append_event(Tilde.assistant_done(llm_error_message(reason)))
+        |> Session.append_event(
+          Tilde.assistant_turn_error(reason, block_id: state.prompt_block_id)
+        )
       end)
       |> Map.merge(%{
         responding?: false,
@@ -130,7 +132,9 @@ defmodule Tilde.Session.PromptLifecycle do
 
     state =
       state
-      |> update_session(&Session.append_event(&1, Tilde.status_changed("model", "thinking…")))
+      |> update_session(
+        &Session.append_event(&1, Tilde.assistant_turn_started(block_id: block_id))
+      )
       |> emit_then(emit)
 
     {:ok, task} = PromptRunner.start(state.session, parent, ref)
@@ -147,14 +151,14 @@ defmodule Tilde.Session.PromptLifecycle do
 
   defp emit_tool_started(state, %ToolEvent{} = event, emit) do
     state
-    |> update_session(
-      &Session.append_event(
-        &1,
+    |> update_session(fn session ->
+      Session.append_event(
+        session,
         Tilde.tool_started(to_string(event.name || "tool"), event.args || %{},
           tool_call_id: event.id
         )
       )
-    )
+    end)
     |> emit_then(emit)
   end
 

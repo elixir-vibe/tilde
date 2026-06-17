@@ -1,4 +1,13 @@
+html,
+body {
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .tilde {
+  position: relative;
   background: var(--color-bg);
   color: var(--color-fg);
   font: var(--text-base) / var(--leading-base) var(--font-mono);
@@ -9,6 +18,14 @@
   padding: var(--space-page);
   display: flex;
   flex-direction: column;
+}
+
+.tilde::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--color-bg);
 }
 
 .tilde .transcript {

@@ -102,8 +102,19 @@ defmodule TildeTest do
 
   import Phoenix.LiveViewTest
   import Plug.Test
+  import TildeTest.SessionAssertions
 
-  alias Tilde.Core.{Block, Choice, Display, Input, Run, Session, Stream, Transcript}
+  alias Tilde.Core.{
+    Block,
+    Choice,
+    Display,
+    Input,
+    Run,
+    Session,
+    Stream,
+    Transcript
+  }
+
   alias Tilde.Renderer
   alias Tilde.Tool.ViewModel
 
@@ -424,9 +435,9 @@ defmodule TildeTest do
       |> Session.append_events([
         Tilde.user_message("one", id: "evt_one"),
         Tilde.assistant_done("two", id: "evt_two"),
-        Tilde.user_message("three", id: "evt_three")
+        Tilde.user_message("three", id: "evt_three"),
+        Tilde.assistant_turn_started(block_id: "msg_assistant_pending")
       ])
-      |> Session.put_status("model", "thinking…")
 
     rendered =
       session |> Tilde.Renderer.TUI.render_to_string(width: 40, height: 6) |> strip_ansi()
@@ -533,9 +544,7 @@ defmodule TildeTest do
 
         assert source =~ "/new [name]"
 
-        refute_receive {:tilde_session_updated, "cmd_test",
-                        %Session{statuses: %{"model" => "thinking…"}}},
-                       50
+        refute_receive_phase("cmd_test", :waiting, 50)
 
         GenServer.stop(pid)
       end)
@@ -628,21 +637,20 @@ defmodule TildeTest do
         assert_receive {:tilde_session_updated, "llm_test",
                         %Session{transcript: %{blocks: [_user]}}}
 
-        assert_receive {:tilde_session_updated, "llm_test",
-                        %Session{statuses: %{"model" => "thinking…"}}}
+        assert_receive_phase("llm_test", :waiting)
+        |> assert_assistant_waiting()
 
         assert_receive {:tilde_session_updated, "llm_test",
                         %Session{
-                          statuses: statuses,
                           transcript: %{
                             blocks: [
                               %Block{role: :user},
                               %Block{role: :assistant, source: "echo: hello"}
                             ]
                           }
-                        }}
+                        } = done_session}
 
-        refute Map.has_key?(statuses, "model")
+        assert_assistant_phase(done_session, :done)
 
         GenServer.stop(pid)
       end)
@@ -664,39 +672,42 @@ defmodule TildeTest do
 
         Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
-        assert_receive {:tilde_session_updated, "llm_stream",
-                        %Session{statuses: %{"model" => "thinking…"}}}
+        assert_receive_phase("llm_stream", :waiting)
+        |> assert_assistant_waiting()
 
         assert_receive {:tilde_session_updated, "llm_stream",
                         %Session{
                           transcript: %{
                             blocks: [%Block{role: :user}, %Block{role: :assistant, source: "hel"}]
                           }
-                        }}
+                        } = streaming_session}
+
+        assert_assistant_phase(streaming_session, :streaming)
 
         assert_receive {:tilde_session_updated, "llm_stream",
                         %Session{
-                          statuses: %{"model" => "thinking…"},
                           transcript: %{
                             blocks: [
                               %Block{role: :user},
                               %Block{role: :assistant, source: "hello"}
                             ]
                           }
-                        }}
+                        } = streaming_session}
+
+        assert_assistant_phase(streaming_session, :streaming)
 
         assert_receive {:tilde_session_updated, "llm_stream",
                         %Session{
-                          statuses: statuses,
                           transcript: %{
                             blocks: [
                               %Block{role: :user},
                               %Block{role: :assistant, source: "hello"}
                             ]
                           }
-                        }}
+                        } = done_session}
 
-        refute Map.has_key?(statuses, "model")
+        assert_assistant_phase(done_session, :done)
+
         GenServer.stop(pid)
       end)
     end)
@@ -788,9 +799,7 @@ defmodule TildeTest do
                             }
                           }}
 
-          refute_receive {:tilde_session_updated, "llm_rate_limit",
-                          %Session{statuses: %{"model" => "thinking…"}}},
-                         50
+          refute_receive_phase("llm_rate_limit", :waiting, 50)
 
           GenServer.stop(pid)
         end)
@@ -816,12 +825,10 @@ defmodule TildeTest do
         assert_receive {:tilde_session_updated, "llm_failure",
                         %Session{transcript: %{blocks: [_user]}}}
 
-        assert_receive {:tilde_session_updated, "llm_failure",
-                        %Session{statuses: %{"model" => "thinking…"}}}
+        assert_receive_phase("llm_failure", :waiting)
 
         assert_receive {:tilde_session_updated, "llm_failure",
                         %Session{
-                          statuses: statuses,
                           transcript: %{
                             blocks: [
                               %Block{role: :user},
@@ -831,9 +838,9 @@ defmodule TildeTest do
                               }
                             ]
                           }
-                        }}
+                        } = error_session}
 
-        refute Map.has_key?(statuses, "model")
+        assert_assistant_phase(error_session, :error)
 
         GenServer.stop(pid)
       end)
@@ -854,14 +861,13 @@ defmodule TildeTest do
         assert %Session{} = Tilde.Session.Server.subscribe(name)
         Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
-        assert_receive {:tilde_session_updated, "llm_crash",
-                        %Session{statuses: %{"model" => "thinking…"}}}
+        assert_receive_phase("llm_crash", :waiting)
 
         assert_receive {:tilde_session_updated, "llm_crash",
-                        %Session{statuses: statuses, transcript: %{blocks: [_user, assistant]}}}
+                        %Session{transcript: %{blocks: [_user, assistant]}} = error_session}
 
+        assert_assistant_phase(error_session, :error)
         assert assistant.source == "The model is unavailable right now. Please try again."
-        refute Map.has_key?(statuses, "model")
 
         GenServer.stop(pid)
       end)
@@ -1024,15 +1030,64 @@ defmodule TildeTest do
   test "semantic status events update and clear session statuses" do
     session =
       Tilde.session()
-      |> Session.append_event(Tilde.status_changed("model", "thinking…"))
+      |> Session.append_event(Tilde.status_changed("runtime", "busy"))
 
-    assert session.statuses["model"] == "thinking…"
-    assert session.transcript.statuses["model"] == "thinking…"
+    assert session.statuses["runtime"] == "busy"
+    assert session.transcript.statuses["runtime"] == "busy"
 
-    cleared = Session.append_event(session, Tilde.status_changed("model", nil))
+    cleared = Session.append_event(session, Tilde.status_changed("runtime", nil))
 
-    refute Map.has_key?(cleared.statuses, "model")
-    refute Map.has_key?(cleared.transcript.statuses, "model")
+    refute Map.has_key?(cleared.statuses, "runtime")
+    refute Map.has_key?(cleared.transcript.statuses, "runtime")
+  end
+
+  test "assistant lifecycle events are strict session state, not generic statuses" do
+    session =
+      Tilde.session()
+      |> Session.append_event(Tilde.assistant_turn_started(block_id: "msg_assistant_1"))
+
+    assert_assistant_phase(session, :waiting)
+    assert_assistant_waiting(session)
+    assert session.assistant.block_id == "msg_assistant_1"
+    refute Map.has_key?(session.statuses, "model")
+    refute Map.has_key?(session.transcript.statuses, "model")
+
+    streaming =
+      Session.append_event(session, Tilde.assistant_delta("hello", block_id: "msg_assistant_1"))
+
+    assert_assistant_phase(streaming, :streaming)
+    refute_assistant_waiting(streaming)
+    assert_assistant_active(streaming)
+
+    done =
+      Session.append_event(streaming, Tilde.assistant_turn_finished(block_id: "msg_assistant_1"))
+
+    assert_assistant_phase(done, :done)
+    refute_assistant_active(done)
+  end
+
+  test "assistant lifecycle tracks tool, error, and cancelled phases" do
+    tooling =
+      Tilde.session()
+      |> Session.append_event(Tilde.assistant_turn_started(block_id: "msg_assistant_1"))
+      |> Session.append_event(Tilde.tool_started("utc_now", %{}, tool_call_id: "tool_1"))
+
+    assert_assistant_phase(tooling, :tooling)
+    assert_assistant_active(tooling)
+
+    failed = Session.append_event(tooling, Tilde.assistant_turn_error(:boom))
+
+    assert_assistant_phase(failed, :error)
+    refute_assistant_active(failed)
+    assert failed.assistant.error == :boom
+
+    cancelled =
+      Tilde.session()
+      |> Session.append_event(Tilde.assistant_turn_started(block_id: "msg_assistant_2"))
+      |> Session.append_event(Tilde.assistant_turn_cancelled())
+
+    assert_assistant_phase(cancelled, :cancelled)
+    refute_assistant_active(cancelled)
   end
 
   test "semantic input events update input state and submit transcript messages" do
@@ -1610,7 +1665,7 @@ defmodule TildeTest do
   test "live console shows pending assistant directly after transcript" do
     session =
       Tilde.session(id: "session_1")
-      |> Session.put_status("model", "thinking…")
+      |> Session.append_event(Tilde.assistant_turn_started(block_id: "msg_assistant_pending"))
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
@@ -1619,6 +1674,21 @@ defmodule TildeTest do
     assert html =~ "thinking…"
     refute html =~ "model: thinking"
     assert html =~ "interrupt"
+  end
+
+  test "live console hides pending assistant once streaming starts" do
+    session =
+      Tilde.session(id: "session_1")
+      |> Session.append_events([
+        Tilde.assistant_turn_started(block_id: "msg_assistant_pending"),
+        Tilde.assistant_delta("hello", block_id: "msg_assistant_pending")
+      ])
+
+    html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
+
+    refute html =~ "is-pending"
+    refute html =~ "thinking…"
+    assert html =~ "hello"
   end
 
   test "live console renders transcript, widgets, input, and footer" do

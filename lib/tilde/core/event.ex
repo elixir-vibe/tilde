@@ -8,8 +8,12 @@ defmodule Tilde.Core.Event do
 
   @type type ::
           :user_message
+          | :assistant_turn_started
           | :assistant_delta
           | :assistant_done
+          | :assistant_turn_finished
+          | :assistant_turn_error
+          | :assistant_turn_cancelled
           | :tool_started
           | :tool_stream
           | :tool_done
@@ -25,7 +29,7 @@ defmodule Tilde.Core.Event do
           block_id: String.t() | nil,
           tool_call_id: String.t() | nil,
           role: atom() | nil,
-          text: String.t() | nil,
+          text: term(),
           name: String.t() | nil,
           args: map(),
           stream: atom() | nil,

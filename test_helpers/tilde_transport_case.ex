@@ -6,6 +6,7 @@ defmodule TildeTest.TransportCase do
   using do
     quote do
       import TildeTest.TransportCase
+      import TildeTest.SessionAssertions
       alias TildeTest.Driver
     end
   end
