@@ -20,6 +20,7 @@ defmodule Tilde.Transport.SSH.Channel do
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.SSH.Delta
   alias Tilde.Transport.SSH.Interaction, as: SSHInteraction
+  alias Tilde.Transport.SSH.Outcome, as: SSHOutcome
 
   defstruct connection_ref: nil,
             channel_id: nil,
@@ -346,17 +347,11 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp submit_or_command(server, state) do
     case transport_effects(state.session.input.value, state.session) do
-      [%Outcome{type: :open_session, payload: %{id: session_id}} | _effects] ->
-        {:cont, {:cont, attach_session(state, session_id)}}
-
-      [%Outcome{type: :open_index} | _effects] ->
-        {:cont, {:cont, detach_session(state)}}
-
-      [%Outcome{type: :show_session_info} | _effects] ->
-        {:cont, {:cont, show_session_info(state)}}
-
-      _effects ->
+      [] ->
         submit_local_input(server, state)
+
+      outcomes ->
+        {:cont, {:cont, apply_outcomes(state, outcomes)}}
     end
   end
 
@@ -393,14 +388,14 @@ defmodule Tilde.Transport.SSH.Channel do
     |> apply_index_effects(effects)
   end
 
-  defp apply_index_effects(%__MODULE__{} = state, effects) do
-    Enum.reduce(effects, state, fn
-      %Outcome{type: :complete_input}, state ->
-        state
+  defp apply_index_effects(%__MODULE__{} = state, outcomes), do: apply_outcomes(state, outcomes)
 
-      %Outcome{type: :open_session, payload: %{id: id}}, state ->
-        attach_session(state, id)
-    end)
+  defp apply_outcomes(%__MODULE__{} = state, outcomes) do
+    SSHOutcome.apply(state, outcomes,
+      attach: &attach_session/2,
+      detach: &detach_session/1,
+      show_session_info: &show_session_info/1
+    )
   end
 
   defp apply_local_keys(%__MODULE__{} = state, keys) do

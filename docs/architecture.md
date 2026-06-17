@@ -91,9 +91,10 @@ plus transport-neutral `Tilde.Core.Interaction.Outcome` values such as:
 - `:show_session_info`
 
 `Tilde.Transport.Live.Interaction` and `Tilde.Transport.SSH.Interaction` perform
-transport input translation. LiveView maps outcomes to `push_event/3` or
-navigation. SSH maps outcomes to local input updates, session attachment, index
-return, or an inline session-info display.
+transport input translation. `Tilde.Transport.Live.Outcome` maps outcomes to
+`push_event/3` or navigation. `Tilde.Transport.SSH.Outcome` maps outcomes through
+SSH handlers for local input updates, session attachment, index return, or an
+inline session-info display.
 
 Session prompt key handling can still flow through `Tilde.Core.Controller.apply_key/2`
 for decoded `Tilde.Core.Keys` values; transports that already have semantic
