@@ -170,8 +170,9 @@ defmodule Tilde.Rendering.TemplateToolDemoTest do
         }
       )
 
-    assert screen.kind == :screen
-    assert screen.metadata.class == "index"
+    assert_widget(screen, id: "home", kind: :screen, metadata: %{class: "index"})
+    assert_widget_text(screen, "tilde")
+    assert_shortcut(screen, key: "n", label: "new")
     assert Enum.map(screen.children, & &1.kind) == [:heading, :input, :shortcut_bar]
   end
 

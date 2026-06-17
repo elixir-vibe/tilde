@@ -10,7 +10,9 @@ defmodule TildeTest.Case do
       import Phoenix.LiveViewTest
       import Plug.Test
       import TildeTest.Case
+      import TildeTest.InteractionAssertions
       import TildeTest.SessionAssertions
+      import TildeTest.WidgetAssertions
 
       alias Tilde.Core.{
         Block,

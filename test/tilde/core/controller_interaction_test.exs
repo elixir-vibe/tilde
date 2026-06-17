@@ -2,32 +2,37 @@ defmodule Tilde.Core.ControllerInteractionTest do
   use TildeTest.Case, async: true
 
   alias Tilde.Core.{Controller, Display, Interaction, Session}
-  alias Tilde.Core.Interaction.Outcome
 
   test "session interactions edit suggestions and submit commands" do
     session = Tilde.session()
 
-    assert {:cont, session, []} =
-             Controller.apply_interaction(session, Interaction.input_changed("/"))
+    result = Controller.apply_interaction(session, Interaction.input_changed("/"))
 
-    assert Session.command_suggestions(session)
+    assert_interaction_cont(result)
+    assert Session.command_suggestions(elem(result, 1))
 
-    assert {:cont, session, [%Outcome{type: :complete_input, payload: %{input: "/help"}}]} =
-             Controller.apply_interaction(session, Interaction.new(:suggest_accept))
+    result = Controller.apply_interaction(elem(result, 1), Interaction.new(:suggest_accept))
 
-    assert session.input.value == "/help"
+    result
+    |> assert_interaction_cont()
+    |> assert_outcome(:complete_input, input: "/help")
+    |> assert_interaction_input("/help")
 
-    assert {:cont, session, [%Outcome{type: :complete_input, payload: %{input: ""}}]} =
-             Controller.apply_interaction(session, Interaction.new(:suggest_submit))
+    result = Controller.apply_interaction(elem(result, 1), Interaction.new(:suggest_submit))
 
-    assert session.input.value == ""
+    result
+    |> assert_interaction_cont()
+    |> assert_outcome(:complete_input, input: "")
+    |> assert_interaction_input("")
   end
 
   test "session interactions expose navigation effects for slash commands" do
     session = Tilde.session()
 
-    assert {:cont, _session, [%Outcome{type: :open_session, payload: %{id: "demo"}}]} =
-             Controller.apply_interaction(session, Interaction.submit("/new demo"))
+    session
+    |> Controller.apply_interaction(Interaction.submit("/new demo"))
+    |> assert_interaction_cont()
+    |> assert_outcome(:open_session, id: "demo")
   end
 
   test "session interactions preserve semantic component events" do

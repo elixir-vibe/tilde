@@ -1,8 +1,7 @@
-defmodule Tilde.CoreIndexTest do
+defmodule Tilde.Core.IndexTest do
   use TildeTest.Case
 
   alias Tilde.Core.{Index, Interaction}
-  alias Tilde.Core.Interaction.Outcome
 
   test "empty index has no session suggestions" do
     assert {:ok, _pid} = Tilde.Session.Registry.ensure_started()
@@ -62,17 +61,22 @@ defmodule Tilde.CoreIndexTest do
   test "index applies transport-neutral interactions" do
     index = Index.new()
 
-    assert {:cont, index, []} =
-             Index.apply_interaction(index, Interaction.input_changed("/n"))
+    result = Index.apply_interaction(index, Interaction.input_changed("/n"))
 
-    assert {:cont, index, [%Outcome{type: :complete_input, payload: %{input: "/new "}}]} =
-             Index.apply_interaction(index, Interaction.new(:suggest_submit))
+    assert_interaction_cont(result)
+    refute_outcome(result, :complete_input)
 
-    assert index.input.value == "/new "
+    result = Index.apply_interaction(elem(result, 1), Interaction.new(:suggest_submit))
 
-    assert {:cont, _index, [%Outcome{type: :open_session, payload: %{id: id}}]} =
-             Index.apply_interaction(index, Interaction.submit("/new interaction-demo"))
+    result
+    |> assert_interaction_cont()
+    |> assert_outcome(:complete_input, input: "/new ")
+    |> assert_interaction_input("/new ")
 
-    assert id == "interaction-demo"
+    result = Index.apply_interaction(elem(result, 1), Interaction.submit("/new interaction-demo"))
+
+    result
+    |> assert_interaction_cont()
+    |> assert_outcome(:open_session, id: "interaction-demo")
   end
 end

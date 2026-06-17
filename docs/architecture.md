@@ -170,6 +170,14 @@ Tilde.Core.Widget
 LiveView DOM or TUI cells/ANSI
 ```
 
+## Test support
+
+Transport drivers cover user-observable parity across LiveView, TUI, browser,
+and SSH surfaces. Semantic assertion helpers cover core interaction outcomes and
+widget trees without going through DOM, ANSI, or browser rendering. Add new test
+support inside the project's established helper namespaces instead of creating
+flat ad hoc helper files.
+
 ## Roadmap
 
 - Continue moving semantic templates toward widget output first.
