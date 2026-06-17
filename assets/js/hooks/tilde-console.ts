@@ -84,7 +84,7 @@ const TildeConsole: Partial<TildeConsoleHook> = {
 
     this.handleCompletion = ({ insert }) => {
       const textarea = this.el.querySelector(inputSelector)
-      if (!(textarea instanceof HTMLTextAreaElement) || !insert) return
+      if (!(textarea instanceof HTMLTextAreaElement) || insert === undefined) return
 
       textarea.value = insert
       this.resizeInput?.(textarea)

@@ -14,6 +14,7 @@ defmodule TildeBrowserDriverTest do
       browser
       |> Browser.assert_input("/help")
       |> Browser.press(:enter)
+      |> Browser.assert_input("")
       |> Browser.refute_has(".suggest")
       |> Browser.assert_text("/new [name]")
     else
@@ -25,6 +26,7 @@ defmodule TildeBrowserDriverTest do
     if browser do
       browser
       |> Browser.type("/")
+      |> Browser.assert_has(".suggest")
       |> Browser.press(:escape)
 
       browser

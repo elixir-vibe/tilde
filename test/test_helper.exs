@@ -2,6 +2,8 @@ ExUnit.start()
 
 for support <- [
       "../test_helpers/tilde_session_assertions.ex",
+      "../test_helpers/tilde_fakes.ex",
+      "../test_helpers/tilde_case.ex",
       "../test_helpers/tilde_driver.ex",
       "../test_helpers/tilde_transport_case.ex",
       "../test_helpers/tilde_browser_case.ex"
