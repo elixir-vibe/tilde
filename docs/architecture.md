@@ -158,6 +158,10 @@ SSH updates are append-oriented:
 - tool stream deltas append with stream labels on first chunks
 - prompt is reprinted when needed after model streaming
 
+`Tilde.Transport.SSH.Rendering` owns pure normal-screen rendering iodata. The SSH
+channel owns protocol callbacks and sending bytes, not the shape of rendered
+sessions, prompts, blocks, and stream chunks.
+
 ## Semantic UI composition
 
 `Tilde.Core.Widget` is the shared semantic composition unit. HEEx templates can

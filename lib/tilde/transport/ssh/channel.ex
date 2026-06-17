@@ -11,17 +11,15 @@ defmodule Tilde.Transport.SSH.Channel do
   @behaviour :ssh_server_channel
 
   alias Tilde.Command, as: SlashCommand
-  alias Tilde.Core.{Block, Controller, Index, Input, Interaction, Keys, Session}
+  alias Tilde.Core.{Controller, Index, Interaction, Keys, Session}
   alias Tilde.Core.Interaction.Outcome
-  alias Tilde.Index.View, as: IndexView
-  alias Tilde.Renderer.TUI
-  alias Tilde.Renderer.TUI.{ViewRenderer, WidgetRenderer}
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.SSH.Delta
   alias Tilde.Transport.SSH.Interaction, as: SSHInteraction
   alias Tilde.Transport.SSH.LocalPrompt
   alias Tilde.Transport.SSH.Outcome, as: SSHOutcome
+  alias Tilde.Transport.SSH.Rendering
 
   defstruct connection_ref: nil,
             channel_id: nil,
@@ -396,155 +394,51 @@ defmodule Tilde.Transport.SSH.Channel do
   defp render(%__MODULE__{channel_id: nil}), do: :ok
 
   defp render(%__MODULE__{index: %Index{}, session_server: nil} = state) do
-    bytes =
-      state.index
-      |> IndexView.widgets()
-      |> WidgetRenderer.render(state.width, ansi: true)
-      |> IO.iodata_to_binary()
-
-    :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
+    send_bytes(state, Rendering.index(state.index, state.width))
   end
 
   defp render(%__MODULE__{} = state) do
-    bytes =
-      state.session
-      |> TUI.render(width: state.width, height: state.height, clear?: false)
-      |> IO.iodata_to_binary()
-
-    :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
+    send_bytes(state, Rendering.session(state.session, state.width, state.height))
   end
 
   defp render_session_snapshot(%__MODULE__{} = state, label) do
-    snapshot =
-      state.session
-      |> TUI.render(width: state.width, height: state.height, clear?: false)
-      |> IO.iodata_to_binary()
-
-    send_bytes(state, [
-      "\r",
-      IO.ANSI.clear_line(),
-      IO.ANSI.faint(),
-      label,
-      ": #{state.session_id}",
-      IO.ANSI.normal(),
-      "\r\n\r\n",
-      snapshot
-    ])
+    send_bytes(
+      state,
+      Rendering.session_snapshot(
+        state.session,
+        state.session_id,
+        label,
+        state.width,
+        state.height
+      )
+    )
   end
 
   defp render_session_info(%__MODULE__{} = state) do
-    mode = if state.attached?, do: "attached", else: "private"
-
-    send_bytes(state, [
-      "\r",
-      IO.ANSI.clear_line(),
-      IO.ANSI.faint(),
-      "session: ",
-      IO.ANSI.normal(),
-      state.session_id || state.session.id,
-      "\r\n",
-      IO.ANSI.faint(),
-      "mode: ",
-      IO.ANSI.normal(),
-      mode,
-      "\r\n",
-      IO.ANSI.faint(),
-      "web: ",
-      IO.ANSI.normal(),
-      "/tilde/#{state.session_id || state.session.id}",
-      "\r\n",
-      IO.ANSI.faint(),
-      "commands: ",
-      IO.ANSI.normal(),
-      "/attach <name> · /detach · /session",
-      "\r\n\r\n"
-    ])
-  end
-
-  defp render_prompt(%__MODULE__{connection_ref: nil}), do: :ok
-  defp render_prompt(%__MODULE__{channel_id: nil}), do: :ok
-
-  defp render_prompt(%__MODULE__{} = state) do
-    send_bytes(state, [
-      "\r",
-      IO.ANSI.clear_line(),
-      TUI.render_prompt(state.session, ansi: true)
-    ])
+    send_bytes(state, Rendering.session_info(state.session, state.session_id, state.attached?))
   end
 
   defp render_input_change(%__MODULE__{} = state, %Session{} = old_session) do
-    case appended_prompt_delta(old_session.input, state.session.input) do
-      {:ok, delta} -> send_bytes(state, delta)
-      :redraw -> render_prompt(state)
-    end
-  end
-
-  defp appended_prompt_delta(%Input{} = old, %Input{} = new) do
-    if old.cursor == String.length(old.value) and
-         new.cursor == String.length(new.value) and
-         String.starts_with?(new.value, old.value) do
-      {:ok, String.replace_prefix(new.value, old.value, "")}
-    else
-      :redraw
-    end
+    send_bytes(
+      state,
+      Rendering.input_change(old_session.input, state.session.input, state.session)
+    )
   end
 
   defp append_blocks(%__MODULE__{} = state, blocks, opts) do
-    prompt? = Keyword.get(opts, :prompt?, true)
-
-    content =
-      blocks
-      |> Enum.map_join("\n\n", &render_block(&1, state))
-      |> terminal_newlines()
-
-    send_bytes(state, [
-      "\r",
-      IO.ANSI.clear_line(),
-      content,
-      if(prompt?, do: ["\r\n\r\n", TUI.render_prompt(state.session, ansi: true)], else: "")
-    ])
+    send_bytes(state, Rendering.blocks(blocks, state.session, state.width, opts))
   end
 
   defp append_text(%__MODULE__{} = state, text) do
-    send_bytes(state, terminal_newlines(text))
+    send_bytes(state, Rendering.text(text))
   end
 
-  defp append_tool_delta(%__MODULE__{} = state, kind, text, true) do
-    send_bytes(state, [
-      "\r\n",
-      IO.ANSI.faint(),
-      to_string(kind),
-      IO.ANSI.normal(),
-      "\r\n",
-      terminal_newlines(text)
-    ])
-  end
-
-  defp append_tool_delta(%__MODULE__{} = state, _kind, text, false) do
-    send_bytes(state, terminal_newlines(text))
+  defp append_tool_delta(%__MODULE__{} = state, kind, text, first?) do
+    send_bytes(state, Rendering.tool_delta(kind, text, first?))
   end
 
   defp append_prompt(%__MODULE__{} = state) do
-    send_bytes(state, ["\r\n\r\n", TUI.render_prompt(state.session, ansi: true)])
-  end
-
-  defp render_block(%Block{kind: :message, role: :user, source: source}, _state), do: source
-
-  defp render_block(%Block{kind: :message, role: role, source: source}, _state) do
-    [IO.ANSI.faint(), to_string(role), IO.ANSI.normal(), "\n", source]
-    |> IO.iodata_to_binary()
-  end
-
-  defp render_block(%Block{} = block, %__MODULE__{} = state) do
-    block
-    |> Tilde.Viewable.to_view()
-    |> ViewRenderer.render(state.width, ansi: true)
-  end
-
-  defp terminal_newlines(iodata) do
-    iodata
-    |> IO.iodata_to_binary()
-    |> String.replace("\n", "\r\n")
+    send_bytes(state, Rendering.prompt_after_turn(state.session))
   end
 
   defp send_bytes(%__MODULE__{connection_ref: nil}, _bytes), do: :ok
