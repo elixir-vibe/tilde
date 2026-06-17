@@ -100,6 +100,17 @@ const TildeConsole: Partial<TildeConsoleHook> = {
       if (target instanceof HTMLTextAreaElement && target.matches(inputSelector)) {
         const suggestions = this.el.querySelector(".suggest")
 
+        if (
+          this.el.classList.contains("index") &&
+          !suggestions &&
+          key === "n" &&
+          target.value === ""
+        ) {
+          event.preventDefault()
+          this.pushEvent("tilde:index_new", {})
+          return
+        }
+
         if (suggestions && (key === "arrowdown" || (event.ctrlKey && key === "n"))) {
           event.preventDefault()
           this.pushEvent("tilde:suggest_next", {})

@@ -15,7 +15,7 @@ defmodule TildeTest.Driver.Browser do
   @spec available?() :: boolean()
   def available?, do: File.exists?(playwright_executable()) or not is_nil(System.find_executable("playwright"))
 
-  @doc "Starts Playwright and a supervised Tilde demo, logs in, and visits /tilde."
+  @doc "Starts Playwright and a supervised Tilde demo, logs in, and visits a session console."
   @spec open(keyword()) :: t()
   def open(opts \\ []) do
     unless available?(), do: flunk("playwright executable is not available")
@@ -50,7 +50,7 @@ defmodule TildeTest.Driver.Browser do
     |> visit("/login")
     |> fill("input[name='password']", password)
     |> click("button[type='submit']")
-    |> visit("/tilde")
+    |> visit("/tilde/browser-test")
     |> assert_has("body .phx-connected")
   end
 
