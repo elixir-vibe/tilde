@@ -13,6 +13,9 @@
 # Node/Playwright dependencies for browser tests.
 /assets/node_modules/
 
+# Volt production build output.
+/priv/static/assets/
+
 # Temporary files, for example, from tests.
 /tmp/
 

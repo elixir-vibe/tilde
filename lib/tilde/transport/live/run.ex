@@ -57,7 +57,7 @@ defmodule Tilde.Transport.Live.Run do
   end
 
   defp classes(%Run{marks: marks}) do
-    Enum.map(marks, &"tilde-run-#{&1}")
+    Enum.map(marks, &"run-#{&1}")
   end
 
   defp link?(%Run{attrs: %{href: href}}) when is_binary(href), do: true

@@ -1,0 +1,46 @@
+.tilde {
+  color-scheme: light dark;
+  --color-bg: #faf7f0;
+  --color-fg: #171411;
+  --color-muted: #6f6860;
+  --color-border: #ded6cb;
+  --color-link: #5b2bbf;
+  --color-success: #2f7d32;
+  --color-error: #b3261e;
+  --color-warning: #8a5a00;
+  --surface-tool: rgba(222, 214, 203, 0.35);
+  --surface-tool-pending: rgba(138, 90, 0, 0.1);
+  --surface-tool-success: rgba(47, 125, 50, 0.1);
+  --surface-tool-error: rgba(179, 38, 30, 0.1);
+  --scrollbar-thumb: #b9aea1;
+  --scrollbar-thumb-hover: #8f8378;
+  --space-cell: 1ch;
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 0.75rem;
+  --space-lg: 1.25rem;
+  --space-page: 24px;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --text-base: 16px;
+  --leading-base: 1.55;
+  --content-max: 920px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tilde {
+    --color-bg: #11100f;
+    --color-fg: #eee7dd;
+    --color-muted: #aaa096;
+    --color-border: #302c28;
+    --color-link: #c7a8ff;
+    --color-success: #8bc48a;
+    --color-error: #ffb4ab;
+    --color-warning: #e0b35a;
+    --surface-tool: rgba(48, 44, 40, 0.45);
+    --surface-tool-pending: rgba(224, 179, 90, 0.13);
+    --surface-tool-success: rgba(139, 196, 138, 0.13);
+    --surface-tool-error: rgba(255, 180, 171, 0.13);
+    --scrollbar-thumb: #625a52;
+    --scrollbar-thumb-hover: #8d8278;
+  }
+}

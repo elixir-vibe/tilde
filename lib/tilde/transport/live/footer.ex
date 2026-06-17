@@ -16,15 +16,15 @@ defmodule Tilde.Transport.Live.Footer do
       |> assign(:status_text, status_text(assigns.session))
 
     ~H"""
-    <footer class="tilde-footer">
-      <span class="tilde-footer-left tilde-muted">
+    <footer class="footer">
+      <span class="footer-left muted">
         <span :if={@left != ""}>{@left}</span>
         <span :if={@left != "" and @session_text != ""}> · </span>
         <span :if={@session_text != ""}>{@session_text}</span>
         <span :if={(@left != "" or @session_text != "") and @status_text != ""}> · </span>
         <span :if={@status_text != ""}>{@status_text}</span>
       </span>
-      <span class="tilde-footer-right">{@right}</span>
+      <span class="footer-right">{@right}</span>
     </footer>
     """
   end

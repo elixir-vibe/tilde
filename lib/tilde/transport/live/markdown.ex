@@ -14,12 +14,12 @@ defmodule Tilde.Transport.Live.Markdown do
     assigns = assign(assigns, :rendered, Markdown.to_html(assigns.source, assigns.options))
 
     ~H"""
-    <div class="tilde-markdown">
+    <div class="markdown">
       <%= case @rendered do %>
         <% {:ok, html} -> %>
           {Phoenix.HTML.raw(html)}
         <% {:error, :mdex_not_available} -> %>
-          <div class="tilde-plain-text">{@source}</div>
+          <div class="plain-text">{@source}</div>
       <% end %>
     </div>
     """

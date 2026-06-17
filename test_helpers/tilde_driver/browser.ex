@@ -29,7 +29,7 @@ defmodule TildeTest.Driver.Browser do
     configure_endpoint(port)
 
     {:ok, _playwright} = ensure_playwright(timeout)
-    {:ok, demo} = Tilde.Demo.Supervisor.start_link(web_port: port, ssh_port: ssh_port, password: password)
+    {:ok, demo} = start_demo(web_port: port, ssh_port: ssh_port, password: password)
 
     connection = PlaywrightEx.Supervisor.connection_name(TildeTest.Driver.Browser.Playwright)
     {:ok, browser} = PlaywrightEx.launch_browser(:chromium, headless: true, timeout: timeout, connection: connection)
@@ -122,6 +122,17 @@ defmodule TildeTest.Driver.Browser do
     if state.browser_id, do: ignore_exit(fn -> Browser.close(state.browser_id, timeout: @timeout, connection: state.connection) end)
     if state.demo, do: ignore_exit(fn -> GenServer.stop(state.demo) end)
     :ok
+  end
+
+  defp start_demo(opts) do
+    case Tilde.Demo.Supervisor.start_link(opts) do
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, {:already_started, pid}} ->
+        ignore_exit(fn -> GenServer.stop(pid) end)
+        Tilde.Demo.Supervisor.start_link(opts)
+    end
   end
 
   defp configure_endpoint(port) do

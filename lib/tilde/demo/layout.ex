@@ -6,7 +6,10 @@ defmodule Tilde.Demo.Layout do
   use Phoenix.Component
 
   def root(assigns) do
-    assigns = assign(assigns, :live_socket_js, live_socket_js())
+    assigns =
+      assigns
+      |> assign(:app_css, Volt.static_path(Tilde.Demo.Endpoint, "/assets/css/app.css"))
+      |> assign(:app_js, Volt.static_path(Tilde.Demo.Endpoint, "/assets/js/app.js"))
 
     ~H"""
     <!DOCTYPE html>
@@ -16,6 +19,7 @@ defmodule Tilde.Demo.Layout do
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content={Plug.CSRFProtection.get_csrf_token()} />
         <title>Tilde demo</title>
+        <link phx-track-static rel="stylesheet" href={@app_css} />
       </head>
       <body>
         {@inner_content}
@@ -23,31 +27,10 @@ defmodule Tilde.Demo.Layout do
         </script>
         <script src="/assets/live_view/phoenix_live_view.min.js">
         </script>
-        {Phoenix.HTML.raw("<script>" <> @live_socket_js <> "</script>")}
+        <script defer phx-track-static type="module" src={@app_js}>
+        </script>
       </body>
     </html>
-    """
-  end
-
-  defp live_socket_js do
-    hooks =
-      String.replace(
-        Tilde.Transport.Live.Hooks.js(),
-        "export const TildeHooks",
-        "const TildeHooks"
-      )
-
-    """
-    #{hooks}
-
-    const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
-    const liveSocket = new window.LiveView.LiveSocket("/live", window.Phoenix.Socket, {
-      hooks: TildeHooks,
-      params: { _csrf_token: csrfToken }
-    })
-
-    liveSocket.connect()
-    window.liveSocket = liveSocket
     """
   end
 end

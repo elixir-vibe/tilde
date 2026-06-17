@@ -1,0 +1,20 @@
+.tilde .choice-options {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: var(--space-md);
+}
+
+.tilde .choice-option {
+  text-align: left;
+  text-decoration: none;
+  color: var(--color-fg);
+}
+
+.tilde .choice-option.is-selected .choice-marker {
+  color: var(--color-link);
+}
+
+.tilde .choice-description {
+  color: var(--color-muted);
+  margin-left: var(--space-md);
+}

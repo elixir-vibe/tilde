@@ -40,7 +40,6 @@ defmodule Tilde.Demo.Live do
   @impl true
   def render(assigns) do
     ~H"""
-    {Phoenix.HTML.raw("<style>" <> Tilde.Transport.Live.Styles.css() <> "</style>")}
     <.console
       session={@session}
       input={@session.input.value}

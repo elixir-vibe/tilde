@@ -40,6 +40,14 @@ defmodule Tilde.Demo.Endpoint do
     plug(Phoenix.LiveReloader)
   end
 
+  plug(Volt.DevServer, root: "assets")
+
+  plug(Plug.Static,
+    at: "/assets",
+    from: "priv/static/assets",
+    gzip: false
+  )
+
   plug(Plug.Parsers,
     parsers: [:urlencoded],
     pass: ["*/*"]

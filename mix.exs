@@ -36,6 +36,7 @@ defmodule Tilde.MixProject do
       {:reach, "~> 2.0", only: [:dev, :test], runtime: false},
       {:ex_dna, "~> 1.0", only: [:dev, :test], runtime: false},
       {:dotenvy, "~> 1.1"},
+      {:volt, "~> 0.14"},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
       {:vibe_kit, "~> 0.1"},
@@ -56,11 +57,14 @@ defmodule Tilde.MixProject do
 
   defp aliases() do
     [
+      "assets.build": ["volt.build --tailwind"],
       "test.browser": ["test --only browser"],
       ci: [
         "format",
         "compile --warnings-as-errors",
         "format --check-formatted",
+        "volt.js.check",
+        "volt.build --tailwind --no-hash",
         "test",
         "credo --strict",
         "dialyzer",

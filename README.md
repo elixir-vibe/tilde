@@ -118,11 +118,10 @@ import Tilde.Transport.Live.Console
 """
 ```
 
-For default styling, include the CSS returned by:
-
-```elixir
-Tilde.Transport.Live.Styles.css()
-```
+For default styling and hooks, build the Volt-managed TypeScript/CSS assets in
+`assets/css/` and `assets/js/` and include the generated stylesheet/script from your layout.
+The demo layout uses `Volt.static_path/2` for `/assets/css/app.css` and
+`/assets/js/app.js`.
 
 The Live components render semantic DOM for transcript blocks, tool widgets,
 choice blocks, widgets, input, and footer/statusline content. Markdown message
@@ -142,9 +141,9 @@ It exercises tool expansion, choice selection, input submission, widgets, and
 footer status using `Tilde.Core.Session` helpers such as `toggle_expand/2` and
 `select_choice/3`.
 
-For keyboard expansion, copy `Tilde.Transport.Live.Hooks.js()` into your LiveSocket assets
-and register the exported `TildeConsole` hook. Click-based expansion works
-without JavaScript hooks; the hook adds focused-block `ctrl+o`.
+The default TypeScript entry registers the `TildeConsole` hook. Click-based
+expansion works without JavaScript hooks; the hook adds focused-block `ctrl+o`,
+slash suggestion keyboard navigation, input sizing, and scroll sticking.
 
 ## TUI renderer
 

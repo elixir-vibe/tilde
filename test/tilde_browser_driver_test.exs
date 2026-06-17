@@ -30,7 +30,7 @@ defmodule TildeBrowserDriverTest do
       assert Browser.evaluate(browser, "document.querySelector(\"textarea[name='input']\").value") ==
                "/"
 
-      Browser.wait_until(browser, "document.querySelector('.tilde-suggest') === null")
+      Browser.wait_until(browser, "document.querySelector('.suggest') === null")
     else
       skip_browser()
     end

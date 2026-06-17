@@ -1,0 +1,34 @@
+.tilde .shortcut {
+  display: inline-flex;
+  gap: 0.35em;
+  align-items: baseline;
+  margin-left: 0.35em;
+  color: var(--color-muted);
+}
+
+.tilde .shortcut:first-child {
+  margin-left: 0;
+}
+
+.tilde .shortcut-key {
+  font: inherit;
+  color: var(--color-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  padding: 0 0.25em;
+  background: transparent;
+}
+
+.tilde .shortcut-label {
+  color: var(--color-link);
+}
+
+@media (max-width: 640px), (pointer: coarse) {
+  .tilde .shortcut-key {
+    display: none;
+  }
+
+  .tilde .shortcut {
+    margin-left: 0;
+  }
+}

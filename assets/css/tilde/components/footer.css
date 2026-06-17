@@ -1,0 +1,8 @@
+.tilde .footer {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: space-between;
+  align-items: baseline;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}

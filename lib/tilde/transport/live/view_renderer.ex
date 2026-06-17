@@ -15,9 +15,9 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
   def cell(%{cell: %Cell{kind: :message}} = assigns) do
     ~H"""
-    <article class={["tilde-block", "tilde-message", "tilde-message-#{@cell.role}"]} data-role={@cell.role}>
-      <div class="tilde-label">{@cell.role}</div>
-      <div class="tilde-message-body">
+    <article class={["block", "message", "message-#{@cell.role}"]} data-role={@cell.role}>
+      <div class="label">{@cell.role}</div>
+      <div class="message-body">
         <.runs :if={@cell.runs != []} runs={@cell.runs} />
         <.markdown :if={@cell.runs == [] and @cell.format == :markdown} source={@cell.source} />
         <%= if @cell.runs == [] and @cell.format != :markdown do %>
@@ -37,24 +37,24 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     ~H"""
     <article
       id={@cell.id}
-      class={["tilde-block", "tilde-tool", "tilde-tool-#{@view.status}"]}
+      class={["block", "tool", "is-#{@view.status}"]}
       data-block-id={@cell.id}
       data-expand-key="ctrl+o"
       tabindex="0"
     >
-      <header class="tilde-tool-header">
-        <span class="tilde-tool-call"><.view_line line={List.first(@cell.lines)} /></span>
+      <header class="tool-header">
+        <span class="tool-call"><.view_line line={List.first(@cell.lines)} /></span>
       </header>
 
-      <div :if={@body_lines != []} class="tilde-tool-cell-lines">
-        <div :for={line <- @body_lines} class="tilde-tool-cell-line"><.view_line line={line} /></div>
+      <div :if={@body_lines != []} class="tool-cell-lines">
+        <div :for={line <- @body_lines} class="tool-cell-line"><.view_line line={line} /></div>
       </div>
 
-      <footer :if={tool_expandable?(@view)} class="tilde-tool-footer">
-        <span :if={@view.hidden_lines > 0} class="tilde-muted">… {@view.hidden_lines} more lines</span>
+      <footer :if={tool_expandable?(@view)} class="tool-footer">
+        <span :if={@view.hidden_lines > 0} class="muted">… {@view.hidden_lines} more lines</span>
         <button
           type="button"
-          class="tilde-link-button"
+          class="link-button"
           phx-click="tilde:toggle_expand"
           phx-value-id={@cell.id}
         >
@@ -77,14 +77,14 @@ defmodule Tilde.Transport.Live.ViewRenderer do
       |> assign(:option_lines, Enum.drop(assigns.cell.lines, 1))
 
     ~H"""
-    <article id={@cell.id} class="tilde-block tilde-choice" data-block-id={@cell.id} tabindex="0">
-      <div class="tilde-choice-question"><.view_line line={@question} /></div>
+    <article id={@cell.id} class="block choice" data-block-id={@cell.id} tabindex="0">
+      <div class="choice-question"><.view_line line={@question} /></div>
 
-      <div class="tilde-choice-options">
+      <div class="choice-options">
         <button
           :for={{option, line} <- Enum.zip(@choice.options, @option_lines)}
           type="button"
-          class={["tilde-choice-option", option.id in @choice.selected && "is-selected"]}
+          class={["choice-option", option.id in @choice.selected && "is-selected"]}
           phx-click="tilde:select_choice"
           phx-value-block-id={@cell.id}
           phx-value-option-id={option.id}
@@ -93,11 +93,11 @@ defmodule Tilde.Transport.Live.ViewRenderer do
         </button>
       </div>
 
-      <footer class="tilde-choice-actions">
+      <footer class="choice-actions">
         <button
           :for={action <- @choice.actions}
           type="button"
-          class={["tilde-action", "tilde-action-#{action.kind}"]}
+          class={["action", "action-#{action.kind}"]}
           phx-click="tilde:choice_action"
           phx-value-block-id={@cell.id}
           phx-value-action-id={action.id}
@@ -113,13 +113,13 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     assigns = assign(assigns, :suggest, assigns.cell.attrs.suggest)
 
     ~H"""
-    <section class="tilde-suggest" data-suggest-trigger={@suggest.trigger} data-suggest-query={@suggest.query}>
-      <div class="tilde-suggest-title">{@suggest.title}</div>
-      <div class="tilde-suggest-items">
+    <section class="suggest" data-suggest-trigger={@suggest.trigger} data-suggest-query={@suggest.query}>
+      <div class="suggest-title">{@suggest.title}</div>
+      <div class="suggest-items">
         <button
           :for={{item, index} <- Enum.with_index(@suggest.items)}
           type="button"
-          class={["tilde-suggest-row", index == @suggest.selected_index && "is-selected"]}
+          class={["suggest-row", index == @suggest.selected_index && "is-selected"]}
           phx-click="tilde:complete_input"
           phx-value-insert={item.insert}
         >
@@ -165,7 +165,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
   def view_part(assigns) do
     ~H"""
-    <span class={"tilde-view-text-#{@part.style}"}>{@part.text}</span>
+    <span class={"text-#{@part.style}"}>{@part.text}</span>
     """
   end
 

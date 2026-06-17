@@ -199,12 +199,12 @@ defmodule TildeTest do
 
     html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
 
-    assert html =~ "tilde-tool-cell-lines"
-    assert html =~ ~s|tilde-view-text-muted">stdout|
-    assert html =~ ~s|tilde-view-text-muted">stderr|
-    assert html =~ ~s|tilde-view-text-primary">ok|
-    assert html =~ ~s|tilde-view-text-primary">warning|
-    refute html =~ "tilde-tool-stream-stdout"
+    assert html =~ "tool-cell-lines"
+    assert html =~ ~s|text-muted">stdout|
+    assert html =~ ~s|text-muted">stderr|
+    assert html =~ ~s|text-primary">ok|
+    assert html =~ ~s|text-primary">warning|
+    refute html =~ "tool-stream-stdout"
     refute html =~ "/tmp/app"
   end
 
@@ -272,7 +272,7 @@ defmodule TildeTest do
     block = Block.message("msg_1", :assistant, "**bold** and `code`")
     html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
 
-    assert html =~ "tilde-markdown"
+    assert html =~ "markdown"
     assert html =~ "<strong>bold</strong>"
     assert html =~ "<code>code</code>"
   end
@@ -320,12 +320,12 @@ defmodule TildeTest do
     block = Block.message("msg_1", :assistant, "Before\n\n---\n\nAfter")
 
     html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
-    css = Tilde.Transport.Live.Styles.css()
+    css = asset_css("components/markdown.css")
 
     assert html =~ "<hr"
-    assert css =~ ".tilde-markdown hr"
+    assert css =~ ".tilde .markdown hr"
     assert css =~ "height: 3lh"
-    assert css =~ "color: var(--tilde-muted)"
+    assert css =~ "color: var(--color-muted)"
     assert css =~ "0 2.5lh / 100% 1px no-repeat"
   end
 
@@ -334,14 +334,14 @@ defmodule TildeTest do
       Block.message("msg_1", :assistant, "| name | status |\n| --- | --- |\n| LiveView | ok |")
 
     html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
-    css = Tilde.Transport.Live.Styles.css()
+    css = asset_css("components/markdown.css")
 
     assert html =~ "<table>"
     assert html =~ "<th>name</th>"
     assert html =~ "<td>LiveView</td>"
-    assert css =~ ".tilde-markdown table"
-    assert css =~ "padding: 0 var(--tilde-cell)"
-    assert css =~ "border: 1px solid var(--tilde-line)"
+    assert css =~ ".tilde .markdown table"
+    assert css =~ "padding: 0 var(--space-cell)"
+    assert css =~ "border: 1px solid var(--color-border)"
   end
 
   test "live message renders semantic runs as inline HTML" do
@@ -482,7 +482,7 @@ defmodule TildeTest do
     assert %Tilde.Core.Suggest{selected_index: 0} = suggest_widget.content
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
-    assert html =~ "tilde-suggest"
+    assert html =~ "suggest"
     assert html =~ "/compact"
     assert html =~ "is-selected"
     assert html =~ "phx-click=\"tilde:complete_input\""
@@ -1300,8 +1300,8 @@ defmodule TildeTest do
     live = source |> Tilde.Template.Renderer.Live.render!() |> rendered_to_string()
     tui = Tilde.Template.Renderer.TUI.render!(source, 50)
 
-    assert live =~ "tilde-view-text-title"
-    assert live =~ "tilde-view-text-accent"
+    assert live =~ "text-title"
+    assert live =~ "text-accent"
     assert strip_ansi(tui) =~ "bash mix test"
     assert strip_ansi(tui) =~ "ok"
     assert tui =~ IO.ANSI.bright()
@@ -1469,7 +1469,7 @@ defmodule TildeTest do
     assert html =~ "bash"
     assert html =~ "mix test"
     assert html =~ "Waiting…"
-    refute html =~ "tilde-tool-status"
+    refute html =~ "tool-status"
     assert tui =~ "Waiting…"
   end
 
@@ -1491,10 +1491,10 @@ defmodule TildeTest do
     assert html =~ "tool_demo_tests"
     refute html =~ "cwd ~/Development/elixir-vibe/tilde"
     refute html =~ "exit 0"
-    assert html =~ "tilde-tool-success"
-    refute html =~ "tilde-tool-status"
+    assert html =~ "is-success"
+    refute html =~ "tool-status"
     refute html =~ "✓"
-    assert html =~ "tilde-shortcut-key"
+    assert html =~ "shortcut-key"
     assert html =~ "ctrl+o"
     assert html =~ "expand"
     assert html =~ "Apply the generated patch?"
@@ -1590,8 +1590,8 @@ defmodule TildeTest do
     end)
   end
 
-  test "live hooks expose ctrl-o focused block expansion JavaScript" do
-    js = Tilde.Transport.Live.Hooks.js()
+  test "Volt TypeScript entry exposes ctrl-o focused block expansion hook" do
+    js = asset_ts("hooks/tilde-console.ts")
 
     assert js =~ "TildeConsole"
     assert js =~ "ctrlKey"
@@ -1603,6 +1603,7 @@ defmodule TildeTest do
     assert js =~ "tilde:toggle_expand"
     assert js =~ "[data-block-id]"
     assert js =~ "tildeLastValue"
+    assert asset_ts("app.ts") =~ "import.meta.hot.accept()"
     refute js =~ ~s|textarea.style.height = "auto"\n            textarea.style.height|
   end
 
@@ -1613,7 +1614,7 @@ defmodule TildeTest do
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
-    assert html =~ "tilde-message-pending"
+    assert html =~ "is-pending"
     assert html =~ "assistant"
     assert html =~ "thinking…"
     refute html =~ "model: thinking"
@@ -1636,13 +1637,13 @@ defmodule TildeTest do
       render_component(&Tilde.Transport.Live.Console.console/1, session: session, input: "next")
 
     assert html =~ "phx-hook=\"TildeConsole\""
-    assert html =~ "tilde-console"
+    assert html =~ ~s|class="tilde |
     assert html =~ "Run tests"
     assert html =~ "bash"
     assert html =~ "mix test"
     assert html =~ "ok"
     assert html =~ "server running"
-    assert html =~ ~s|class="tilde-footer-left tilde-muted"|
+    assert html =~ ~s|class="footer-left muted"|
     assert html =~ "session: session_1"
     assert html =~ "model: sonnet"
   end
@@ -1670,6 +1671,14 @@ defmodule TildeTest do
     result = fun.()
     restore_application_env(key, previous)
     result
+  end
+
+  defp asset_css(path) do
+    File.read!(Path.join([File.cwd!(), "assets", "css", "tilde", path]))
+  end
+
+  defp asset_ts(path) do
+    File.read!(Path.join([File.cwd!(), "assets", "js", path]))
   end
 
   defp strip_ansi(text) do

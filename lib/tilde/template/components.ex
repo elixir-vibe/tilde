@@ -94,7 +94,7 @@ defmodule Tilde.Template.Components do
 
   def text(assigns) do
     ~H"""
-    <span class={"tilde-view-text-#{@style}"}>{render_slot(@inner_block)}</span>
+    <span class={"text-#{@style}"}>{render_slot(@inner_block)}</span>
     """
   end
 
@@ -138,7 +138,7 @@ defmodule Tilde.Template.Components do
   def tool_call(assigns) do
     ~H"""
     <div data-tilde-line="true" data-tilde-role="title">
-      <span class="tilde-view-text-title">{@name}</span><span :if={@segment} class="tilde-view-text-accent"> {@segment}</span><span :if={@suffix} class="tilde-view-text-muted"> ({@suffix})</span>
+      <span class="text-title">{@name}</span><span :if={@segment} class="text-accent"> {@segment}</span><span :if={@suffix} class="text-muted"> ({@suffix})</span>
     </div>
     """
   end
@@ -147,7 +147,7 @@ defmodule Tilde.Template.Components do
     assigns = assign(assigns, :style, style)
 
     ~H"""
-    <span class={"tilde-view-text-#{@style}"}>{render_slot(@inner_block)}</span>
+    <span class={"text-#{@style}"}>{render_slot(@inner_block)}</span>
     """
   end
 end

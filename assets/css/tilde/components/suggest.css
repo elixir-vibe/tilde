@@ -1,0 +1,43 @@
+.tilde .suggest-title {
+  color: var(--color-muted);
+  margin-bottom: 0.35rem;
+}
+
+.tilde .suggest-items {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.tilde .suggest-row {
+  display: grid;
+  grid-template-columns: 1ch 14ch 1fr;
+  gap: 2ch;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0.1rem 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tilde .suggest-row:hover,
+.tilde .suggest-row.is-selected {
+  color: var(--color-link);
+}
+
+.tilde .suggest-row.is-selected::before {
+  content: "›";
+  color: var(--color-link);
+}
+
+.tilde .suggest-row code {
+  color: var(--color-link);
+  border: 0;
+  padding: 0;
+}
+
+.tilde .suggest-row span {
+  color: var(--color-muted);
+}

@@ -1,0 +1,21 @@
+.tilde .run-muted {
+  color: var(--color-muted);
+}
+
+.tilde .run-accent {
+  color: var(--color-link);
+}
+
+.tilde .run-error {
+  color: var(--color-error);
+}
+
+.tilde .run-success {
+  color: var(--color-success);
+}
+
+.tilde .run-code code,
+.tilde .message-body code {
+  border: 1px solid var(--color-border);
+  padding: 0 0.2em;
+}

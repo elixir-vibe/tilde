@@ -1,0 +1,32 @@
+.tilde .input {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--space-md);
+  align-items: start;
+  padding: 0 0 var(--space-md);
+}
+
+.tilde .input textarea {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  resize: none;
+  overflow: hidden;
+  min-height: 1.55em;
+  max-height: 12rem;
+  outline: none;
+}
+
+.tilde .link-button,
+.tilde .action,
+.tilde .choice-option {
+  font: inherit;
+  color: var(--color-link);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
