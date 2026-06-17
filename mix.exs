@@ -40,6 +40,8 @@ defmodule Tilde.MixProject do
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
       {:vibe_kit, "~> 0.1"},
+      {:ecto_sql, "~> 3.13"},
+      {:quackdb, "~> 0.5.13"},
       {:jido, "~> 2.3", optional: true},
       {:jido_ai, "~> 2.2", optional: true},
       {:req_llm, "~> 1.16", optional: true},

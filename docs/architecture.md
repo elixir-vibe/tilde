@@ -44,6 +44,22 @@ session mode.
 Renderers derive output from this state. ANSI escape sequences, DOM nodes,
 terminal cursor movement, and SSH channel details are renderer concerns only.
 
+## Durable storage
+
+`Tilde.Storage` is the storage boundary. Core session/event modules stay
+storage-neutral. The QuackDB implementation uses `Tilde.Storage.Repo`, Ecto
+schemas, and Ecto migrations under `priv/repo/migrations`.
+
+Storage tables follow these roles:
+
+- `tilde_sessions` stores durable session metadata.
+- `tilde_session_events` is the canonical ordered event log for full resume.
+- `tilde_session_blocks` is a searchable projection derived from events.
+- `tilde_session_state` stores resumable draft/input state, not transcript truth.
+
+QuackDB-backed storage must use Ecto, Ecto migrations, and QuackDB's Ecto/query
+DSL. Do not use raw SQL strings or ad hoc SQL fragments for Tilde storage.
+
 ## Assistant lifecycle
 
 Assistant progress is not encoded in generic statuses and must not be inferred

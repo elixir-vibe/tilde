@@ -1,5 +1,12 @@
 import Config
 
+config :tilde,
+  ecto_repos: [Tilde.Storage.Repo]
+
+config :tilde, Tilde.Storage.Repo,
+  uri: System.get_env("TILDE_QUACKDB_URI", "http://[::1]:9494"),
+  token: System.get_env("TILDE_QUACKDB_TOKEN")
+
 config :tilde, Tilde.Demo.Endpoint,
   code_reloader: true,
   debug_errors: true
