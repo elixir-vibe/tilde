@@ -1406,8 +1406,14 @@ defmodule TildeTest do
     assert tui =~ "Waiting…"
   end
 
-  test "demo session renders a complete dogfood console" do
-    session = Tilde.Demo.Live.demo_session()
+  test "demo session starts minimal and showcase command renders a complete dogfood console" do
+    empty_demo = Tilde.Demo.Live.demo_session()
+    empty_html = render_component(&Tilde.Transport.Live.Console.console/1, session: empty_demo)
+
+    assert empty_html =~ "/showcase"
+    refute empty_html =~ "Build a pi-like console"
+
+    session = Tilde.Demo.Showcase.append(empty_demo)
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
     tool_cell =
@@ -1426,6 +1432,10 @@ defmodule TildeTest do
     assert html =~ "expand"
     assert html =~ "Apply the generated patch?"
     refute html =~ "background: no running jobs"
+
+    effects = Tilde.Command.run(%Tilde.Command{name: "showcase"}, empty_demo, [])
+    updated = Tilde.Command.apply_effects(empty_demo, effects)
+    assert Enum.any?(updated.transcript.blocks, &(&1.source =~ "Build a pi-like console"))
   end
 
   test "web demo requires password session" do
@@ -1571,7 +1581,6 @@ defmodule TildeTest do
     session.transcript.blocks
     |> Enum.filter(&match?(%Block{kind: :message, role: :user}, &1))
     |> Enum.map(& &1.source)
-    |> Enum.drop(1)
   end
 
   defp restore_application_env(key, nil), do: Application.delete_env(:tilde, key)

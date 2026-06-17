@@ -7,6 +7,7 @@ defmodule Tilde.Command.Builtin.Help do
   Available commands:
 
   - `/help` — Show this help
+  - `/showcase` — Append the semantic console showcase
   - `/new [name]` — Start an isolated web session
   - `/attach <name>` — Attach SSH/TUI to a named session
   - `/detach` — Detach SSH/TUI to a new private session

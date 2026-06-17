@@ -15,7 +15,7 @@ defmodule Tilde.Demo.Live do
   import Tilde.Transport.Live.Console
 
   alias Tilde.Command
-  alias Tilde.Core.{Block, Choice, Session}
+  alias Tilde.Core.Session
   alias Tilde.Session.Registry, as: SessionRegistry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer, as: SessionServer
 
@@ -45,7 +45,7 @@ defmodule Tilde.Demo.Live do
       session={@session}
       input={@session.input.value}
       running?={@running?}
-      footer_right="/help · /new"
+      footer_right="/help · /showcase · /new"
     />
     """
   end
@@ -149,61 +149,18 @@ defmodule Tilde.Demo.Live do
 
   defp session_server(_params), do: {SessionServer, "tilde_demo"}
 
-  @doc "Returns the static semantic session used by the demo LiveView."
+  @doc "Returns the initial semantic session used by the demo LiveView."
   @spec demo_session(keyword()) :: Session.t()
   def demo_session(opts \\ []) do
     id = Keyword.get(opts, :id, "tilde_demo")
 
-    choice =
-      Choice.new("Apply the generated patch?", [
-        {"apply", "Apply", "Update the working tree"},
-        {"show_diff", "Show diff first", "Review changes before applying"},
-        {"skip", "Skip", "Leave files unchanged"}
-      ])
-
     Tilde.session(id: id)
-    |> Session.append_events([
-      Tilde.user_message("Build a pi-like console on the web", id: "evt_demo_user"),
+    |> Session.append_event(
       Tilde.assistant_done(
-        """
-        I'll inspect the project and sketch a **semantic model**.
-
-        - event log
-        - semantic transcript
-        - LiveView renderer
-
-        | surface | renderer |
-        | --- | --- |
-        | web | LiveView DOM |
-        | ssh | semantic TUI |
-
-        `ctrl+o` expands tools. Type `/help` for commands or `/new` for an isolated session.
-        """,
-        id: "evt_demo_assistant"
-      ),
-      Tilde.tool_started("bash", %{command: "mix test", cwd: "~/Development/elixir-vibe/tilde"},
-        tool_call_id: "tool_demo_tests"
-      ),
-      Tilde.tool_stream("tool_demo_tests", :stdout, "Compiling 3 files...\n"),
-      Tilde.tool_stream("tool_demo_tests", :stdout, "Running ExUnit...\n"),
-      Tilde.tool_stream("tool_demo_tests", :stdout, "........\n"),
-      Tilde.tool_stream("tool_demo_tests", :stdout, "8 tests, 0 failures\n"),
-      Tilde.tool_done("tool_demo_tests", :success, %{exit_code: 0})
-    ])
-    |> Session.update_block(
-      "tool_demo_tests",
-      &Block.update_display(&1, %{compact_limit: {:lines, 2}})
+        "Type `/showcase` to load the semantic console showcase, or `/help` for commands.",
+        id: "evt_demo_welcome"
+      )
     )
-    |> append_choice_block("choice_demo", choice)
-  end
-
-  defp append_choice_block(%Session{} = session, id, %Choice{} = choice) do
-    transcript = %{
-      session.transcript
-      | blocks: session.transcript.blocks ++ [Block.choice(id, choice)]
-    }
-
-    %{session | transcript: transcript}
   end
 
   defp complete_input(input), do: Command.completion(input) || input

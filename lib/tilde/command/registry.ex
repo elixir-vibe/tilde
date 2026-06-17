@@ -3,6 +3,7 @@ defmodule Tilde.Command.Registry do
 
   @builtins [
     Tilde.Command.Builtin.Help,
+    Tilde.Command.Builtin.Showcase,
     Tilde.Command.Builtin.New,
     Tilde.Command.Builtin.Attach,
     Tilde.Command.Builtin.Detach,
