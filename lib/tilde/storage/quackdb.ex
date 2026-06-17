@@ -9,7 +9,7 @@ defmodule Tilde.Storage.QuackDB do
   alias Tilde.Storage.EventCodec
   alias Tilde.Storage.Repo
   alias Tilde.Storage.Schema.{Block, SessionState}
-  alias Tilde.Storage.Schema.Event, as: StoredEvent
+  alias Tilde.Storage.Schema.EventRow
   alias Tilde.Storage.Schema.Session, as: StoredSession
 
   @storage_errors [
@@ -55,7 +55,7 @@ defmodule Tilde.Storage.QuackDB do
       now = now()
       occurred_at = event.at || now
 
-      Repo.insert_all(StoredEvent, [event_row(session.id, event_index, event, occurred_at, now)])
+      Repo.insert_all(EventRow, [event_row(session.id, event_index, event, occurred_at, now)])
 
       blocks = block_rows(session.id, event_index, event, occurred_at)
 
@@ -77,7 +77,7 @@ defmodule Tilde.Storage.QuackDB do
   def load_events(session_id) when is_binary(session_id) do
     events =
       Repo.all(
-        from(event in StoredEvent,
+        from(event in EventRow,
           where: event.session_id == ^session_id,
           order_by: [asc: event.event_index],
           select: event.payload
@@ -161,7 +161,7 @@ defmodule Tilde.Storage.QuackDB do
   end
 
   defp next_event_index(session_id) do
-    query = from(event in StoredEvent, where: event.session_id == ^session_id)
+    query = from(event in EventRow, where: event.session_id == ^session_id)
     (Repo.aggregate(query, :max, :event_index) || -1) + 1
   end
 

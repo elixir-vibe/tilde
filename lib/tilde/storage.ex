@@ -2,6 +2,7 @@ defmodule Tilde.Storage do
   @moduledoc "Storage boundary for durable Tilde sessions."
 
   alias Tilde.Core.{Event, Session}
+  alias Tilde.Storage.EventPolicy
 
   @type search_result :: %{
           session_id: String.t(),
@@ -28,8 +29,13 @@ defmodule Tilde.Storage do
 
   @doc "Appends one canonical session event to durable storage."
   @spec append_event(Session.t(), Event.t()) :: :ok | {:error, term()}
-  def append_event(%Session{} = session, %Event{} = event),
-    do: dispatch(:append_event, [session, event])
+  def append_event(%Session{} = session, %Event{} = event) do
+    if EventPolicy.persist?(event) do
+      dispatch(:append_event, [session, event])
+    else
+      :ok
+    end
+  end
 
   @doc "Loads canonical events for a session id in replay order."
   @spec load_events(String.t()) :: {:ok, [Event.t()]} | {:error, term()}

@@ -57,6 +57,11 @@ Storage tables follow these roles:
 - `tilde_session_blocks` is a searchable projection derived from events.
 - `tilde_session_state` stores resumable draft/input state, not transcript truth.
 
+`Tilde.Core.Event` remains the only semantic event type. `Tilde.Storage.EventPolicy`
+only decides which existing events belong in the durable log. Draft-only
+`:input_changed` events are not stored canonically; the latest draft lives in
+`tilde_session_state`.
+
 QuackDB-backed storage must use Ecto, Ecto migrations, and QuackDB's Ecto/query
 DSL. Do not use raw SQL strings or ad hoc SQL fragments for Tilde storage.
 

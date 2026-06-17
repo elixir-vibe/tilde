@@ -11,8 +11,8 @@ defmodule Tilde.Session.StorageServerTest do
         Server.append_event(server, Tilde.input_changed("draft"))
         Server.append_event(server, Tilde.input_submitted("hello"))
 
-        assert_receive {:storage_append_event, "stored-session", :input_changed, "draft"}
         assert_receive {:storage_save_state, "stored-session", "draft"}
+        refute_receive {:storage_append_event, "stored-session", :input_changed, "draft"}
         assert_receive {:storage_append_event, "stored-session", :input_submitted, "hello"}
         assert_receive {:storage_save_state, "stored-session", ""}
       end)
