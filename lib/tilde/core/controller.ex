@@ -34,10 +34,18 @@ defmodule Tilde.Core.Controller do
     change_input(session, Input.insert(session.input, text))
   end
 
-  def apply_key(%Session{} = session, :tab) do
-    case Tilde.Command.completion(session.input.value) do
-      nil -> {:cont, session}
-      completion -> change_input(session, Input.put_value(session.input, completion))
+  def apply_key(%Session{} = session, key) when key in [:suggest_next, :down] do
+    {:cont, Session.select_next_suggestion(session)}
+  end
+
+  def apply_key(%Session{} = session, key) when key in [:suggest_previous, :up, :backtab] do
+    {:cont, Session.select_previous_suggestion(session)}
+  end
+
+  def apply_key(%Session{} = session, key) when key in [:tab, :suggest_accept] do
+    case Session.accept_suggestion(session) do
+      {:ok, session} -> {:cont, session}
+      :error -> {:cont, session}
     end
   end
 
@@ -46,7 +54,11 @@ defmodule Tilde.Core.Controller do
   end
 
   def apply_key(%Session{} = session, :cancel) do
-    change_input(session, Input.clear(session.input))
+    if Session.command_suggestions(session) do
+      {:cont, Session.cancel_suggestions(session)}
+    else
+      change_input(session, Input.clear(session.input))
+    end
   end
 
   def apply_key(%Session{input: %Input{value: ""}} = session, :interrupt), do: {:halt, session}
@@ -55,15 +67,25 @@ defmodule Tilde.Core.Controller do
     change_input(session, Input.clear(session.input))
   end
 
-  def apply_key(%Session{input: %Input{value: value}} = session, :enter) do
+  def apply_key(%Session{} = session, :enter) do
+    case Session.accept_suggestion(session) do
+      {:ok, session} ->
+        {:cont, session}
+
+      :error ->
+        submit_input(session)
+    end
+  end
+
+  def apply_key(%Session{} = session, _key), do: {:cont, session}
+
+  defp submit_input(%Session{input: %Input{value: value}} = session) do
     if String.trim(value) == "" do
       {:cont, session}
     else
       {:cont, Session.append_event(session, Tilde.input_submitted(value))}
     end
   end
-
-  def apply_key(%Session{} = session, _key), do: {:cont, session}
 
   defp change_input(%Session{} = session, %Input{} = input) do
     event = Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})

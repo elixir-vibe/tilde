@@ -7,7 +7,7 @@ defmodule Tilde.Core.Session do
   state or maintain equivalent assigns in a LiveView process.
   """
 
-  alias Tilde.Core.{Block, BlockList, Event, Input, Transcript, Widget}
+  alias Tilde.Core.{Block, BlockList, Event, Input, Suggest, Transcript, Widget}
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -130,6 +130,49 @@ defmodule Tilde.Core.Session do
     update_block(session, block_id, &Block.select_choice(&1, option_id))
   end
 
+  @doc "Returns the active command suggestion widget content."
+  @spec command_suggestions(t()) :: Suggest.t() | nil
+  def command_suggestions(%__MODULE__{} = session) do
+    session
+    |> widgets(:above_input)
+    |> Enum.find_value(fn
+      %Widget{id: "command-suggestions", content: %Suggest{} = suggest} -> suggest
+      _widget -> nil
+    end)
+  end
+
+  @doc "Moves the active command suggestion selection forward."
+  @spec select_next_suggestion(t()) :: t()
+  def select_next_suggestion(%__MODULE__{} = session) do
+    update_command_suggestions(session, &Suggest.next/1)
+  end
+
+  @doc "Moves the active command suggestion selection backward."
+  @spec select_previous_suggestion(t()) :: t()
+  def select_previous_suggestion(%__MODULE__{} = session) do
+    update_command_suggestions(session, &Suggest.previous/1)
+  end
+
+  @doc "Clears active command suggestions."
+  @spec cancel_suggestions(t()) :: t()
+  def cancel_suggestions(%__MODULE__{} = session),
+    do: delete_widget(session, "command-suggestions")
+
+  @doc "Accepts the selected command suggestion into the input draft."
+  @spec accept_suggestion(t()) :: {:ok, t()} | :error
+  def accept_suggestion(%__MODULE__{} = session) do
+    case command_suggestions(session) do
+      %Suggest{} = suggest ->
+        case Tilde.Command.completion(suggest) do
+          nil -> :error
+          completion -> {:ok, change_input(session, Input.put_value(session.input, completion))}
+        end
+
+      nil ->
+        :error
+    end
+  end
+
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_changed} = event) do
     value = event.text || ""
 
@@ -165,6 +208,21 @@ defmodule Tilde.Core.Session do
       nil -> delete_widget(session, "command-suggestions")
       suggest -> put_widget(session, Widget.new("command-suggestions", :above_input, suggest))
     end
+  end
+
+  defp update_command_suggestions(%__MODULE__{} = session, fun) when is_function(fun, 1) do
+    case command_suggestions(session) do
+      %Suggest{} = suggest ->
+        put_widget(session, Widget.new("command-suggestions", :above_input, fun.(suggest)))
+
+      nil ->
+        session
+    end
+  end
+
+  defp change_input(%__MODULE__{} = session, %Input{} = input) do
+    event = Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})
+    append_event(session, event)
   end
 
   defp replace_widget(widgets, %Widget{id: id} = widget) do

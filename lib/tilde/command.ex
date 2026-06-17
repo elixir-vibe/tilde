@@ -66,11 +66,18 @@ defmodule Tilde.Command do
     end
   end
 
-  @doc "Returns the first command completion for slash input."
-  @spec completion(String.t()) :: String.t() | nil
+  @doc "Returns the selected command completion for slash input."
+  @spec completion(String.t() | Tilde.Core.Suggest.t()) :: String.t() | nil
   def completion(input) when is_binary(input) do
     case suggestions(input) do
-      %Tilde.Core.Suggest{items: [%{insert: insert} | _]} -> insert
+      %Tilde.Core.Suggest{} = suggest -> completion(suggest)
+      _other -> nil
+    end
+  end
+
+  def completion(%Tilde.Core.Suggest{} = suggest) do
+    case Tilde.Core.Suggest.selected(suggest) do
+      %{insert: insert} -> insert
       _other -> nil
     end
   end

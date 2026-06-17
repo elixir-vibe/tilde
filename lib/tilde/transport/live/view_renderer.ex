@@ -117,9 +117,9 @@ defmodule Tilde.Transport.Live.ViewRenderer do
       <div class="tilde-suggest-title">{@suggest.title}</div>
       <div class="tilde-suggest-items">
         <button
-          :for={item <- @suggest.items}
+          :for={{item, index} <- Enum.with_index(@suggest.items)}
           type="button"
-          class="tilde-suggest-row"
+          class={["tilde-suggest-row", index == @suggest.selected_index && "is-selected"]}
           phx-click="tilde:complete_input"
           phx-value-insert={item.insert}
         >

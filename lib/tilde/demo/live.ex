@@ -109,6 +109,31 @@ defmodule Tilde.Demo.Live do
     {:noreply, assign(socket, session: session)}
   end
 
+  def handle_event("tilde:suggest_next", _params, socket) do
+    update_suggestions(socket, &Session.select_next_suggestion/1)
+  end
+
+  def handle_event("tilde:suggest_previous", _params, socket) do
+    update_suggestions(socket, &Session.select_previous_suggestion/1)
+  end
+
+  def handle_event("tilde:suggest_cancel", _params, socket) do
+    update_suggestions(socket, &Session.cancel_suggestions/1)
+  end
+
+  def handle_event("tilde:suggest_accept", _params, socket) do
+    session =
+      SessionServer.update_session(socket.assigns.session_server, fn session ->
+        case Session.accept_suggestion(session) do
+          {:ok, session} -> session
+          :error -> session
+        end
+      end)
+
+    socket = push_event(socket, "tilde:input_completed", %{insert: session.input.value})
+    {:noreply, assign(socket, session: session)}
+  end
+
   def handle_event("tilde:submit", %{"input" => input}, socket) do
     case Command.parse(input) do
       {:ok, %Command{name: "new", args: args}} ->
@@ -160,6 +185,11 @@ defmodule Tilde.Demo.Live do
         id: "evt_demo_welcome"
       )
     )
+  end
+
+  defp update_suggestions(socket, fun) when is_function(fun, 1) do
+    session = SessionServer.update_session(socket.assigns.session_server, fun)
+    {:noreply, assign(socket, session: session)}
   end
 
   defp complete_input(input), do: Command.completion(input) || input

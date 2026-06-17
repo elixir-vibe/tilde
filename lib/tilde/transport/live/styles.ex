@@ -250,7 +250,7 @@ defmodule Tilde.Transport.Live.Styles do
     .tilde-suggest-items { display: grid; gap: 0.15rem; }
     .tilde-suggest-row {
       display: grid;
-      grid-template-columns: 14ch 1fr;
+      grid-template-columns: 1ch 14ch 1fr;
       gap: 2ch;
       width: 100%;
       font: inherit;
@@ -261,7 +261,8 @@ defmodule Tilde.Transport.Live.Styles do
       text-align: left;
       cursor: pointer;
     }
-    .tilde-suggest-row:hover { color: var(--tilde-link); }
+    .tilde-suggest-row:hover, .tilde-suggest-row.is-selected { color: var(--tilde-link); }
+    .tilde-suggest-row.is-selected::before { content: "›"; color: var(--tilde-link); }
     .tilde-suggest-row code { color: var(--tilde-link); border: 0; padding: 0; }
     .tilde-suggest-row span { color: var(--tilde-muted); }
 

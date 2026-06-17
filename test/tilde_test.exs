@@ -442,22 +442,28 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
-  test "command suggestions are semantic widgets and TUI tab completes them" do
+  test "command suggestions are semantic widgets and TUI selects then accepts them" do
     assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
     assert Enum.map(items, & &1.label) == ["/compact"]
     assert Tilde.Command.completion("/co") == "/compact"
 
-    session = Session.append_event(Tilde.session(), Tilde.input_changed("/co"))
+    session = Session.append_event(Tilde.session(), Tilde.input_changed("/"))
     assert [suggest_widget] = Session.widgets(session, :above_input)
-    assert %Tilde.Core.Suggest{} = suggest_widget.content
+    assert %Tilde.Core.Suggest{selected_index: 0} = suggest_widget.content
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
     assert html =~ "tilde-suggest"
     assert html =~ "/compact"
+    assert html =~ "is-selected"
     assert html =~ "phx-click=\"tilde:complete_input\""
 
-    assert {:cont, completed} = Tilde.Core.Controller.apply_key(session, :tab)
-    assert completed.input.value == "/compact"
+    assert {:cont, selected} = Tilde.Core.Controller.apply_key(session, :down)
+    assert %Tilde.Core.Suggest{selected_index: 1} = Session.command_suggestions(selected)
+
+    assert {:cont, completed} = Tilde.Core.Controller.apply_key(selected, :enter)
+
+    assert completed.input.value ==
+             Tilde.Command.completion(Session.command_suggestions(selected))
   end
 
   test "slash commands parse and apply semantic effects" do
@@ -1550,7 +1556,10 @@ defmodule TildeTest do
     assert js =~ "TildeConsole"
     assert js =~ "ctrlKey"
     assert js =~ "key === \"tab\""
-    assert js =~ "tilde:complete_input"
+    assert js =~ "tilde:suggest_next"
+    assert js =~ "tilde:suggest_previous"
+    assert js =~ "tilde:suggest_accept"
+    assert js =~ "tilde:suggest_cancel"
     assert js =~ "tilde:toggle_expand"
     assert js =~ "[data-block-id]"
     assert js =~ "tildeLastValue"

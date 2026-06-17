@@ -217,10 +217,7 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp clear_local_prompt(%__MODULE__{} = state) do
-    session =
-      state.session
-      |> Session.put_input(Input.clear(state.session.input))
-      |> put_local_command_suggestions("")
+    session = Session.append_event(state.session, Tilde.input_changed(""))
 
     %{state | session: session}
   end
@@ -262,11 +259,10 @@ defmodule Tilde.Transport.SSH.Channel do
     put_local_input(state, Input.insert(state.session.input, text))
   end
 
-  defp apply_local_prompt_key(%__MODULE__{} = state, :tab) do
-    case Tilde.Command.completion(state.session.input.value) do
-      nil -> {:cont, {:cont, state}}
-      completion -> put_local_input(state, Input.put_value(state.session.input, completion))
-    end
+  defp apply_local_prompt_key(%__MODULE__{} = state, key)
+       when key in [:tab, :backtab, :up, :down] do
+    {:cont, session} = Controller.apply_key(state.session, key)
+    {:cont, {:cont, %{state | session: session}}}
   end
 
   defp apply_local_prompt_key(%__MODULE__{} = state, :backspace) do
@@ -274,7 +270,8 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp apply_local_prompt_key(%__MODULE__{} = state, :cancel) do
-    put_local_input(state, Input.clear(state.session.input))
+    {:cont, session} = Controller.apply_key(state.session, :cancel)
+    {:cont, {:cont, %{state | session: session}}}
   end
 
   defp apply_local_prompt_key(%__MODULE__{} = state, :interrupt) do
@@ -294,30 +291,12 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp put_local_input(%__MODULE__{} = state, %Input{} = input) do
     session =
-      state.session
-      |> Session.put_input(input)
-      |> put_local_command_suggestions(input.value)
+      Session.append_event(
+        state.session,
+        Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})
+      )
 
     {:cont, {:cont, %{state | session: session}}}
-  end
-
-  defp put_local_command_suggestions(%Session{} = session, value) do
-    case Tilde.Command.suggestions(value) do
-      nil ->
-        %{
-          session
-          | widgets:
-              Map.new(session.widgets, fn {placement, widgets} ->
-                {placement, Enum.reject(widgets, &(&1.id == "command-suggestions"))}
-              end)
-        }
-
-      suggest ->
-        Session.put_widget(
-          session,
-          Tilde.Core.Widget.new("command-suggestions", :above_input, suggest)
-        )
-    end
   end
 
   defp preserve_local_prompt(
@@ -337,23 +316,34 @@ defmodule Tilde.Transport.SSH.Channel do
   defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn
       :enter, {:cont, state} ->
-        case Command.parse(state.session.input.value) do
-          {:attach, session_id} ->
-            {:cont, {:cont, attach_session(state, session_id)}}
+        case Controller.apply_key(state.session, :enter) do
+          {:cont, %Session{input: %Input{value: accepted}} = session}
+          when accepted != state.session.input.value ->
+            {:cont, {:cont, %{state | session: session}}}
 
-          :detach ->
-            {:cont, {:cont, detach_session(state)}}
-
-          :session ->
-            {:cont, {:cont, show_session_info(state)}}
-
-          :submit ->
-            submit_local_input(server, state)
+          _other ->
+            submit_or_command(server, state)
         end
 
       key, {:cont, state} ->
         apply_local_prompt_key(state, key)
     end)
+  end
+
+  defp submit_or_command(server, state) do
+    case Command.parse(state.session.input.value) do
+      {:attach, session_id} ->
+        {:cont, {:cont, attach_session(state, session_id)}}
+
+      :detach ->
+        {:cont, {:cont, detach_session(state)}}
+
+      :session ->
+        {:cont, {:cont, show_session_info(state)}}
+
+      :submit ->
+        submit_local_input(server, state)
+    end
   end
 
   defp apply_local_keys(%__MODULE__{} = state, keys) do

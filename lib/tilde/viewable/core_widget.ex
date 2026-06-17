@@ -7,8 +7,11 @@ defimpl Tilde.Viewable, for: Tilde.Core.Widget do
   def to_view(%Widget{content: %Suggest{} = suggest} = widget, _opts) do
     lines =
       [suggest.title] ++
-        Enum.map(suggest.items, fn item ->
-          item.label <>
+        Enum.map(Enum.with_index(suggest.items), fn {item, index} ->
+          marker = if index == suggest.selected_index, do: "› ", else: "  "
+
+          marker <>
+            item.label <>
             String.duplicate(" ", max(1, 12 - String.length(item.label))) <> item.description
         end)
 

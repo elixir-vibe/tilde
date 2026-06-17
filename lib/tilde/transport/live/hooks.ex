@@ -83,17 +83,29 @@ defmodule Tilde.Transport.Live.Hooks do
             const target = event.target
 
             if (target && target.matches && target.matches("textarea[name='input']")) {
+              const suggestions = this.el.querySelector(".tilde-suggest")
+
+              if (suggestions && (key === "arrowdown" || (event.ctrlKey && key === "n"))) {
+                event.preventDefault()
+                this.pushEvent("tilde:suggest_next", {})
+                return
+              }
+
+              if (suggestions && (key === "arrowup" || (event.ctrlKey && key === "p"))) {
+                event.preventDefault()
+                this.pushEvent("tilde:suggest_previous", {})
+                return
+              }
+
+              if (suggestions && key === "escape") {
+                event.preventDefault()
+                this.pushEvent("tilde:suggest_cancel", {})
+                return
+              }
+
               if (key === "tab" && target.value.trimStart().startsWith("/")) {
                 event.preventDefault()
-                const firstSuggestion = this.el.querySelector(".tilde-suggest-row[phx-value-insert]")
-                const insert = firstSuggestion && firstSuggestion.getAttribute("phx-value-insert")
-                if (insert) {
-                  target.value = insert
-                  this.resizeInput(target)
-                  this.pushEvent("tilde:complete_input", { insert })
-                } else {
-                  this.pushEvent("tilde:complete_input", { input: target.value })
-                }
+                this.pushEvent("tilde:suggest_accept", {})
                 return
               }
 
@@ -102,7 +114,13 @@ defmodule Tilde.Transport.Live.Hooks do
 
                 event.preventDefault()
                 this.shouldStickToBottom = true
-                target.form && target.form.requestSubmit()
+
+                if (suggestions) {
+                  this.pushEvent("tilde:suggest_accept", {})
+                } else {
+                  target.form && target.form.requestSubmit()
+                }
+
                 return
               }
             }
