@@ -17,6 +17,7 @@ defmodule Tilde.Storage do
   @callback load_events(String.t()) :: {:ok, [Event.t()]} | {:error, term()}
   @callback load_session(String.t()) :: {:ok, Session.t()} | {:error, term()}
   @callback save_state(Session.t()) :: :ok | {:error, term()}
+  @callback session_summaries(keyword()) :: {:ok, [Tilde.Session.Summary.t()]} | {:error, term()}
   @callback search(String.t(), keyword()) :: {:ok, [search_result()]} | {:error, term()}
 
   @doc "Returns the configured storage adapter, if any."
@@ -51,6 +52,12 @@ defmodule Tilde.Storage do
   @doc "Saves resumable draft state for a session."
   @spec save_state(Session.t()) :: :ok | {:error, term()}
   def save_state(%Session{} = session), do: dispatch(:save_state, [session])
+
+  @doc "Returns bounded summaries for persisted sessions."
+  @spec session_summaries(keyword()) :: {:ok, [Tilde.Session.Summary.t()]} | {:error, term()}
+  def session_summaries(opts \\ []) do
+    dispatch(:session_summaries, [opts], {:ok, []})
+  end
 
   @doc "Searches durable session text projections."
   @spec search(String.t(), keyword()) :: {:ok, [search_result()]} | {:error, term()}

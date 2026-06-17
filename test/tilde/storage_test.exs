@@ -13,6 +13,7 @@ defmodule Tilde.StorageTest do
       assert :ok = Storage.save_state(session)
       assert {:ok, []} = Storage.load_events(session.id)
       assert {:ok, %{id: "storage-test", events: []}} = Storage.load_session(session.id)
+      assert {:ok, []} = Storage.session_summaries()
       assert {:ok, []} = Storage.search("remember")
     end)
   end

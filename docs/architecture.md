@@ -62,6 +62,14 @@ only decides which existing events belong in the durable log. Draft-only
 `:input_changed` events are not stored canonically; the latest draft lives in
 `tilde_session_state`.
 
+`Tilde.Session.Loader` is the restore boundary for opening sessions. It loads a
+persisted session through `Tilde.Storage.load_session/1` when a storage adapter is
+configured, otherwise it creates a fresh session. Live and SSH session opening go
+through this loader so storage writes have a matching resume path.
+
+`Tilde.Session.Summary.list/0` combines live registry summaries with persisted
+storage summaries. Live sessions win when the same id exists in both places.
+
 QuackDB-backed storage must use Ecto, Ecto migrations, and QuackDB's Ecto/query
 DSL. Do not use raw SQL strings or ad hoc SQL fragments for Tilde storage.
 

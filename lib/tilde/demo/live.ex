@@ -16,6 +16,7 @@ defmodule Tilde.Demo.Live do
   import Tilde.Transport.Live.WidgetRenderer
 
   alias Tilde.Core.{Index, Interaction, Session}
+  alias Tilde.Session.Loader, as: SessionLoader
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.Live.Interaction, as: LiveInteraction
@@ -24,7 +25,12 @@ defmodule Tilde.Demo.Live do
   @impl true
   def mount(%{"session_id" => _session_id} = params, _session, socket) do
     {server, session_id} = session_server(params)
-    {:ok, _pid} = SessionServer.ensure_started(server, session: demo_session(id: session_id))
+
+    {:ok, _pid} =
+      SessionServer.ensure_started(server,
+        session:
+          SessionLoader.load_or_new(session_id, new: fn -> demo_session(id: session_id) end)
+      )
 
     session =
       if connected?(socket),

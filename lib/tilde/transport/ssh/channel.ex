@@ -13,6 +13,7 @@ defmodule Tilde.Transport.SSH.Channel do
   alias Tilde.Command, as: SlashCommand
   alias Tilde.Core.{Controller, Index, Interaction, Keys, Session}
   alias Tilde.Core.Interaction.Outcome
+  alias Tilde.Session.Loader, as: SessionLoader
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.SSH.Delta
@@ -184,7 +185,10 @@ defmodule Tilde.Transport.SSH.Channel do
 
     {:ok, _pid} =
       SessionServer.ensure_started(server,
-        session: Tilde.Demo.Live.demo_session(id: session_id)
+        session:
+          SessionLoader.load_or_new(session_id,
+            new: fn -> Tilde.Demo.Live.demo_session(id: session_id) end
+          )
       )
 
     session = SessionServer.subscribe(server)

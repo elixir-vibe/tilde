@@ -6,6 +6,7 @@ defmodule Tilde.Storage.QuackDB do
   use QuackDB.Ecto, analytics: false, full_text_search: false, spatial: false
 
   alias Tilde.Core.Input
+  alias Tilde.Session.Summary
   alias Tilde.Storage.EventCodec
   alias Tilde.Storage.Repo
   alias Tilde.Storage.Schema.{Block, SessionState}
@@ -131,6 +132,33 @@ defmodule Tilde.Storage.QuackDB do
     )
 
     :ok
+  rescue
+    error in @storage_errors -> {:error, error}
+  end
+
+  @impl true
+  def session_summaries(_opts \\ []) do
+    session_ids =
+      Repo.all(from(session in StoredSession, order_by: [asc: session.id], select: session.id))
+
+    texts_by_session =
+      Repo.all(
+        from(block in Block,
+          where: not is_nil(block.text) and block.text != "",
+          order_by: [asc: block.session_id, asc: block.event_index, asc: block.block_index],
+          select: %{session_id: block.session_id, text: block.text}
+        )
+      )
+      |> Enum.group_by(& &1.session_id, & &1.text)
+
+    summaries =
+      Enum.map(session_ids, fn session_id ->
+        Summary.from_texts(session_id, Map.get(texts_by_session, session_id, []),
+          source: :persisted
+        )
+      end)
+
+    {:ok, summaries}
   rescue
     error in @storage_errors -> {:error, error}
   end

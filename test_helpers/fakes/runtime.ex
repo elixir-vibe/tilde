@@ -31,12 +31,25 @@ defmodule TildeTest.StorageAdapter do
   def load_events(_session_id), do: {:ok, []}
 
   @impl true
-  def load_session(session_id), do: {:ok, Tilde.session(id: session_id)}
+  def load_session(session_id) do
+    session =
+      case Application.get_env(:tilde, :storage_load_session) do
+        fun when is_function(fun, 1) -> fun.(session_id)
+        _other -> Tilde.session(id: session_id)
+      end
+
+    {:ok, session}
+  end
 
   @impl true
   def save_state(session) do
     notify({:storage_save_state, session.id, session.input.value})
     :ok
+  end
+
+  @impl true
+  def session_summaries(_opts) do
+    {:ok, Application.get_env(:tilde, :storage_session_summaries, [])}
   end
 
   @impl true

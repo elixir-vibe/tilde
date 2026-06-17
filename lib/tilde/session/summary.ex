@@ -4,21 +4,32 @@ defmodule Tilde.Session.Summary do
   alias Tilde.Core.Session
   alias Tilde.Core.Suggest.Item
   alias Tilde.Session.Registry
+  alias Tilde.Storage
 
   @type t :: %__MODULE__{
           id: String.t(),
           first: String.t() | nil,
           last: String.t() | nil,
           row: String.t(),
-          detail: String.t()
+          detail: String.t(),
+          source: :live | :persisted
         }
 
-  defstruct id: "", first: nil, last: nil, row: "", detail: ""
+  defstruct id: "", first: nil, last: nil, row: "", detail: "", source: :live
 
   @spec list() :: [t()]
   def list do
-    Registry.sessions()
-    |> Enum.map(&from_session/1)
+    live = Registry.sessions() |> Enum.map(&from_session/1)
+
+    persisted =
+      case Storage.session_summaries() do
+        {:ok, summaries} -> summaries
+        {:error, _reason} -> []
+      end
+
+    (persisted ++ live)
+    |> Map.new(&{&1.id, &1})
+    |> Map.values()
     |> Enum.sort_by(& &1.id)
   end
 
@@ -41,18 +52,27 @@ defmodule Tilde.Session.Summary do
       metadata: %{
         kind: :session,
         session_id: summary.id,
+        source: summary.source,
         first: summary.first,
         last: summary.last
       }
     )
   end
 
-  defp preview(%Session{} = session) do
-    messages =
-      session.transcript.blocks
-      |> Enum.filter(&message_preview?/1)
-      |> Enum.map(& &1.source)
+  @spec from_texts(String.t(), [String.t()], keyword()) :: t()
+  def from_texts(id, texts, opts \\ []) when is_binary(id) and is_list(texts) do
+    summary = preview_texts(texts)
+    %{summary | id: id, source: Keyword.get(opts, :source, :persisted)}
+  end
 
+  defp preview(%Session{} = session) do
+    session.transcript.blocks
+    |> Enum.filter(&message_preview?/1)
+    |> Enum.map(& &1.source)
+    |> preview_texts()
+  end
+
+  defp preview_texts(messages) do
     case messages do
       [] ->
         %__MODULE__{row: "no messages yet", detail: "No messages yet"}
