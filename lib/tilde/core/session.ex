@@ -204,9 +204,17 @@ defmodule Tilde.Core.Session do
     do: %{session | statuses: Map.put(session.statuses, key, value)}
 
   defp put_command_suggestions(%__MODULE__{} = session, value) do
+    previous_id = command_suggestions(session) && command_suggestions(session).selected_id
+
     case Tilde.Command.suggestions(value) do
-      nil -> delete_widget(session, "command-suggestions")
-      suggest -> put_widget(session, Widget.new("command-suggestions", :above_input, suggest))
+      nil ->
+        delete_widget(session, "command-suggestions")
+
+      suggest ->
+        put_widget(
+          session,
+          Widget.new("command-suggestions", :above_input, Suggest.select_id(suggest, previous_id))
+        )
     end
   end
 

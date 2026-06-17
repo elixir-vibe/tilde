@@ -1,9 +1,23 @@
 defmodule Tilde.Command.Effect do
   @moduledoc "Semantic effects emitted by slash commands."
 
-  alias Tilde.Command.Effect.{AppendEvent, NewSession, ReplaceSession}
+  alias Tilde.Command.Effect.{
+    AppendEvent,
+    AttachSession,
+    DetachSession,
+    NewSession,
+    ReplaceSession,
+    ShowSessionInfo
+  }
 
-  @type t :: :ok | AppendEvent.t() | NewSession.t() | ReplaceSession.t()
+  @type t ::
+          :ok
+          | AppendEvent.t()
+          | AttachSession.t()
+          | DetachSession.t()
+          | NewSession.t()
+          | ReplaceSession.t()
+          | ShowSessionInfo.t()
 end
 
 defmodule Tilde.Command.Effect.AppendEvent do
@@ -34,4 +48,34 @@ defmodule Tilde.Command.Effect.NewSession do
 
   @spec new(String.t()) :: t()
   def new(id), do: %__MODULE__{id: id}
+end
+
+defmodule Tilde.Command.Effect.AttachSession do
+  @moduledoc "Attach a transport to an existing named session."
+
+  @type t :: %__MODULE__{id: String.t()}
+  defstruct [:id]
+
+  @spec new(String.t()) :: t()
+  def new(id), do: %__MODULE__{id: id}
+end
+
+defmodule Tilde.Command.Effect.DetachSession do
+  @moduledoc "Detach a transport to a private session."
+
+  @type t :: %__MODULE__{}
+  defstruct []
+
+  @spec new() :: t()
+  def new, do: %__MODULE__{}
+end
+
+defmodule Tilde.Command.Effect.ShowSessionInfo do
+  @moduledoc "Ask a transport to show session routing information."
+
+  @type t :: %__MODULE__{}
+  defstruct []
+
+  @spec new() :: t()
+  def new, do: %__MODULE__{}
 end

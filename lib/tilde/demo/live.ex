@@ -135,19 +135,19 @@ defmodule Tilde.Demo.Live do
   end
 
   def handle_event("tilde:submit", %{"input" => input}, socket) do
-    case Command.parse(input) do
-      {:ok, %Command{name: "new", args: args}} ->
-        {:noreply, push_navigate(socket, to: "/tilde/#{Command.new_session_id(args)}")}
+    session =
+      SessionServer.update_session(
+        socket.assigns.session_server,
+        &Session.append_event(&1, Tilde.input_submitted(input))
+      )
 
-      _other ->
-        session =
-          SessionServer.update_session(
-            socket.assigns.session_server,
-            &Session.append_event(&1, Tilde.input_submitted(input))
-          )
+    socket =
+      input
+      |> Command.parse()
+      |> command_effects(session)
+      |> apply_transport_effects(socket)
 
-        {:noreply, assign(socket, session: session)}
-    end
+    {:noreply, assign(socket, session: session)}
   end
 
   def handle_event("tilde:interrupt", _params, socket) do
@@ -190,6 +190,27 @@ defmodule Tilde.Demo.Live do
   defp update_suggestions(socket, fun) when is_function(fun, 1) do
     session = SessionServer.update_session(socket.assigns.session_server, fun)
     {:noreply, assign(socket, session: session)}
+  end
+
+  defp command_effects({:ok, %Command{} = command}, %Session{} = session),
+    do: Command.run(command, session, [])
+
+  defp command_effects(:error, _session), do: []
+
+  defp apply_transport_effects(effects, socket) do
+    Enum.reduce(effects, socket, fn
+      %Tilde.Command.Effect.NewSession{id: id}, socket ->
+        push_navigate(socket, to: "/tilde/#{id}")
+
+      %Tilde.Command.Effect.AttachSession{id: id}, socket ->
+        push_navigate(socket, to: "/tilde/#{id}")
+
+      %Tilde.Command.Effect.DetachSession{}, socket ->
+        push_navigate(socket, to: "/tilde/#{Command.new_session_id("")}")
+
+      _effect, socket ->
+        socket
+    end)
   end
 
   defp complete_input(input), do: Command.completion(input) || input

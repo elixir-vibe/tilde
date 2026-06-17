@@ -1489,6 +1489,16 @@ defmodule TildeTest do
     restore_application_env(:demo_password, previous)
   end
 
+  test "demo health endpoint is unauthenticated" do
+    conn =
+      :get
+      |> conn("/healthz")
+      |> Tilde.Demo.Router.call([])
+
+    assert conn.status == 200
+    assert conn.resp_body == "ok"
+  end
+
   test "web demo requires password session" do
     with_application_env(:demo_password, "secret", fn ->
       conn =

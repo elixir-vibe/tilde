@@ -3,7 +3,6 @@ defmodule Tilde.Command.Builtin.Session do
 
   @behaviour Tilde.Command.Behaviour
 
-  alias Tilde.Command.Builtin.Help
   alias Tilde.Core.Session
 
   def spec,
@@ -16,6 +15,9 @@ defmodule Tilde.Command.Builtin.Session do
     Blocks: #{length(session.transcript.blocks)}
     """
 
-    [Help.assistant(text)]
+    [
+      Tilde.Command.Effect.ShowSessionInfo.new(),
+      Tilde.Command.Effect.AppendEvent.new(Tilde.assistant_done(text))
+    ]
   end
 end

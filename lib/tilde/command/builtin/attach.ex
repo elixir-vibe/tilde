@@ -11,10 +11,10 @@ defmodule Tilde.Command.Builtin.Attach do
     do: Tilde.Command.Spec.new("/attach", "/attach ", "Attach SSH/TUI to a named session")
 
   def run(%Command{args: ""}, _session, _opts),
-    do: [Help.assistant("Usage: /attach <session-name>")]
+    do: [Tilde.Command.Effect.AttachSession.new("shared")]
 
   def run(%Command{args: args}, _session, _opts) do
     id = Registry.normalize_id(args)
-    [Help.assistant("SSH/TUI can attach to this session with `/attach #{id}`. Web: /tilde/#{id}")]
+    [Tilde.Command.Effect.AttachSession.new(id), Help.assistant("Attached to session: #{id}")]
   end
 end

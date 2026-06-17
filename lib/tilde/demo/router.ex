@@ -21,6 +21,10 @@ defmodule Tilde.Demo.Router do
   end
 
   scope "/" do
+    get("/healthz", Tilde.Demo.Health, [])
+  end
+
+  scope "/" do
     pipe_through(:browser)
 
     get("/login", Tilde.Demo.Auth, :new)

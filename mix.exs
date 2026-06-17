@@ -8,6 +8,7 @@ defmodule Tilde.MixProject do
       elixir: "~> 1.20",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      listeners: [Phoenix.CodeReloader],
       dialyzer: [plt_add_apps: [:ex_unit, :mix]],
       aliases: aliases()
     ]
@@ -22,7 +23,7 @@ defmodule Tilde.MixProject do
 
   def cli do
     [
-      preferred_envs: [ci: :test]
+      preferred_envs: [ci: :test, "test.browser": :test]
     ]
   end
 
@@ -55,6 +56,7 @@ defmodule Tilde.MixProject do
 
   defp aliases() do
     [
+      "test.browser": ["test --only browser"],
       ci: [
         "format",
         "compile --warnings-as-errors",

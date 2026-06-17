@@ -24,6 +24,16 @@ defimpl Tilde.Viewable, for: Tilde.Core.Widget do
     )
   end
 
+  def to_view(%Widget{content: content} = widget, _opts) when is_binary(content) do
+    Cell.new(
+      id: widget.id,
+      kind: :widget,
+      state: :normal,
+      lines: [content],
+      attrs: %{widget: widget}
+    )
+  end
+
   def to_view(%Widget{} = widget, _opts) do
     Cell.new(
       id: widget.id,

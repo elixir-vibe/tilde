@@ -1,10 +1,9 @@
 defmodule TildeDriverTest do
-  use ExUnit.Case, async: false
+  use TildeTest.TransportCase, async: false
 
   alias Tilde.Core.Display
-  alias TildeTest.Driver
 
-  @drivers [TildeTest.Driver.Live, TildeTest.Driver.TUI]
+  @drivers TildeTest.TransportCase.fast_drivers()
 
   for driver <- @drivers do
     describe "#{inspect(driver)} slash command behavior" do
@@ -25,6 +24,22 @@ defmodule TildeDriverTest do
         |> Driver.assert_suggestion(second.label, selected?: true)
         |> Driver.press(:enter)
         |> Driver.assert_input(second.insert)
+      end
+
+      test "selection is preserved across query filtering", %{state: state} do
+        state =
+          state
+          |> Driver.type("/")
+          |> Driver.press(:down)
+
+        selected =
+          Driver.session(state)
+          |> Tilde.Core.Session.command_suggestions()
+          |> Tilde.Core.Suggest.selected()
+
+        state = Driver.type(state, String.replace_prefix(selected.label, "/", ""))
+
+        Driver.assert_suggestion(state, selected.label, selected?: true)
       end
 
       test "escape hides suggestions without clearing the input draft", %{state: state} do

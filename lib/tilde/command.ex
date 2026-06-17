@@ -75,12 +75,7 @@ defmodule Tilde.Command do
     end
   end
 
-  def completion(%Tilde.Core.Suggest{} = suggest) do
-    case Tilde.Core.Suggest.selected(suggest) do
-      %{insert: insert} -> insert
-      _other -> nil
-    end
-  end
+  def completion(%Tilde.Core.Suggest{} = suggest), do: Tilde.Core.Suggest.accept(suggest)
 
   @doc "Runs a command against a session and returns semantic effects."
   @spec run(t(), Session.t(), keyword()) :: [effect()]
@@ -104,6 +99,15 @@ defmodule Tilde.Command do
         Session.append_event(session, event)
 
       %Tilde.Command.Effect.NewSession{}, session ->
+        session
+
+      %Tilde.Command.Effect.AttachSession{}, session ->
+        session
+
+      %Tilde.Command.Effect.DetachSession{}, session ->
+        session
+
+      %Tilde.Command.Effect.ShowSessionInfo{}, session ->
         session
 
       :ok, session ->

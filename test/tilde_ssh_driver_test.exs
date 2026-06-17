@@ -29,6 +29,32 @@ defmodule TildeSSHDriverTest do
     end
   end
 
+  test "real SSH driver applies arrow selection, backtab, tab, escape, and ctrl-o bytes" do
+    state = SSH.open(session: tool_session())
+
+    try do
+      state = SSH.type(state, "/")
+      assert SSH.text(state) =~ "commands"
+
+      state = SSH.press(state, :down)
+      assert SSH.text(state) =~ "›"
+
+      state = SSH.press(state, :backtab)
+      assert SSH.text(state) =~ "commands"
+
+      state = SSH.press(state, :tab)
+      assert SSH.text(state) =~ "/"
+
+      state = SSH.press(state, :escape)
+      assert SSH.text(state) =~ ">"
+
+      state = SSH.press(state, :ctrl_o)
+      assert SSH.text(state) =~ "mix test"
+    after
+      SSH.close(state)
+    end
+  end
+
   defp wait_for_blocks(state, attempts \\ 10)
   defp wait_for_blocks(state, 0), do: SSH.session(state).transcript.blocks
 
@@ -41,5 +67,12 @@ defmodule TildeSSHDriverTest do
       blocks ->
         blocks
     end
+  end
+
+  defp tool_session do
+    Tilde.session()
+    |> Tilde.Core.Session.append_event(
+      Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+    )
   end
 end

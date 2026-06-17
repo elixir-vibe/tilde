@@ -10,12 +10,13 @@ defmodule Tilde.Transport.SSH.Channel do
 
   @behaviour :ssh_server_channel
 
+  alias Tilde.Command, as: SlashCommand
   alias Tilde.Core.{Block, Controller, Input, Keys, Session}
   alias Tilde.Renderer.TUI
   alias Tilde.Renderer.TUI.ViewRenderer
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
-  alias Tilde.Transport.SSH.{Command, Delta}
+  alias Tilde.Transport.SSH.Delta
 
   defstruct connection_ref: nil,
             channel_id: nil,
@@ -329,18 +330,28 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp submit_or_command(server, state) do
-    case Command.parse(state.session.input.value) do
-      {:attach, session_id} ->
+    case transport_effects(state.session.input.value, state.session) do
+      [%Tilde.Command.Effect.AttachSession{id: session_id} | _effects] ->
         {:cont, {:cont, attach_session(state, session_id)}}
 
-      :detach ->
+      [%Tilde.Command.Effect.DetachSession{} | _effects] ->
         {:cont, {:cont, detach_session(state)}}
 
-      :session ->
+      [%Tilde.Command.Effect.ShowSessionInfo{} | _effects] ->
         {:cont, {:cont, show_session_info(state)}}
 
-      :submit ->
+      [%Tilde.Command.Effect.NewSession{id: session_id} | _effects] ->
+        {:cont, {:cont, attach_session(state, session_id)}}
+
+      _effects ->
         submit_local_input(server, state)
+    end
+  end
+
+  defp transport_effects(input, %Session{} = session) do
+    case SlashCommand.parse(input) do
+      {:ok, command} -> SlashCommand.run(command, session, [])
+      :error -> []
     end
   end
 
