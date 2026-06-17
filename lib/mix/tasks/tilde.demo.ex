@@ -18,7 +18,13 @@ defmodule Mix.Tasks.Tilde.Demo do
 
   @shortdoc "Runs the mirrored Tilde LiveView + SSH demo"
 
-  @switches [web_port: :integer, ssh_port: :integer, password: :string, host: :string]
+  @switches [
+    web_port: :integer,
+    ssh_port: :integer,
+    password: :string,
+    host: :string,
+    hmr: :boolean
+  ]
   @aliases [w: :web_port, s: :ssh_port, p: :password, h: :host]
 
   @impl true
@@ -30,10 +36,11 @@ defmodule Mix.Tasks.Tilde.Demo do
     ssh_port = Keyword.get(opts, :ssh_port, 4022)
     password = Tilde.Demo.Password.configure(opts)
     host = Keyword.get(opts, :host, "localhost")
+    hmr? = Keyword.get(opts, :hmr, true)
 
     configure_llm()
     start_rate_limit()
-    configure_endpoint(web_port, host)
+    configure_endpoint(web_port, host, hmr?)
     start_pubsub()
     start_session_registry()
     start_session_server()
@@ -47,6 +54,7 @@ defmodule Mix.Tasks.Tilde.Demo do
       LiveView: http://localhost:#{web_port}/tilde
       SSH:      ssh tilde@localhost -p #{ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
       Password: #{password}
+      HMR:      #{if hmr?, do: "enabled", else: "disabled"}
 
     SSH tilde@... opens a private session. SSH shared@... or name@... attaches a named session.
     Web /tilde/:session_id attaches the same named session.
@@ -77,18 +85,35 @@ defmodule Mix.Tasks.Tilde.Demo do
     Tilde.Runtime.RateLimit.ensure_started(clean_period: :timer.minutes(1))
   end
 
-  defp configure_endpoint(web_port, host) do
+  defp configure_endpoint(web_port, host, hmr?) do
     Application.put_env(:tilde, Tilde.Demo.Endpoint,
       adapter: Bandit.PhoenixAdapter,
       url: [scheme: "https", host: host, port: 443],
       check_origin: ["https://#{host}"],
       http: [ip: {127, 0, 0, 1}, port: web_port],
       server: true,
+      code_reloader: hmr?,
+      debug_errors: hmr?,
       secret_key_base: String.duplicate("tilde_demo_secret", 5),
       live_view: [signing_salt: "tilde_demo_salt"],
       pubsub_server: Tilde.Demo.LivePubSub,
+      live_reload: live_reload_config(hmr?),
       render_errors: [formats: [html: Tilde.Demo.ErrorHTML], layout: false]
     )
+  end
+
+  defp live_reload_config(false), do: [patterns: []]
+
+  defp live_reload_config(true) do
+    [
+      web_console_logger: true,
+      patterns: [
+        ~r"lib/tilde/(demo|transport/live|core|tool|view).*\\.(ex)$",
+        ~r"lib/mix/tasks/tilde\\.demo\\.ex$",
+        ~r"README\\.md$",
+        ~r"docs/.*\\.md$"
+      ]
+    ]
   end
 
   defp start_pubsub do

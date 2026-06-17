@@ -19,6 +19,10 @@ defmodule Tilde.Demo.Endpoint do
     longpoll: false
   )
 
+  if Code.ensure_loaded?(Phoenix.LiveReloader.Socket) do
+    socket("/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket)
+  end
+
   plug(Plug.Static,
     at: "/assets/phoenix",
     from: {:phoenix, "priv/static"},
@@ -30,6 +34,11 @@ defmodule Tilde.Demo.Endpoint do
     from: {:phoenix_live_view, "priv/static"},
     only: ~w(phoenix_live_view.min.js)
   )
+
+  if Code.ensure_loaded?(Phoenix.LiveReloader) do
+    plug(Phoenix.CodeReloader)
+    plug(Phoenix.LiveReloader)
+  end
 
   plug(Plug.Parsers,
     parsers: [:urlencoded],
