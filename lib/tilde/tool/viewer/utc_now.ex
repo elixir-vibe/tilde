@@ -6,6 +6,7 @@ defmodule Tilde.Tool.Viewer.UtcNow do
   @behaviour Tilde.Tool.Viewer
 
   alias Tilde.Core.Block
+  alias Tilde.Tool.View.Stream, as: StreamView
   alias Tilde.Tool.Viewer
 
   @impl true
@@ -24,7 +25,7 @@ defmodule Tilde.Tool.Viewer.UtcNow do
       timestamp ->
         %{
           view
-          | streams: [%{id: "result", kind: :result, lines: [timestamp], hidden_lines: 0}],
+          | streams: [%StreamView{id: "result", kind: :result, lines: [timestamp]}],
             lines: [timestamp],
             waiting?: false
         }

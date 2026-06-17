@@ -10,6 +10,10 @@ defmodule Tilde.Command.Builtin.New do
 
   def run(%Command{args: args}, _session, _opts) do
     id = Command.new_session_id(args)
-    [{:new_session, id}, Help.assistant("New isolated session: /tilde/#{id}")]
+
+    [
+      Tilde.Command.Effect.NewSession.new(id),
+      Help.assistant("New isolated session: /tilde/#{id}")
+    ]
   end
 end

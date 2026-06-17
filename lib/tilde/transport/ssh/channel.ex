@@ -48,7 +48,7 @@ defmodule Tilde.Transport.SSH.Channel do
     session_server = Keyword.get(opts, :session_server)
     session_mode = Keyword.get(opts, :session_mode, :private)
 
-    session = Keyword.get_lazy(opts, :session, &Tilde.Transport.Live.Demo.demo_session/0)
+    session = Keyword.get_lazy(opts, :session, &Tilde.Demo.Live.demo_session/0)
 
     {:ok,
      %__MODULE__{
@@ -183,7 +183,7 @@ defmodule Tilde.Transport.SSH.Channel do
 
     {:ok, _pid} =
       SessionServer.ensure_started(server,
-        session: Tilde.Transport.Live.Demo.demo_session(id: session_id)
+        session: Tilde.Demo.Live.demo_session(id: session_id)
       )
 
     session = SessionServer.subscribe(server)

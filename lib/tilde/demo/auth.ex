@@ -1,4 +1,4 @@
-defmodule Tilde.Transport.Live.DemoAuth do
+defmodule Tilde.Demo.Auth do
   @moduledoc """
   Minimal session-backed authentication for the public Tilde demo.
   """

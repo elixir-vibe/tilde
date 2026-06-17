@@ -73,7 +73,7 @@ defmodule Tilde.Transport.SSH.Demo do
   defp ensure_session_server(nil), do: {:ok, self()}
 
   defp ensure_session_server(server) do
-    SessionServer.ensure_started(server, session: Tilde.Transport.Live.Demo.demo_session())
+    SessionServer.ensure_started(server, session: Tilde.Demo.Live.demo_session())
   end
 
   defp start_daemon(port, system_dir, password, session_server, session_mode) do

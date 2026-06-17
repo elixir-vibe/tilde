@@ -6,6 +6,7 @@ defmodule Tilde.Tool.Viewer.Default do
   @behaviour Tilde.Tool.Viewer
 
   alias Tilde.Core.{Block, Stream}
+  alias Tilde.Tool.View.Stream, as: StreamView
 
   @impl true
   def call(%Block{} = block) do
@@ -44,7 +45,7 @@ defmodule Tilde.Tool.Viewer.Default do
     Enum.map(streams, fn stream ->
       lines = Stream.lines(stream)
 
-      %{
+      %StreamView{
         id: stream.id,
         kind: stream.kind,
         lines: lines,
@@ -61,7 +62,7 @@ defmodule Tilde.Tool.Viewer.Default do
         lines = Stream.lines(stream)
         visible = Enum.take(lines, max(remaining, 0))
 
-        view = %{
+        view = %StreamView{
           id: stream.id,
           kind: stream.kind,
           lines: visible,

@@ -1,4 +1,4 @@
-defmodule Tilde.Transport.Live.DemoErrorHTML do
+defmodule Tilde.Demo.ErrorHTML do
   @moduledoc false
 
   use Phoenix.Component

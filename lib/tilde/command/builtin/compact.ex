@@ -19,6 +19,6 @@ defmodule Tilde.Command.Builtin.Compact do
         Tilde.assistant_done("Compacted session history to the latest #{limit} events.")
       )
 
-    [{:replace_session, compacted}]
+    [Tilde.Command.Effect.ReplaceSession.new(compacted)]
   end
 end

@@ -1,10 +1,10 @@
-defmodule Tilde.Transport.Live.Demo do
+defmodule Tilde.Demo.Live do
   @moduledoc """
   Self-contained LiveView demo for Tilde.
 
   Mount this LiveView in a Phoenix router while dogfooding the package:
 
-      live "/tilde", Tilde.Transport.Live.Demo
+      live "/tilde", Tilde.Demo.Live
 
   It exercises the semantic session model, the LiveView renderer, tool
   expansion, choice selection, input submission, widgets, and footer status.

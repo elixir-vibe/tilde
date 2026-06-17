@@ -1,4 +1,4 @@
-defmodule Tilde.Transport.Live.DemoEndpoint do
+defmodule Tilde.Demo.Endpoint do
   @moduledoc """
   Minimal Phoenix endpoint for the mirrored Tilde demo.
 
@@ -37,5 +37,5 @@ defmodule Tilde.Transport.Live.DemoEndpoint do
   )
 
   plug(Plug.Session, @session_options)
-  plug(Tilde.Transport.Live.DemoRouter)
+  plug(Tilde.Demo.Router)
 end

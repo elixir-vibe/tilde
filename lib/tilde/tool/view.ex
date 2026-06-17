@@ -1,46 +1,18 @@
 defmodule Tilde.Tool.View do
-  @moduledoc """
-  Struct-free semantic view constructors shared by tool viewers.
-  """
+  @moduledoc "Semantic tool view constructors."
 
-  @type segment :: %{
-          required(:text) => String.t(),
-          optional(:color) => :accent | :muted | :dim | :success
-        }
+  alias Tilde.Tool.View.{Call, Result, Segment}
 
-  @type call :: %{
-          title: String.t(),
-          segments: [segment()],
-          tags: [String.t()],
-          suffix: String.t() | nil
-        }
+  @type segment :: Segment.t()
+  @type call :: Call.t()
+  @type result :: Result.t()
 
-  @type result :: %{
-          metadata_rows: [{atom(), String.t()}],
-          lines: [String.t()],
-          streams: [map()],
-          hidden_lines: non_neg_integer(),
-          waiting?: boolean()
-        }
+  @spec call(String.t(), keyword()) :: Call.t()
+  def call(title, opts \\ []), do: Call.new(title, opts)
 
-  @spec call(String.t(), keyword()) :: call()
-  def call(title, opts \\ []) when is_binary(title) do
-    %{
-      title: title,
-      segments: Keyword.get(opts, :segments, []),
-      tags: Keyword.get(opts, :tags, []),
-      suffix: Keyword.get(opts, :suffix)
-    }
-  end
+  @spec result(keyword()) :: Result.t()
+  def result(opts \\ []), do: Result.new(opts)
 
-  @spec result(keyword()) :: result()
-  def result(opts \\ []) do
-    %{
-      metadata_rows: Keyword.get(opts, :metadata_rows, []),
-      lines: Keyword.get(opts, :lines, []),
-      streams: Keyword.get(opts, :streams, []),
-      hidden_lines: Keyword.get(opts, :hidden_lines, 0),
-      waiting?: Keyword.get(opts, :waiting?, false)
-    }
-  end
+  @spec segment(String.t(), keyword()) :: Segment.t()
+  def segment(text, opts \\ []), do: Segment.new(text, opts)
 end

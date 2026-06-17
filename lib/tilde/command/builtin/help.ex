@@ -19,5 +19,5 @@ defmodule Tilde.Command.Builtin.Help do
   def spec, do: Tilde.Command.Spec.new("/help", "/help", "Show this help")
   def run(_command, _session, _opts), do: [assistant(@help)]
 
-  def assistant(text), do: {:append_event, Tilde.assistant_done(text)}
+  def assistant(text), do: Tilde.Command.Effect.AppendEvent.new(Tilde.assistant_done(text))
 end

@@ -90,10 +90,17 @@ defmodule Tilde.Command do
   @spec apply_effects(Session.t(), [effect()]) :: Session.t()
   def apply_effects(%Session{} = session, effects) do
     Enum.reduce(effects, session, fn
-      {:replace_session, replacement}, _session -> replacement
-      {:append_event, event}, session -> Session.append_event(session, event)
-      {:new_session, _id}, session -> session
-      :ok, session -> session
+      %Tilde.Command.Effect.ReplaceSession{session: replacement}, _session ->
+        replacement
+
+      %Tilde.Command.Effect.AppendEvent{event: event}, session ->
+        Session.append_event(session, event)
+
+      %Tilde.Command.Effect.NewSession{}, session ->
+        session
+
+      :ok, session ->
+        session
     end)
   end
 

@@ -1,6 +1,6 @@
-defmodule Tilde.Transport.Live.DemoLayout do
+defmodule Tilde.Demo.Layout do
   @moduledoc """
-  Root layout for `Tilde.Transport.Live.DemoEndpoint`.
+  Root layout for `Tilde.Demo.Endpoint`.
   """
 
   use Phoenix.Component

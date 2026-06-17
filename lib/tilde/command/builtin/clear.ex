@@ -10,6 +10,6 @@ defmodule Tilde.Command.Builtin.Clear do
   def run(_command, %Session{} = session, opts) do
     seed = Keyword.get(opts, :seed)
     cleared = if is_function(seed, 1), do: seed.(session.id), else: Tilde.session(id: session.id)
-    [{:replace_session, cleared}]
+    [Tilde.Command.Effect.ReplaceSession.new(cleared)]
   end
 end

@@ -803,17 +803,17 @@ defmodule TildeTest do
 
       {:ok, _pid} =
         Tilde.Session.Server.ensure_started(private_a,
-          session: Tilde.Transport.Live.Demo.demo_session(id: "ssh-private-a-#{stamp}")
+          session: Tilde.Demo.Live.demo_session(id: "ssh-private-a-#{stamp}")
         )
 
       {:ok, _pid} =
         Tilde.Session.Server.ensure_started(private_b,
-          session: Tilde.Transport.Live.Demo.demo_session(id: "ssh-private-b-#{stamp}")
+          session: Tilde.Demo.Live.demo_session(id: "ssh-private-b-#{stamp}")
         )
 
       {:ok, _pid} =
         Tilde.Session.Server.ensure_started(shared,
-          session: Tilde.Transport.Live.Demo.demo_session(id: "ssh-shared-#{stamp}")
+          session: Tilde.Demo.Live.demo_session(id: "ssh-shared-#{stamp}")
         )
 
       a_marker = "AAA_PRIVATE_#{stamp}"
@@ -1295,7 +1295,7 @@ defmodule TildeTest do
   end
 
   test "demo session renders a complete dogfood console" do
-    session = Tilde.Transport.Live.Demo.demo_session()
+    session = Tilde.Demo.Live.demo_session()
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
     tool_cell =
@@ -1322,7 +1322,7 @@ defmodule TildeTest do
         :get
         |> conn("/tilde")
         |> init_test_session(%{})
-        |> Tilde.Transport.Live.DemoRouter.call([])
+        |> Tilde.Demo.Router.call([])
 
       assert conn.status == 302
       assert [location] = Plug.Conn.get_resp_header(conn, "location")
@@ -1336,7 +1336,7 @@ defmodule TildeTest do
         :post
         |> conn("/login")
         |> init_test_session(%{})
-        |> Tilde.Transport.Live.DemoAuth.create(%{
+        |> Tilde.Demo.Auth.create(%{
           "password" => "secret",
           "return_to" => "/tilde/auth-smoke"
         })
@@ -1353,7 +1353,7 @@ defmodule TildeTest do
         :post
         |> conn("/login")
         |> init_test_session(%{})
-        |> Tilde.Transport.Live.DemoAuth.create(%{"password" => "wrong", "return_to" => "/tilde"})
+        |> Tilde.Demo.Auth.create(%{"password" => "wrong", "return_to" => "/tilde"})
 
       assert conn.status == 401
       refute Plug.Conn.get_session(conn, :tilde_demo_authenticated)

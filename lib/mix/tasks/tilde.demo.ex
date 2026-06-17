@@ -83,7 +83,7 @@ defmodule Mix.Tasks.Tilde.Demo do
   end
 
   defp configure_endpoint(web_port, host) do
-    Application.put_env(:tilde, Tilde.Transport.Live.DemoEndpoint,
+    Application.put_env(:tilde, Tilde.Demo.Endpoint,
       adapter: Bandit.PhoenixAdapter,
       url: [scheme: "https", host: host, port: 443],
       check_origin: ["https://#{host}"],
@@ -91,15 +91,15 @@ defmodule Mix.Tasks.Tilde.Demo do
       server: true,
       secret_key_base: String.duplicate("tilde_demo_secret", 5),
       live_view: [signing_salt: "tilde_demo_salt"],
-      pubsub_server: Tilde.Transport.Live.DemoPubSub,
-      render_errors: [formats: [html: Tilde.Transport.Live.DemoErrorHTML], layout: false]
+      pubsub_server: Tilde.Demo.LivePubSub,
+      render_errors: [formats: [html: Tilde.Demo.ErrorHTML], layout: false]
     )
   end
 
   defp start_pubsub do
-    case Process.whereis(Tilde.Transport.Live.DemoPubSub) do
+    case Process.whereis(Tilde.Demo.LivePubSub) do
       nil ->
-        Supervisor.start_link([{Phoenix.PubSub, name: Tilde.Transport.Live.DemoPubSub}],
+        Supervisor.start_link([{Phoenix.PubSub, name: Tilde.Demo.LivePubSub}],
           strategy: :one_for_one
         )
 
@@ -114,13 +114,13 @@ defmodule Mix.Tasks.Tilde.Demo do
 
   defp start_session_server do
     Tilde.Session.Server.ensure_started(Tilde.Session.Server,
-      session: Tilde.Transport.Live.Demo.demo_session()
+      session: Tilde.Demo.Live.demo_session()
     )
   end
 
   defp start_endpoint do
-    case Process.whereis(Tilde.Transport.Live.DemoEndpoint) do
-      nil -> Tilde.Transport.Live.DemoEndpoint.start_link()
+    case Process.whereis(Tilde.Demo.Endpoint) do
+      nil -> Tilde.Demo.Endpoint.start_link()
       pid -> {:ok, pid}
     end
   end

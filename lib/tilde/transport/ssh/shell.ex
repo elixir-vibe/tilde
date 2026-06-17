@@ -13,7 +13,7 @@ defmodule Tilde.Transport.SSH.Shell do
   @spec start(keyword()) :: :ok
   def start(opts \\ []) do
     width = Keyword.get(opts, :width, 100)
-    session = Keyword.get_lazy(opts, :session, &Tilde.Transport.Live.Demo.demo_session/0)
+    session = Keyword.get_lazy(opts, :session, &Tilde.Demo.Live.demo_session/0)
 
     session
     |> render(width)
