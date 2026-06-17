@@ -131,7 +131,7 @@ const TildeConsole: Partial<TildeConsoleHook> = {
           this.shouldStickToBottom = true
 
           if (suggestions) {
-            this.pushEvent("tilde:suggest_accept", {})
+            this.pushEvent("tilde:suggest_submit", {})
           } else {
             target.form?.requestSubmit()
           }

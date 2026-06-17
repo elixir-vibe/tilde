@@ -3,7 +3,7 @@ defmodule TildeTest.Driver.Browser do
 
   import ExUnit.Assertions
 
-  alias PlaywrightEx.{Browser, BrowserContext, Frame}
+  alias PlaywrightEx.{Browser, BrowserContext, Frame, Selector}
 
   defstruct [:browser_id, :context_id, :page_id, :frame_id, :connection, :demo, :password]
 
@@ -95,6 +95,22 @@ defmodule TildeTest.Driver.Browser do
     unwrap(Frame.evaluate(state.frame_id, expression: expression, timeout: @timeout, connection: state.connection))
   end
 
+  @doc "Asserts the console textarea value with Playwright's expect API."
+  @spec assert_input(t(), String.t()) :: t()
+  def assert_input(%__MODULE__{} = state, value) do
+    unwrap(
+      Frame.expect(state.frame_id,
+        selector: @input,
+        expression: "to.have.value",
+        expected_text: [%{string: value, matchSubstring: false, ignoreCase: false}],
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
+    state
+  end
+
   @doc "Returns visible document text."
   @spec text(t()) :: String.t()
   def text(%__MODULE__{} = state) do
@@ -106,6 +122,28 @@ defmodule TildeTest.Driver.Browser do
   def assert_has(%__MODULE__{} = state, selector) do
     unwrap(Frame.wait_for_selector(state.frame_id, selector: selector, timeout: @timeout, connection: state.connection))
     state
+  end
+
+  @doc "Waits until a selector is detached from the DOM."
+  @spec refute_has(t(), String.t()) :: t()
+  def refute_has(%__MODULE__{} = state, selector) do
+    unwrap(
+      Frame.wait_for_selector(state.frame_id,
+        selector: selector,
+        state: "detached",
+        strict: false,
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
+    state
+  end
+
+  @doc "Asserts visible text using Playwright's text selector."
+  @spec assert_text(t(), String.t()) :: t()
+  def assert_text(%__MODULE__{} = state, text) do
+    assert_has(state, Selector.text(text))
   end
 
   @doc "Waits until a JavaScript expression evaluates to truthy."

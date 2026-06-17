@@ -3,19 +3,19 @@ defmodule TildeBrowserDriverTest do
 
   @moduletag :browser
 
-  test "PlaywrightEx browser driver accepts slash suggestions with real JavaScript", %{
+  test "PlaywrightEx browser driver completes on tab and executes slash suggestions on enter", %{
     browser: browser
   } do
     if browser do
       browser
       |> Browser.type("/")
-      |> Browser.press(:down)
+      |> Browser.press(:tab)
+
+      browser
+      |> Browser.assert_input("/help")
       |> Browser.press(:enter)
-
-      assert Browser.evaluate(browser, "document.querySelector(\"textarea[name='input']\").value") =~
-               "/"
-
-      assert Browser.text(browser) =~ "commands"
+      |> Browser.refute_has(".suggest")
+      |> Browser.assert_text("/new [name]")
     else
       skip_browser()
     end
@@ -27,10 +27,9 @@ defmodule TildeBrowserDriverTest do
       |> Browser.type("/")
       |> Browser.press(:escape)
 
-      assert Browser.evaluate(browser, "document.querySelector(\"textarea[name='input']\").value") ==
-               "/"
-
-      Browser.wait_until(browser, "document.querySelector('.suggest') === null")
+      browser
+      |> Browser.assert_input("/")
+      |> Browser.refute_has(".suggest")
     else
       skip_browser()
     end

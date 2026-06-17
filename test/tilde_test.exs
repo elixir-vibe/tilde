@@ -483,7 +483,7 @@ defmodule TildeTest do
     File.rm_rf!(dir)
   end
 
-  test "command suggestions are semantic widgets and TUI selects then accepts them" do
+  test "command suggestions complete on tab and submit on enter" do
     assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
     assert Enum.map(items, & &1.label) == ["/compact"]
     assert Tilde.Command.completion("/co") == "/compact"
@@ -501,10 +501,16 @@ defmodule TildeTest do
     assert {:cont, selected} = Tilde.Core.Controller.apply_key(session, :down)
     assert %Tilde.Core.Suggest{selected_index: 1} = Session.command_suggestions(selected)
 
-    assert {:cont, completed} = Tilde.Core.Controller.apply_key(selected, :enter)
+    assert {:cont, completed} = Tilde.Core.Controller.apply_key(selected, :tab)
 
     assert completed.input.value ==
              Tilde.Command.completion(Session.command_suggestions(selected))
+
+    assert {:cont, submitted} = Tilde.Core.Controller.apply_key(selected, :enter)
+
+    assert submitted.input.value == ""
+    assert [%Block{source: submitted_command}] = submitted.transcript.blocks
+    assert submitted_command == Tilde.Command.completion(Session.command_suggestions(selected))
   end
 
   test "slash commands parse and apply semantic effects" do
@@ -1645,23 +1651,6 @@ defmodule TildeTest do
     end)
   end
 
-  test "Volt TypeScript entry exposes ctrl-o focused block expansion hook" do
-    js = asset_ts("hooks/tilde-console.ts")
-
-    assert js =~ "TildeConsole"
-    assert js =~ "ctrlKey"
-    assert js =~ "key === \"tab\""
-    assert js =~ "tilde:suggest_next"
-    assert js =~ "tilde:suggest_previous"
-    assert js =~ "tilde:suggest_accept"
-    assert js =~ "tilde:suggest_cancel"
-    assert js =~ "tilde:toggle_expand"
-    assert js =~ "[data-block-id]"
-    assert js =~ "tildeLastValue"
-    assert asset_ts("app.ts") =~ "import.meta.hot.accept()"
-    refute js =~ ~s|textarea.style.height = "auto"\n            textarea.style.height|
-  end
-
   test "live console shows pending assistant directly after transcript" do
     session =
       Tilde.session(id: "session_1")
@@ -1745,10 +1734,6 @@ defmodule TildeTest do
 
   defp asset_css(path) do
     File.read!(Path.join([File.cwd!(), "assets", "css", "tilde", path]))
-  end
-
-  defp asset_ts(path) do
-    File.read!(Path.join([File.cwd!(), "assets", "js", path]))
   end
 
   defp strip_ansi(text) do

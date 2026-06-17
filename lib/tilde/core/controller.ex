@@ -68,7 +68,7 @@ defmodule Tilde.Core.Controller do
   end
 
   def apply_key(%Session{} = session, :enter) do
-    case Session.accept_suggestion(session) do
+    case Session.submit_suggestion(session) do
       {:ok, session} ->
         {:cont, session}
 

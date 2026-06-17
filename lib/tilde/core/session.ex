@@ -181,15 +181,18 @@ defmodule Tilde.Core.Session do
   @doc "Accepts the selected command suggestion into the input draft."
   @spec accept_suggestion(t()) :: {:ok, t()} | :error
   def accept_suggestion(%__MODULE__{} = session) do
-    case command_suggestions(session) do
-      %Suggest{} = suggest ->
-        case Tilde.Command.completion(suggest) do
-          nil -> :error
-          completion -> {:ok, change_input(session, Input.put_value(session.input, completion))}
-        end
+    case selected_suggestion_completion(session) do
+      nil -> :error
+      completion -> {:ok, change_input(session, Input.put_value(session.input, completion))}
+    end
+  end
 
-      nil ->
-        :error
+  @doc "Submits the selected command suggestion immediately."
+  @spec submit_suggestion(t()) :: {:ok, t()} | :error
+  def submit_suggestion(%__MODULE__{} = session) do
+    case selected_suggestion_completion(session) do
+      nil -> :error
+      completion -> {:ok, append_event(session, Tilde.input_submitted(completion))}
     end
   end
 
@@ -252,6 +255,13 @@ defmodule Tilde.Core.Session do
 
   defp update_status(%__MODULE__{} = session, key, value),
     do: %{session | statuses: Map.put(session.statuses, key, value)}
+
+  defp selected_suggestion_completion(%__MODULE__{} = session) do
+    case command_suggestions(session) do
+      %Suggest{} = suggest -> Tilde.Command.completion(suggest)
+      nil -> nil
+    end
+  end
 
   defp put_command_suggestions(%__MODULE__{} = session, value) do
     previous_id = command_suggestions(session) && command_suggestions(session).selected_id

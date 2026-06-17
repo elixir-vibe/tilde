@@ -11,19 +11,25 @@ defmodule TildeDriverTest do
         {:ok, state: Driver.open(unquote(driver))}
       end
 
-      test "typing slash shows suggestions and selected command can be accepted", %{state: state} do
+      test "typing slash shows suggestions, tab completes, and enter executes", %{state: state} do
         state = Driver.type(state, "/")
 
         suggest = Driver.session(state) |> Tilde.Core.Session.command_suggestions()
         [first, second | _rest] = suggest.items
 
+        state =
+          state
+          |> Driver.assert_suggestion(first.label, selected?: true)
+          |> Driver.assert_text("commands")
+          |> Driver.press(:down)
+          |> Driver.assert_suggestion(second.label, selected?: true)
+          |> Driver.press(:tab)
+          |> Driver.assert_input(second.insert)
+
         state
-        |> Driver.assert_suggestion(first.label, selected?: true)
-        |> Driver.assert_text("commands")
-        |> Driver.press(:down)
-        |> Driver.assert_suggestion(second.label, selected?: true)
         |> Driver.press(:enter)
-        |> Driver.assert_input(second.insert)
+        |> Driver.assert_input("")
+        |> Driver.refute_suggestions()
       end
 
       test "selection is preserved across query filtering", %{state: state} do
