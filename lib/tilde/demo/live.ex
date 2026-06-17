@@ -16,10 +16,10 @@ defmodule Tilde.Demo.Live do
   import Tilde.Transport.Live.WidgetRenderer
 
   alias Tilde.Core.{Index, Interaction, Session}
-  alias Tilde.Core.Interaction.Outcome
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.Live.Interaction, as: LiveInteraction
+  alias Tilde.Transport.Live.Outcome, as: LiveOutcome
 
   @impl true
   def mount(%{"session_id" => _session_id} = params, _session, socket) do
@@ -132,7 +132,7 @@ defmodule Tilde.Demo.Live do
     socket =
       socket
       |> assign(session: session)
-      |> apply_interaction_effects(effects)
+      |> apply_outcomes(effects)
 
     {:noreply, socket}
   end
@@ -143,27 +143,13 @@ defmodule Tilde.Demo.Live do
     socket =
       socket
       |> assign(index: index)
-      |> apply_index_effects(effects)
+      |> apply_outcomes(effects)
 
     {:noreply, socket}
   end
 
-  defp apply_index_effects(socket, effects), do: apply_interaction_effects(socket, effects)
-
-  defp apply_interaction_effects(socket, effects) do
-    Enum.reduce(effects, socket, fn
-      %Outcome{type: :complete_input, payload: %{input: input}}, socket ->
-        push_event(socket, "tilde:input_completed", %{insert: input})
-
-      %Outcome{type: :open_session, payload: %{id: id}}, socket ->
-        push_navigate(socket, to: session_path(id))
-
-      %Outcome{type: :open_index}, socket ->
-        push_navigate(socket, to: "/")
-
-      %Outcome{type: :show_session_info}, socket ->
-        socket
-    end)
+  defp apply_outcomes(socket, outcomes) do
+    LiveOutcome.apply(socket, outcomes, session_path: &session_path/1)
   end
 
   defp session_path(id), do: "/tilde/#{id}"
