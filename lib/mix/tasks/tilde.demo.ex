@@ -41,13 +41,8 @@ defmodule Mix.Tasks.Tilde.Demo do
     hmr? = Keyword.get(opts, :hmr, true)
 
     configure_llm()
-    start_rate_limit()
     configure_endpoint(web_port, host, hmr?)
-    start_pubsub()
-    start_session_registry()
-    start_session_server()
-    start_endpoint()
-    start_ssh(ssh_port, password)
+    start_demo_supervisor(ssh_port, password)
 
     Mix.shell().info("""
 
@@ -83,10 +78,6 @@ defmodule Mix.Tasks.Tilde.Demo do
     )
   end
 
-  defp start_rate_limit do
-    Tilde.Runtime.RateLimit.ensure_started(clean_period: :timer.minutes(1))
-  end
-
   defp configure_endpoint(web_port, host, hmr?) do
     Application.put_env(:tilde, Tilde.Demo.Endpoint,
       adapter: Bandit.PhoenixAdapter,
@@ -94,8 +85,8 @@ defmodule Mix.Tasks.Tilde.Demo do
       check_origin: ["https://#{host}"],
       http: [ip: {127, 0, 0, 1}, port: web_port],
       server: true,
-      code_reloader: hmr?,
-      debug_errors: hmr?,
+      code_reloader: true,
+      debug_errors: true,
       secret_key_base: String.duplicate("tilde_demo_secret", 5),
       live_view: [signing_salt: "tilde_demo_salt"],
       pubsub_server: Tilde.Demo.LivePubSub,
@@ -118,40 +109,10 @@ defmodule Mix.Tasks.Tilde.Demo do
     ]
   end
 
-  defp start_pubsub do
-    case Process.whereis(Tilde.Demo.LivePubSub) do
-      nil ->
-        Supervisor.start_link([{Phoenix.PubSub, name: Tilde.Demo.LivePubSub}],
-          strategy: :one_for_one
-        )
-
-      pid ->
-        {:ok, pid}
+  defp start_demo_supervisor(ssh_port, password) do
+    case Tilde.Demo.Supervisor.start_link(ssh_port: ssh_port, password: password) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, pid}} -> {:ok, pid}
     end
-  end
-
-  defp start_session_registry do
-    Tilde.Session.Registry.ensure_started()
-  end
-
-  defp start_session_server do
-    Tilde.Session.Server.ensure_started(Tilde.Session.Server,
-      session: Tilde.Demo.Live.demo_session()
-    )
-  end
-
-  defp start_endpoint do
-    case Process.whereis(Tilde.Demo.Endpoint) do
-      nil -> Tilde.Demo.Endpoint.start_link()
-      pid -> {:ok, pid}
-    end
-  end
-
-  defp start_ssh(ssh_port, password) do
-    Tilde.Transport.SSH.Demo.start_link(
-      port: ssh_port,
-      password: password,
-      session_mode: :private
-    )
   end
 end
