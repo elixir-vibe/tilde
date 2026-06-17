@@ -13,7 +13,7 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
   def render(%Cell{kind: :message} = cell, width, opts) do
     body =
       cell
-      |> message_lines()
+      |> message_lines(width, opts)
       |> Enum.map_join("\n", &truncate(&1, width))
 
     [Theme.muted(to_string(cell.role), opts), body]
@@ -37,12 +37,13 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
     end)
   end
 
-  defp message_lines(%Cell{runs: [_ | _] = runs}),
+  defp message_lines(%Cell{runs: [_ | _] = runs}, _width, _opts),
     do: text_lines(Enum.map_join(runs, & &1.text), 0)
 
-  defp message_lines(%Cell{format: :markdown, source: source}), do: Markdown.render_lines(source)
+  defp message_lines(%Cell{format: :markdown, source: source}, width, opts),
+    do: Markdown.render_lines(source, width, opts)
 
-  defp message_lines(%Cell{source: source}), do: text_lines(source, 0)
+  defp message_lines(%Cell{source: source}, _width, _opts), do: text_lines(source, 0)
 
   defp text_lines(text, indent) do
     prefix = String.duplicate(" ", indent)

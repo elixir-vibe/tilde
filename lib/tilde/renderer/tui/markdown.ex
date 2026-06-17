@@ -7,28 +7,37 @@ defmodule Tilde.Renderer.TUI.Markdown do
   ASCII-grid table views from MDEx AST source positions.
   """
 
-  @doc "Renders Markdown into terminal lines, replacing MDEx tables with ASCII grids."
-  @spec render_lines(String.t()) :: [String.t()]
-  def render_lines(markdown) when is_binary(markdown) do
+  alias Tilde.Renderer.TUI.Theme
+
+  @doc "Renders Markdown into terminal lines, replacing MDEx tables and thematic breaks with terminal views."
+  @spec render_lines(String.t(), pos_integer(), keyword()) :: [String.t()]
+  def render_lines(markdown, width \\ 80, opts \\ []) when is_binary(markdown) do
     with true <- Code.ensure_loaded?(MDEx),
          {:ok, document} <- MDEx.parse_document(markdown, extension: [table: true]) do
-      render_with_tables(markdown, document)
+      render_with_special_blocks(markdown, document, width, opts)
     else
       _other -> String.split(String.trim_trailing(markdown), "\n")
     end
   end
 
-  defp render_with_tables(markdown, document) do
+  defp render_with_special_blocks(markdown, document, width, opts) do
     lines = String.split(String.trim_trailing(markdown), "\n")
-    tables = document.nodes |> Enum.filter(&table?/1) |> Enum.sort_by(&source_start_line/1)
 
-    if tables == [] do
+    blocks =
+      document.nodes |> Enum.filter(&special_block?/1) |> Enum.sort_by(&source_start_line/1)
+
+    if blocks == [] do
       lines
     else
       {chunks, next_line} =
-        Enum.map_reduce(tables, 1, fn table, next_line ->
-          {start_line, end_line} = source_range(table)
-          chunk = [line_slice(lines, next_line, start_line - 1), render_table(table)]
+        Enum.map_reduce(blocks, 1, fn block, next_line ->
+          {start_line, end_line} = source_range(block)
+
+          chunk = [
+            line_slice(lines, next_line, start_line - 1),
+            render_special_block(block, width, opts)
+          ]
+
           {chunk, end_line + 1}
         end)
 
@@ -37,10 +46,12 @@ defmodule Tilde.Renderer.TUI.Markdown do
     end
   end
 
-  defp table?(%{__struct__: module}), do: module == Module.concat(MDEx, Table)
-  defp table?(_node), do: false
+  defp special_block?(%{__struct__: module}),
+    do: module in [Module.concat(MDEx, Table), Module.concat(MDEx, ThematicBreak)]
 
-  defp source_start_line(table), do: table.sourcepos.start |> elem(0)
+  defp special_block?(_node), do: false
+
+  defp source_start_line(block), do: block.sourcepos.start |> elem(0)
   defp source_range(table), do: {table.sourcepos.start |> elem(0), table.sourcepos.end |> elem(0)}
 
   defp line_slice(_lines, start_line, end_line) when start_line > end_line, do: []
@@ -49,6 +60,20 @@ defmodule Tilde.Renderer.TUI.Markdown do
     lines
     |> Enum.slice((start_line - 1)..(end_line - 1)//1)
     |> Enum.reject(&(&1 == ""))
+  end
+
+  defp render_special_block(%{__struct__: module} = block, width, opts) do
+    cond do
+      module == Module.concat(MDEx, Table) ->
+        render_table(block)
+
+      module == Module.concat(MDEx, ThematicBreak) ->
+        line = String.duplicate("─", max(width, 3))
+
+        line
+        |> Theme.muted(opts)
+        |> List.duplicate(3)
+    end
   end
 
   defp render_table(table) do

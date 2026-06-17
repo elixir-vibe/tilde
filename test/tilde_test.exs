@@ -300,6 +300,35 @@ defmodule TildeTest do
     assert "After" in lines
   end
 
+  test "tui markdown thematic breaks render as three dimmed lines" do
+    lines = Tilde.Renderer.TUI.Markdown.render_lines("Before\n\n---\n\nAfter", 8, ansi: false)
+
+    assert lines == [
+             "Before",
+             "────────",
+             "────────",
+             "────────",
+             "After"
+           ]
+
+    ansi_lines = Tilde.Renderer.TUI.Markdown.render_lines("---", 3, ansi: true)
+    assert [_, _, _] = ansi_lines
+    assert Enum.all?(ansi_lines, &String.contains?(&1, IO.ANSI.faint()))
+  end
+
+  test "live markdown thematic breaks use three dimmed lines" do
+    block = Block.message("msg_1", :assistant, "Before\n\n---\n\nAfter")
+
+    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
+    css = Tilde.Transport.Live.Styles.css()
+
+    assert html =~ "<hr"
+    assert css =~ ".tilde-markdown hr"
+    assert css =~ "height: 3lh"
+    assert css =~ "color: var(--tilde-muted)"
+    assert css =~ "0 2.5lh / 100% 1px no-repeat"
+  end
+
   test "live markdown tables remain semantic HTML with terminal-like styling" do
     block =
       Block.message("msg_1", :assistant, "| name | status |\n| --- | --- |\n| LiveView | ok |")

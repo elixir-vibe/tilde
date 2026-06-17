@@ -142,6 +142,17 @@ defmodule Tilde.Transport.Live.Styles do
     .tilde-markdown p, .tilde-markdown ul, .tilde-markdown ol, .tilde-markdown pre { margin: 0 0 0.75rem; }
     .tilde-markdown > :last-child { margin-bottom: 0; }
     .tilde-markdown a { color: var(--tilde-link); text-underline-offset: 2px; }
+    .tilde-markdown hr {
+      border: 0;
+      height: 3lh;
+      margin: 0.75rem 0;
+      color: var(--tilde-muted);
+      opacity: 0.65;
+      background:
+        linear-gradient(currentColor, currentColor) 0 0.5lh / 100% 1px no-repeat,
+        linear-gradient(currentColor, currentColor) 0 1.5lh / 100% 1px no-repeat,
+        linear-gradient(currentColor, currentColor) 0 2.5lh / 100% 1px no-repeat;
+    }
     .tilde-markdown pre { border: 1px solid var(--tilde-line); padding: 0.75rem; overflow-x: auto; }
     .tilde-markdown table {
       border-collapse: collapse;

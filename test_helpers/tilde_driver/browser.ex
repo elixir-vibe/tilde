@@ -108,6 +108,13 @@ defmodule TildeTest.Driver.Browser do
     state
   end
 
+  @doc "Waits until a JavaScript expression evaluates to truthy."
+  @spec wait_until(t(), String.t()) :: t()
+  def wait_until(%__MODULE__{} = state, expression) do
+    deadline = System.monotonic_time(:millisecond) + @timeout
+    wait_until(state, expression, deadline)
+  end
+
   @doc "Closes browser/demo resources."
   @spec close(t()) :: :ok
   def close(%__MODULE__{} = state) do
@@ -157,6 +164,19 @@ defmodule TildeTest.Driver.Browser do
 
   defp playwright_executable do
     Path.expand("../../assets/node_modules/playwright/cli.js", __DIR__)
+  end
+
+  defp wait_until(state, expression, deadline) do
+    if evaluate(state, expression) do
+      state
+    else
+      if System.monotonic_time(:millisecond) >= deadline do
+        flunk("Timed out waiting for browser expression: #{expression}")
+      end
+
+      Process.sleep(25)
+      wait_until(state, expression, deadline)
+    end
   end
 
   defp ignore_exit(fun) do
