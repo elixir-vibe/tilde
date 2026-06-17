@@ -17,13 +17,14 @@ defmodule Tilde.Transport.Live.Footer do
 
     ~H"""
     <footer class="tilde-footer">
-      <span>{@left}</span>
-      <span class="tilde-muted">
+      <span class="tilde-footer-left tilde-muted">
+        <span :if={@left != ""}>{@left}</span>
+        <span :if={@left != "" and @session_text != ""}> · </span>
         <span :if={@session_text != ""}>{@session_text}</span>
-        <span :if={@session_text != "" and @status_text != ""}> · </span>
+        <span :if={(@left != "" or @session_text != "") and @status_text != ""}> · </span>
         <span :if={@status_text != ""}>{@status_text}</span>
       </span>
-      <span>{@right}</span>
+      <span class="tilde-footer-right">{@right}</span>
     </footer>
     """
   end
@@ -36,7 +37,6 @@ defmodule Tilde.Transport.Live.Footer do
   defp status_text(%{statuses: statuses}) when map_size(statuses) == 0, do: ""
 
   defp status_text(%{statuses: statuses}) do
-    statuses
-    |> Enum.map_join(" · ", fn {key, value} -> "#{key}: #{value}" end)
+    Enum.map_join(statuses, " · ", fn {key, value} -> "#{key}: #{value}" end)
   end
 end

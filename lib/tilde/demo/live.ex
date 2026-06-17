@@ -116,11 +116,10 @@ defmodule Tilde.Demo.Live do
 
       _other ->
         session =
-          SessionServer.update_session(socket.assigns.session_server, fn session ->
-            session
-            |> Session.append_event(Tilde.input_submitted(input))
-            |> Session.put_status("last input", compact(input))
-          end)
+          SessionServer.update_session(
+            socket.assigns.session_server,
+            &Session.append_event(&1, Tilde.input_submitted(input))
+          )
 
         {:noreply, assign(socket, session: session)}
     end
@@ -164,11 +163,4 @@ defmodule Tilde.Demo.Live do
   end
 
   defp complete_input(input), do: Command.completion(input) || input
-
-  defp compact(input) do
-    input
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-    |> String.slice(0, 80)
-  end
 end

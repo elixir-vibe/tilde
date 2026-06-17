@@ -1577,6 +1577,7 @@ defmodule TildeTest do
     assert html =~ "mix test"
     assert html =~ "ok"
     assert html =~ "server running"
+    assert html =~ ~s|class="tilde-footer-left tilde-muted"|
     assert html =~ "session: session_1"
     assert html =~ "model: sonnet"
   end

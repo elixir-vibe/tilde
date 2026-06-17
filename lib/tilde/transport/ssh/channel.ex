@@ -233,11 +233,10 @@ defmodule Tilde.Transport.SSH.Channel do
       {:cont, {:cont, state}}
     else
       session =
-        SessionServer.update_session(server, fn session ->
-          session
-          |> Session.append_event(Tilde.input_submitted(value))
-          |> Session.put_status("last input", compact(value))
-        end)
+        SessionServer.update_session(
+          server,
+          &Session.append_event(&1, Tilde.input_submitted(value))
+        )
 
       {:cont, {:cont, %{state | session: session}}}
     end
@@ -330,13 +329,6 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp preserve_local_prompt(%Session{} = incoming, _current), do: incoming
-
-  defp compact(input) do
-    input
-    |> String.replace(~r/\s+/, " ")
-    |> String.trim()
-    |> String.slice(0, 80)
-  end
 
   defp apply_keys(%__MODULE__{session_server: nil} = state, keys) do
     apply_local_keys(state, keys)
