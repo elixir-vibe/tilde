@@ -1,7 +1,8 @@
 import Config
 
 config :tilde,
-  ecto_repos: [Tilde.Storage.Repo]
+  ecto_repos: [Tilde.Storage.Repo],
+  devtools: config_env() in [:dev, :test]
 
 config :tilde, Tilde.Storage.Repo,
   uri: System.get_env("TILDE_QUACKDB_URI", "http://[::1]:9494"),

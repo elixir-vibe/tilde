@@ -1,0 +1,132 @@
+.tilde {
+  &.devshell {
+    gap: var(--space-sm);
+
+    &.inspecting {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(32ch, 56ch);
+      grid-template-rows: auto minmax(0, 1fr);
+      column-gap: var(--space-md);
+
+      .dev {
+        grid-column: 1 / -1;
+      }
+
+      > .main {
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+    }
+
+    > .main {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tilde.embedded {
+      height: 100%;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+    }
+  }
+
+  &[data-dev-grid="true"] {
+    background-image:
+      linear-gradient(
+        to right,
+        color-mix(in srgb, var(--color-fg) 9%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        to bottom,
+        color-mix(in srgb, var(--color-fg) 7%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 1ch calc(var(--text-base) * var(--leading-base));
+    background-position: var(--space-page) var(--space-page);
+  }
+
+  .dev {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 1ch;
+    align-items: center;
+    color: var(--color-muted);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--space-xs);
+
+    .label {
+      color: var(--color-fg);
+    }
+
+    .label::before {
+      content: "[";
+      color: var(--color-muted);
+    }
+
+    .label::after {
+      content: "]";
+      color: var(--color-muted);
+    }
+
+    .toggle {
+      appearance: none;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      padding: 0;
+      cursor: pointer;
+    }
+
+    .toggle:hover,
+    .toggle:focus-visible {
+      color: var(--color-link);
+      text-decoration: underline;
+      outline: none;
+    }
+  }
+
+  .inspect {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-left: 1px solid var(--color-border);
+    padding-left: var(--space-md);
+    display: flex;
+    flex-direction: column;
+    color: var(--color-fg);
+    background: color-mix(in srgb, var(--color-bg) 94%, var(--color-fg));
+
+    .header {
+      flex: 0 0 auto;
+      color: var(--color-muted);
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: var(--space-xs);
+      margin-bottom: var(--space-xs);
+    }
+
+    .header::before {
+      content: "┌ ";
+    }
+
+    .header::after {
+      content: " ─";
+    }
+
+    .body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      margin: 0;
+      white-space: pre;
+      font: inherit;
+      color: var(--color-fg);
+    }
+  }
+}

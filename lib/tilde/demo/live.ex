@@ -38,47 +38,72 @@ defmodule Tilde.Demo.Live do
         else: SessionServer.get_session(server)
 
     {:ok,
-     assign(socket,
+     socket
+     |> assign(
        mode: :session,
        session_server: server,
        session: session,
        index: nil,
        running?: false
-     )}
+     )
+     |> assign_devtools()}
   end
 
   def mount(_params, _session, socket) do
     {:ok, _pid} = SessionRegistry.ensure_started()
 
     {:ok,
-     assign(socket,
+     socket
+     |> assign(
        mode: :index,
        session_server: nil,
        session: nil,
        index: Index.new(),
        running?: false
-     )}
+     )
+     |> assign_devtools()}
   end
 
   @impl true
   def render(%{mode: :index} = assigns) do
     ~H"""
-    <.widgets widgets={Tilde.Index.View.widgets(@index)} />
+    <div class={["tilde", "devshell", @dev_grid? && "grid", @dev_inspector? && "inspecting"]} data-dev-grid={@dev_grid?}>
+      <.devtools enabled?={@devtools?} grid?={@dev_grid?} inspector?={@dev_inspector?} />
+      <div class="main">
+        <.widgets widgets={Tilde.Index.View.widgets(@index)} />
+      </div>
+      <.inspector :if={@devtools? and @dev_inspector?} session={@session} index={@index} />
+    </div>
     """
   end
 
   def render(assigns) do
     ~H"""
-    <.console
-      session={@session}
-      input={@session.input.value}
-      running?={@running?}
-      footer_right="/help · /showcase · /new"
-    />
+    <div class={["tilde", "devshell", @dev_grid? && "grid", @dev_inspector? && "inspecting"]} data-dev-grid={@dev_grid?}>
+      <.devtools enabled?={@devtools?} grid?={@dev_grid?} inspector?={@dev_inspector?} />
+      <div class="main">
+        <.console
+          session={@session}
+          input={@session.input.value}
+          running?={@running?}
+          footer_right="/help · /showcase · /new"
+          class="embedded"
+        />
+      </div>
+      <.inspector :if={@devtools? and @dev_inspector?} session={@session} index={@index} />
+    </div>
     """
   end
 
   @impl true
+  def handle_event("tilde:dev_toggle_grid", _params, socket) do
+    {:noreply, toggle_dev(socket, :dev_grid?)}
+  end
+
+  def handle_event("tilde:dev_toggle_inspector", _params, socket) do
+    {:noreply, toggle_dev(socket, :dev_inspector?)}
+  end
+
   def handle_event(event, params, %{assigns: %{mode: :index, index: %Index{} = index}} = socket) do
     case LiveInteraction.index(event, params, index) do
       %Interaction{} = interaction -> apply_index_interaction(socket, interaction)
@@ -153,6 +178,55 @@ defmodule Tilde.Demo.Live do
 
     {:noreply, socket}
   end
+
+  attr(:enabled?, :boolean, required: true)
+  attr(:grid?, :boolean, required: true)
+  attr(:inspector?, :boolean, required: true)
+
+  defp devtools(assigns) do
+    ~H"""
+    <nav :if={@enabled?} class="dev" aria-label="development tools">
+      <span class="label">dev</span>
+      <button class="toggle" type="button" phx-click="tilde:dev_toggle_grid">
+        grid:{if @grid?, do: "on", else: "off"}
+      </button>
+      <button class="toggle" type="button" phx-click="tilde:dev_toggle_inspector">
+        raw:{if @inspector?, do: "on", else: "off"}
+      </button>
+    </nav>
+    """
+  end
+
+  attr(:session, :any, default: nil)
+  attr(:index, :any, default: nil)
+
+  defp inspector(assigns) do
+    assigns = assign(assigns, :raw, inspectable(assigns))
+
+    ~H"""
+    <aside class="inspect" aria-label="raw session inspector">
+      <div class="header">raw session</div>
+      <pre class="body"><%= @raw %></pre>
+    </aside>
+    """
+  end
+
+  defp inspectable(%{session: %Session{} = session}), do: Tilde.Dev.Inspector.session(session)
+
+  defp inspectable(%{index: %Index{} = index}),
+    do: inspect(index, pretty: true, limit: :infinity, width: 100)
+
+  defp inspectable(_assigns), do: "nil"
+
+  defp assign_devtools(socket) do
+    assign(socket, devtools?: Tilde.Dev.enabled?(), dev_grid?: false, dev_inspector?: false)
+  end
+
+  defp toggle_dev(%{assigns: %{devtools?: true}} = socket, key) do
+    assign(socket, key, not Map.get(socket.assigns, key, false))
+  end
+
+  defp toggle_dev(socket, _key), do: socket
 
   defp apply_outcomes(socket, outcomes) do
     LiveOutcome.apply(socket, outcomes, session_path: &session_path/1)
