@@ -29,6 +29,8 @@ defmodule Mix.Tasks.Tilde.Demo do
 
   @impl true
   def run(argv) do
+    :ok = Tilde.Demo.Environment.load()
+
     Mix.Task.run("app.start")
 
     {opts, _args, _invalid} = OptionParser.parse(argv, switches: @switches, aliases: @aliases)

@@ -879,6 +879,21 @@ defmodule TildeTest do
     if previous, do: System.put_env("OPENROUTER_API_KEY", previous)
   end
 
+  test "demo environment loads OpenRouter key from dotenv files" do
+    previous = System.get_env("OPENROUTER_API_KEY")
+    System.delete_env("OPENROUTER_API_KEY")
+
+    dir = Path.join(System.tmp_dir!(), "tilde-env-test-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, ".env"), "OPENROUTER_API_KEY=from-dotenv\n")
+
+    File.cd!(dir, fn -> assert Tilde.Demo.Environment.load() == :ok end)
+    assert System.get_env("OPENROUTER_API_KEY") == "from-dotenv"
+
+    File.rm_rf!(dir)
+    restore_system_env("OPENROUTER_API_KEY", previous)
+  end
+
   test "session server applies TUI keys for mirrored renderers" do
     name = :"tilde_session_server_keys_test_#{System.unique_integer([:positive])}"
     assert {:ok, pid} = Tilde.Session.Server.start_link(name: name, session: Tilde.session())
@@ -1615,4 +1630,7 @@ defmodule TildeTest do
 
   defp restore_application_env(key, nil), do: Application.delete_env(:tilde, key)
   defp restore_application_env(key, previous), do: Application.put_env(:tilde, key, previous)
+
+  defp restore_system_env(key, nil), do: System.delete_env(key)
+  defp restore_system_env(key, previous), do: System.put_env(key, previous)
 end
