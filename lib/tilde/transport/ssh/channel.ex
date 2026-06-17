@@ -20,6 +20,7 @@ defmodule Tilde.Transport.SSH.Channel do
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.SSH.Delta
   alias Tilde.Transport.SSH.Interaction, as: SSHInteraction
+  alias Tilde.Transport.SSH.LocalPrompt
   alias Tilde.Transport.SSH.Outcome, as: SSHOutcome
 
   defstruct connection_ref: nil,
@@ -76,7 +77,7 @@ defmodule Tilde.Transport.SSH.Channel do
 
   def handle_msg({:tilde_session_updated, _session_id, %Session{} = session}, state) do
     old_session = state.session
-    session = preserve_local_prompt(session, old_session)
+    session = LocalPrompt.preserve(session, old_session)
     state = %{state | session: session}
 
     state =
@@ -235,93 +236,6 @@ defmodule Tilde.Transport.SSH.Channel do
     %{state | session: session}
   end
 
-  defp submit_local_input(
-         server,
-         %__MODULE__{session: %Session{input: %Input{value: value}}} = state
-       ) do
-    if String.trim(value) == "" do
-      {:cont, {:cont, state}}
-    else
-      session =
-        SessionServer.update_session(
-          server,
-          &Session.append_event(&1, Tilde.input_submitted(value))
-        )
-
-      {:cont, {:cont, %{state | session: session}}}
-    end
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, :quit) do
-    if state.session.input.value == "" do
-      {:halt, {:halt, state}}
-    else
-      put_local_input(state, Input.insert(state.session.input, "q"))
-    end
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, :redraw) do
-    if state.session.input.value == "" do
-      {:cont, {:cont, state}}
-    else
-      put_local_input(state, Input.insert(state.session.input, "r"))
-    end
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, {:text, text}) do
-    put_local_input(state, Input.insert(state.session.input, text))
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, key)
-       when key in [:tab, :backtab, :up, :down] do
-    {:cont, session} = Controller.apply_key(state.session, key)
-    {:cont, {:cont, %{state | session: session}}}
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, :backspace) do
-    put_local_input(state, Input.backspace(state.session.input))
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, :cancel) do
-    {:cont, session} = Controller.apply_key(state.session, :cancel)
-    {:cont, {:cont, %{state | session: session}}}
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, :interrupt) do
-    if state.session.input.value == "" do
-      {:halt, {:halt, state}}
-    else
-      put_local_input(state, Input.clear(state.session.input))
-    end
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, :toggle_expand) do
-    {:cont, session} = Controller.apply_key(state.session, :toggle_expand)
-    {:cont, {:cont, %{state | session: session}}}
-  end
-
-  defp apply_local_prompt_key(%__MODULE__{} = state, _key), do: {:cont, {:cont, state}}
-
-  defp put_local_input(%__MODULE__{} = state, %Input{} = input) do
-    session =
-      Session.append_event(
-        state.session,
-        Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})
-      )
-
-    {:cont, {:cont, %{state | session: session}}}
-  end
-
-  defp preserve_local_prompt(
-         %Session{} = incoming,
-         %Session{input: %Input{value: value}} = current
-       )
-       when value != "" do
-    %{incoming | input: current.input, widgets: current.widgets}
-  end
-
-  defp preserve_local_prompt(%Session{} = incoming, _current), do: incoming
-
   defp apply_keys(%__MODULE__{session_server: nil, index: %Index{}} = state, keys) do
     apply_index_keys(state, keys)
   end
@@ -341,14 +255,14 @@ defmodule Tilde.Transport.SSH.Channel do
         end
 
       key, {:cont, state} ->
-        apply_local_prompt_key(state, key)
+        LocalPrompt.apply_key(state, key)
     end)
   end
 
   defp submit_or_command(server, state) do
     case transport_effects(state.session.input.value, state.session) do
       [] ->
-        submit_local_input(server, state)
+        LocalPrompt.submit(server, state)
 
       outcomes ->
         {:cont, {:cont, apply_outcomes(state, outcomes)}}

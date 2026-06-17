@@ -138,6 +138,9 @@ After attach:
 - each SSH client keeps a local prompt buffer
 - one attached client typing does not mutate another client's prompt
 
+`Tilde.Transport.SSH.LocalPrompt` owns the local prompt behavior for attached SSH
+clients so channel protocol code does not own shared-session prompt isolation.
+
 `/detach` returns to the index.
 
 ## SSH normal-screen rendering
