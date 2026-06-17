@@ -210,11 +210,11 @@ defmodule TildeTest do
 
     html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
 
-    assert html =~ "tool-cell-lines"
-    assert html =~ ~s|text-muted">stdout|
-    assert html =~ ~s|text-muted">stderr|
-    assert html =~ ~s|text-primary">ok|
-    assert html =~ ~s|text-primary">warning|
+    assert html =~ ~s|class="lines"|
+    assert html =~ ~s|class="text muted">stdout|
+    assert html =~ ~s|class="text muted">stderr|
+    assert html =~ ~s|class="text primary">ok|
+    assert html =~ ~s|class="text primary">warning|
     refute html =~ "tool-stream-stdout"
     refute html =~ "/tmp/app"
   end
@@ -495,7 +495,7 @@ defmodule TildeTest do
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
     assert html =~ "suggest"
     assert html =~ "/compact"
-    assert html =~ "is-selected"
+    assert html =~ "selected"
     assert html =~ "phx-click=\"tilde:complete_input\""
 
     assert {:cont, selected} = Tilde.Core.Controller.apply_key(session, :down)
@@ -1355,8 +1355,8 @@ defmodule TildeTest do
     live = source |> Tilde.Template.Renderer.Live.render!() |> rendered_to_string()
     tui = Tilde.Template.Renderer.TUI.render!(source, 50)
 
-    assert live =~ "text-title"
-    assert live =~ "text-accent"
+    assert live =~ ~s|class="text title"|
+    assert live =~ ~s|class="text accent"|
     assert strip_ansi(tui) =~ "bash mix test"
     assert strip_ansi(tui) =~ "ok"
     assert tui =~ IO.ANSI.bright()
@@ -1546,10 +1546,10 @@ defmodule TildeTest do
     assert html =~ "tool_demo_tests"
     refute html =~ "cwd ~/Development/elixir-vibe/tilde"
     refute html =~ "exit 0"
-    assert html =~ "is-success"
+    assert html =~ ~s|class="block tool success"|
     refute html =~ "tool-status"
     refute html =~ "✓"
-    assert html =~ "shortcut-key"
+    assert html =~ ~s|class="key"|
     assert html =~ "ctrl+o"
     assert html =~ "expand"
     assert html =~ "Apply the generated patch?"
@@ -1669,7 +1669,7 @@ defmodule TildeTest do
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
-    assert html =~ "is-pending"
+    assert html =~ "pending"
     assert html =~ "assistant"
     assert html =~ "thinking…"
     refute html =~ "model: thinking"
@@ -1686,7 +1686,7 @@ defmodule TildeTest do
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
-    refute html =~ "is-pending"
+    refute html =~ "pending"
     refute html =~ "thinking…"
     assert html =~ "hello"
   end
@@ -1713,7 +1713,7 @@ defmodule TildeTest do
     assert html =~ "mix test"
     assert html =~ "ok"
     assert html =~ "server running"
-    assert html =~ ~s|class="footer-left muted"|
+    assert html =~ ~s|class="left muted"|
     assert html =~ "session: session_1"
     assert html =~ "model: sonnet"
   end

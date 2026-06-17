@@ -17,14 +17,14 @@ defmodule Tilde.Transport.Live.Footer do
 
     ~H"""
     <footer class="footer">
-      <span class="footer-left muted">
+      <span class="left muted">
         <span :if={@left != ""}>{@left}</span>
         <span :if={@left != "" and @session_text != ""}> · </span>
         <span :if={@session_text != ""}>{@session_text}</span>
         <span :if={(@left != "" or @session_text != "") and @status_text != ""}> · </span>
         <span :if={@status_text != ""}>{@status_text}</span>
       </span>
-      <span class="footer-right">{@right}</span>
+      <span class="right">{@right}</span>
     </footer>
     """
   end

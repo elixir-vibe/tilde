@@ -65,22 +65,31 @@ Inside `.tilde`, use short component names:
 ```html
 <section class="transcript">
 <article class="block message">
-<article class="block tool is-success">
+<article class="block tool success">
 <section class="dock">
 <form class="input">
 <footer class="footer">
 ```
 
-CSS is always scoped through the root:
+CSS is always scoped through the root with nested rules:
 
 ```css
-.tilde .message {}
-.tilde .tool.is-success {}
-.tilde .markdown hr {}
+.tilde {
+  .message {}
+
+  .tool {
+    &.success {}
+  }
+
+  .markdown {
+    hr {}
+  }
+}
 ```
 
-Use `.is-*` classes for UI state. Use `data-*` attributes for semantics,
-LiveView values, JS hooks, and tests.
+Use short state classes such as `.success`, `.selected`, and `.pending` inside
+component scope. Use `data-*` attributes for semantics, LiveView values, JS
+hooks, and tests.
 
 ## Component hierarchy
 
@@ -89,18 +98,18 @@ LiveView values, JS hooks, and tests.
   .transcript
     .block.message[data-role]
       .label
-      .message-body
-        .markdown | .plain-text | runs
+      .body
+        .markdown | .plain | runs
     .block.tool[data-block-id]
-      .tool-header
-      .tool-cell-lines
-      .tool-footer
+      .header
+      .lines
+      .footer
     .block.choice[data-block-id]
     .suggest
-  .widgets.widgets-above
+  .widgets[data-placement="above_input"]
   .dock
     .input
-    .widgets.widgets-below
+    .widgets[data-placement="below_input"]
     .footer
 ```
 

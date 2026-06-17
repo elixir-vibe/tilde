@@ -12,8 +12,8 @@ defmodule Tilde.Transport.Live.Shortcut do
   def shortcut(assigns) do
     ~H"""
     <span class={["shortcut", @class]}>
-      <kbd class="shortcut-key">{@key}</kbd>
-      <span :if={@label} class="shortcut-label">{@label}</span>
+      <kbd class="key">{@key}</kbd>
+      <span :if={@label} class="label">{@label}</span>
     </span>
     """
   end

@@ -1,21 +1,25 @@
-.tilde .block {
-  margin: 0 0 var(--space-lg);
-}
+.tilde {
+  .block {
+    margin: 0 0 var(--space-lg);
+  }
 
-.tilde .label,
-.tilde .muted,
-.tilde .key {
-  color: var(--color-muted);
-}
+  .label,
+  .muted,
+  .key {
+    color: var(--color-muted);
+  }
 
-.tilde .label {
-  margin-bottom: var(--space-xs);
-}
+  .label {
+    margin-bottom: var(--space-xs);
+  }
 
-.tilde .message-body {
-  white-space: normal;
-}
+  .message {
+    .body {
+      white-space: normal;
+    }
+  }
 
-.tilde .plain-text {
-  white-space: pre-wrap;
+  .plain {
+    white-space: pre-wrap;
+  }
 }

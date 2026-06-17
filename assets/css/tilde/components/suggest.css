@@ -1,43 +1,54 @@
-.tilde .suggest-title {
-  color: var(--color-muted);
-  margin-bottom: 0.35rem;
-}
+.tilde {
+  .suggest {
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-sm) 0;
 
-.tilde .suggest-items {
-  display: grid;
-  gap: 0.15rem;
-}
+    .title {
+      color: var(--color-muted);
+      margin-bottom: 0.35rem;
+    }
 
-.tilde .suggest-row {
-  display: grid;
-  grid-template-columns: 1ch 14ch 1fr;
-  gap: 2ch;
-  width: 100%;
-  font: inherit;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  padding: 0.1rem 0;
-  text-align: left;
-  cursor: pointer;
-}
+    .items {
+      display: grid;
+      gap: 0.15rem;
+    }
 
-.tilde .suggest-row:hover,
-.tilde .suggest-row.is-selected {
-  color: var(--color-link);
-}
+    .row {
+      display: grid;
+      grid-template-columns: 1ch minmax(10ch, max-content) minmax(0, 1fr);
+      align-items: baseline;
+      column-gap: 2ch;
+      width: 100%;
+      min-width: 0;
+      font: inherit;
+      color: inherit;
+      background: transparent;
+      border: 0;
+      padding: 0.1rem 0;
+      text-align: left;
+      cursor: pointer;
 
-.tilde .suggest-row.is-selected::before {
-  content: "›";
-  color: var(--color-link);
-}
+      &:hover,
+      &.selected {
+        color: var(--color-link);
+      }
+    }
 
-.tilde .suggest-row code {
-  color: var(--color-link);
-  border: 0;
-  padding: 0;
-}
+    .marker {
+      color: var(--color-link);
+    }
 
-.tilde .suggest-row span {
-  color: var(--color-muted);
+    .command {
+      color: var(--color-link);
+      border: 0;
+      padding: 0;
+      white-space: nowrap;
+    }
+
+    .description {
+      min-width: 0;
+      color: var(--color-muted);
+      overflow-wrap: anywhere;
+    }
+  }
 }

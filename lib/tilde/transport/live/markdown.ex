@@ -19,7 +19,7 @@ defmodule Tilde.Transport.Live.Markdown do
         <% {:ok, html} -> %>
           {Phoenix.HTML.raw(html)}
         <% {:error, :mdex_not_available} -> %>
-          <div class="plain-text">{@source}</div>
+          <div class="plain">{@source}</div>
       <% end %>
     </div>
     """

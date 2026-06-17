@@ -15,9 +15,9 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
   def cell(%{cell: %Cell{kind: :message}} = assigns) do
     ~H"""
-    <article class={["block", "message", "message-#{@cell.role}"]} data-role={@cell.role}>
+    <article class={["block", "message", @cell.role]} data-role={@cell.role}>
       <div class="label">{@cell.role}</div>
-      <div class="message-body">
+      <div class="body">
         <.runs :if={@cell.runs != []} runs={@cell.runs} />
         <.markdown :if={@cell.runs == [] and @cell.format == :markdown} source={@cell.source} />
         <%= if @cell.runs == [] and @cell.format != :markdown do %>
@@ -37,24 +37,24 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     ~H"""
     <article
       id={@cell.id}
-      class={["block", "tool", "is-#{@view.status}"]}
+      class={["block", "tool", @view.status]}
       data-block-id={@cell.id}
       data-expand-key="ctrl+o"
       tabindex="0"
     >
-      <header class="tool-header">
-        <span class="tool-call"><.view_line line={List.first(@cell.lines)} /></span>
+      <header class="header">
+        <span class="call"><.view_line line={List.first(@cell.lines)} /></span>
       </header>
 
-      <div :if={@body_lines != []} class="tool-cell-lines">
-        <div :for={line <- @body_lines} class="tool-cell-line"><.view_line line={line} /></div>
+      <div :if={@body_lines != []} class="lines">
+        <div :for={line <- @body_lines} class="line"><.view_line line={line} /></div>
       </div>
 
-      <footer :if={tool_expandable?(@view)} class="tool-footer">
+      <footer :if={tool_expandable?(@view)} class="footer">
         <span :if={@view.hidden_lines > 0} class="muted">… {@view.hidden_lines} more lines</span>
         <button
           type="button"
-          class="link-button"
+          class="link"
           phx-click="tilde:toggle_expand"
           phx-value-id={@cell.id}
         >
@@ -78,13 +78,13 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
     ~H"""
     <article id={@cell.id} class="block choice" data-block-id={@cell.id} tabindex="0">
-      <div class="choice-question"><.view_line line={@question} /></div>
+      <div class="question"><.view_line line={@question} /></div>
 
-      <div class="choice-options">
+      <div class="options">
         <button
           :for={{option, line} <- Enum.zip(@choice.options, @option_lines)}
           type="button"
-          class={["choice-option", option.id in @choice.selected && "is-selected"]}
+          class={["option", option.id in @choice.selected && "selected"]}
           phx-click="tilde:select_choice"
           phx-value-block-id={@cell.id}
           phx-value-option-id={option.id}
@@ -93,11 +93,11 @@ defmodule Tilde.Transport.Live.ViewRenderer do
         </button>
       </div>
 
-      <footer class="choice-actions">
+      <footer class="actions">
         <button
           :for={action <- @choice.actions}
           type="button"
-          class={["action", "action-#{action.kind}"]}
+          class={["action", action.kind]}
           phx-click="tilde:choice_action"
           phx-value-block-id={@cell.id}
           phx-value-action-id={action.id}
@@ -114,17 +114,20 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
     ~H"""
     <section class="suggest" data-suggest-trigger={@suggest.trigger} data-suggest-query={@suggest.query}>
-      <div class="suggest-title">{@suggest.title}</div>
-      <div class="suggest-items">
+      <div class="title">{@suggest.title}</div>
+      <div class="items">
         <button
           :for={{item, index} <- Enum.with_index(@suggest.items)}
           type="button"
-          class={["suggest-row", index == @suggest.selected_index && "is-selected"]}
+          class={["row", index == @suggest.selected_index && "selected"]}
           phx-click="tilde:complete_input"
           phx-value-insert={item.insert}
         >
-          <code>{item.label}</code>
-          <span>{item.description}</span>
+          <span class="marker" aria-hidden="true">
+            <%= if index == @suggest.selected_index, do: "›", else: "" %>
+          </span>
+          <code class="command">{item.label}</code>
+          <span class="description">{item.description}</span>
         </button>
       </div>
     </section>
@@ -165,7 +168,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
   def view_part(assigns) do
     ~H"""
-    <span class={"text-#{@part.style}"}>{@part.text}</span>
+    <span class={["text", @part.style]}>{@part.text}</span>
     """
   end
 

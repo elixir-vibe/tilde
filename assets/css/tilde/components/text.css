@@ -1,28 +1,32 @@
-.tilde .text-title {
-  font-weight: 700;
-}
+.tilde {
+  .text {
+    &.title {
+      font-weight: 700;
+    }
 
-.tilde .text-accent {
-  color: var(--color-link);
-}
+    &.accent {
+      color: var(--color-link);
+    }
 
-.tilde .text-muted,
-.tilde .text-shortcut {
-  color: var(--color-muted);
-}
+    &.muted,
+    &.shortcut {
+      color: var(--color-muted);
+    }
 
-.tilde .text-primary {
-  color: var(--color-fg);
-}
+    &.primary {
+      color: var(--color-fg);
+    }
 
-.tilde .text-success {
-  color: var(--color-success);
-}
+    &.success {
+      color: var(--color-success);
+    }
 
-.tilde .text-error {
-  color: var(--color-error);
-}
+    &.error {
+      color: var(--color-error);
+    }
 
-.tilde .text-warning {
-  color: var(--color-warning);
+    &.warning {
+      color: var(--color-warning);
+    }
+  }
 }

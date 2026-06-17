@@ -35,20 +35,20 @@ defmodule Tilde.Transport.Live.Console do
     <main id={@id} class={["tilde", @class]} phx-hook="TildeConsole">
       <section class="transcript" id="tilde-transcript">
         <.block :for={block <- @transcript.blocks} block={block} />
-        <article :if={@pending?} class="block message message-assistant is-pending" data-role="assistant" aria-live="polite">
+        <article :if={@pending?} class="block message assistant pending" data-role="assistant" aria-live="polite">
           <div class="label">assistant</div>
-          <div class="message-body muted">thinking…</div>
+          <div class="body muted">thinking…</div>
         </article>
       </section>
 
-      <section :if={@above_widgets != []} class="widgets widgets-above">
+      <section :if={@above_widgets != []} class="widgets" data-placement="above_input">
         <.widget :for={widget <- @above_widgets} widget={widget} />
       </section>
 
       <section class="dock">
         <.input value={@input} running?={@running? or @pending?} />
 
-        <section :if={@below_widgets != []} class="widgets widgets-below">
+        <section :if={@below_widgets != []} class="widgets" data-placement="below_input">
           <.widget :for={widget <- @below_widgets} widget={widget} />
         </section>
 
@@ -62,7 +62,7 @@ defmodule Tilde.Transport.Live.Console do
 
   def widget(assigns) do
     ~H"""
-    <aside id={@widget.id} class={["widget", "widget-#{@widget.placement}"]}>
+    <aside id={@widget.id} class="widget" data-placement={@widget.placement}>
       <.cell cell={Tilde.Viewable.to_view(@widget)} />
     </aside>
     """

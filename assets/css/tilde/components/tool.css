@@ -1,142 +1,142 @@
-.tilde .tool,
-.tilde .choice,
-.tilde .widget {
-  border: 1px solid var(--color-border);
-  background: var(--surface-tool);
-  padding: var(--space-md);
-}
+.tilde {
+  .tool,
+  .choice,
+  .widget {
+    border: 1px solid var(--color-border);
+    background: var(--surface-tool);
+    padding: var(--space-md);
+  }
 
-.tilde .tool-header,
-.tilde .tool-footer,
-.tilde .choice-actions {
-  display: flex;
-  gap: var(--space-md);
-}
+  .tool {
+    .header,
+    .footer {
+      display: flex;
+      gap: var(--space-md);
+      justify-content: space-between;
+      align-items: baseline;
+    }
 
-.tilde .tool-header,
-.tilde .footer {
-  justify-content: space-between;
-  align-items: baseline;
-}
+    &.queued,
+    &.running,
+    &.streaming {
+      background: var(--surface-tool-pending);
+    }
 
-.tilde .tool.is-queued,
-.tilde .tool.is-running,
-.tilde .tool.is-streaming {
-  background: var(--surface-tool-pending);
-}
+    &.success,
+    &.done {
+      background: var(--surface-tool-success);
+    }
 
-.tilde .tool.is-success,
-.tilde .tool.is-done {
-  background: var(--surface-tool-success);
-}
+    &.error {
+      background: var(--surface-tool-error);
+    }
 
-.tilde .tool.is-error {
-  background: var(--surface-tool-error);
-}
+    &.cancelled {
+      opacity: 0.82;
+    }
 
-.tilde .tool.is-cancelled {
-  opacity: 0.82;
-}
+    .call {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
 
-.tilde .tool-call {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
+    .name {
+      font-weight: 700;
+    }
 
-.tilde .tool-name {
-  font-weight: 700;
-}
+    .segment {
+      margin-left: var(--space-cell);
 
-.tilde .tool-segment {
-  margin-left: var(--space-cell);
-}
+      &.accent {
+        color: var(--color-link);
+      }
 
-.tilde .tool-segment-accent {
-  color: var(--color-link);
-}
+      &.muted,
+      &.dim,
+      &.success {
+        color: var(--color-muted);
+      }
 
-.tilde .tool-segment-muted,
-.tilde .tool-segment-dim,
-.tilde .tool-tags,
-.tilde .tool-suffix {
-  color: var(--color-muted);
-}
+      &.success {
+        color: var(--color-success);
+      }
+    }
 
-.tilde .tool-segment-success {
-  color: var(--color-success);
-}
+    .tags,
+    .suffix {
+      color: var(--color-muted);
+      margin-left: var(--space-cell);
+    }
 
-.tilde .tool-tags,
-.tilde .tool-suffix {
-  margin-left: var(--space-cell);
-}
+    .metadata {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+      margin: var(--space-sm) 0 0;
 
-.tilde .tool-metadata {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-  margin: var(--space-sm) 0 0;
-}
+      div {
+        display: flex;
+        gap: var(--space-cell);
+      }
 
-.tilde .tool-cell-lines {
-  margin-top: var(--space-md);
-  display: grid;
-  gap: 0.15rem;
-  white-space: pre-wrap;
-}
+      dt {
+        color: var(--color-muted);
+      }
 
-.tilde .tool-cell-line {
-  overflow-wrap: anywhere;
-}
+      dd {
+        margin: 0;
+      }
+    }
 
-.tilde .tool-waiting {
-  color: var(--color-muted);
-  margin-top: var(--space-md);
-}
+    .lines {
+      margin-top: var(--space-md);
+      display: grid;
+      gap: 0.15rem;
+      white-space: pre-wrap;
+    }
 
-.tilde .tool-metadata div {
-  display: flex;
-  gap: var(--space-cell);
-}
+    .line {
+      overflow-wrap: anywhere;
+    }
 
-.tilde .tool-metadata dt {
-  color: var(--color-muted);
-}
+    .waiting {
+      color: var(--color-muted);
+      margin-top: var(--space-md);
+    }
 
-.tilde .tool-metadata dd {
-  margin: 0;
-}
+    .streams {
+      display: grid;
+      gap: var(--space-sm);
+      margin-top: var(--space-md);
+    }
 
-.tilde .tool-streams {
-  display: grid;
-  gap: var(--space-sm);
-  margin-top: var(--space-md);
-}
+    .stream {
+      .label {
+        color: var(--color-muted);
+        font-size: 0.9rem;
+      }
 
-.tilde .tool-stream-label {
-  color: var(--color-muted);
-  font-size: 0.9rem;
-}
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        overflow-x: auto;
+      }
 
-.tilde .tool-stream pre {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-x: auto;
-}
+      &.stderr {
+        color: var(--color-error);
+      }
 
-.tilde .tool-stream-stderr {
-  color: var(--color-error);
-}
+      &.log {
+        color: var(--color-muted);
+      }
 
-.tilde .tool-stream-log {
-  color: var(--color-muted);
-}
+      &.result {
+        color: var(--color-success);
+      }
+    }
 
-.tilde .tool-stream-result {
-  color: var(--color-success);
-}
-
-.tilde .tool-footer,
-.tilde .choice-actions {
-  margin-top: var(--space-md);
+    .footer {
+      margin-top: var(--space-md);
+    }
+  }
 }
