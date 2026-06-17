@@ -37,6 +37,8 @@ defmodule Tilde.Transport.Live.Footer do
   defp status_text(%{statuses: statuses}) when map_size(statuses) == 0, do: ""
 
   defp status_text(%{statuses: statuses}) do
-    Enum.map_join(statuses, " · ", fn {key, value} -> "#{key}: #{value}" end)
+    statuses
+    |> Enum.reject(fn {key, value} -> key == "model" and value == "thinking…" end)
+    |> Enum.map_join(" · ", fn {key, value} -> "#{key}: #{value}" end)
   end
 end

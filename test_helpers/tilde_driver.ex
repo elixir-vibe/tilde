@@ -90,7 +90,7 @@ defmodule TildeTest.Driver do
   @spec assert_pending(state()) :: state()
   def assert_pending(state) do
     assert session(state).statuses["model"] == "thinking…"
-    assert_text(state, "thinking")
+    assert_text(state, "thinking…")
   end
 
   @doc "Refutes the assistant pending status."

@@ -36,6 +36,7 @@ defmodule Tilde.Renderer.TUI do
     [
       Theme.title("# tilde", opts),
       render_blocks(session, width, opts),
+      render_pending(session, opts),
       render_widgets(session, width, opts),
       render_footer(session, opts),
       render_input(session, opts)
@@ -49,6 +50,13 @@ defmodule Tilde.Renderer.TUI do
       block |> Tilde.Viewable.to_view() |> ViewRenderer.render(width, opts)
     end)
   end
+
+  defp render_pending(%Session{statuses: %{"model" => "thinking…"}}, opts) do
+    [Theme.muted("assistant", opts), "thinking…"]
+    |> Enum.join("\n")
+  end
+
+  defp render_pending(_session, _opts), do: ""
 
   defp render_widgets(%Session{} = session, width, opts) do
     session.widgets
@@ -80,7 +88,11 @@ defmodule Tilde.Renderer.TUI do
   end
 
   defp render_footer(%Session{} = session, opts) do
-    status = Enum.map_join(session.statuses, " · ", fn {key, value} -> "#{key}: #{value}" end)
+    status =
+      session.statuses
+      |> Enum.reject(fn {key, value} -> key == "model" and value == "thinking…" end)
+      |> Enum.map_join(" · ", fn {key, value} -> "#{key}: #{value}" end)
+
     if status == "", do: "", else: Theme.muted(status, opts)
   end
 

@@ -2,7 +2,7 @@ defmodule Tilde.Session.PromptLifecycle do
   @moduledoc "Prompt submission, streaming, tool projection, and result recording."
 
   alias Tilde.Command
-  alias Tilde.Core.{Event, Session, Widget}
+  alias Tilde.Core.{Event, Session}
   alias Tilde.Runtime.{LLM, RateLimit}
   alias Tilde.Session.PromptRunner
   alias Tilde.Tool.Event, as: ToolEvent
@@ -57,7 +57,6 @@ defmodule Tilde.Session.PromptLifecycle do
       |> update_session(fn session ->
         session
         |> Session.append_event(Tilde.status_changed("model", nil))
-        |> Session.delete_widget("assistant-pending")
         |> maybe_append_done(state.prompt_block_id, text)
       end)
       |> Map.merge(%{
@@ -80,7 +79,6 @@ defmodule Tilde.Session.PromptLifecycle do
       |> update_session(fn session ->
         session
         |> Session.append_event(Tilde.status_changed("model", nil))
-        |> Session.delete_widget("assistant-pending")
         |> Session.append_event(Tilde.assistant_done(llm_error_message(reason)))
       end)
       |> Map.merge(%{
@@ -132,13 +130,7 @@ defmodule Tilde.Session.PromptLifecycle do
 
     state =
       state
-      |> update_session(fn session ->
-        session
-        |> Session.append_event(Tilde.status_changed("model", "thinking…"))
-        |> Session.put_widget(
-          Widget.new("assistant-pending", :below_input, "assistant thinking…")
-        )
-      end)
+      |> update_session(&Session.append_event(&1, Tilde.status_changed("model", "thinking…")))
       |> emit_then(emit)
 
     {:ok, task} = PromptRunner.start(state.session, parent, ref)

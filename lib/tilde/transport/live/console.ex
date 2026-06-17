@@ -29,12 +29,16 @@ defmodule Tilde.Transport.Live.Console do
       |> assign(:transcript, transcript(assigns))
       |> assign(:above_widgets, widgets(assigns.session, :above_input))
       |> assign(:below_widgets, widgets(assigns.session, :below_input))
-      |> assign(:pending_text, pending_text(assigns.session))
+      |> assign(:pending?, pending?(assigns.session))
 
     ~H"""
     <main id={@id} class={["tilde-console", @class]} phx-hook="TildeConsole">
       <section class="tilde-transcript" id="tilde-transcript">
         <.block :for={block <- @transcript.blocks} block={block} />
+        <article :if={@pending?} class="tilde-block tilde-message tilde-message-assistant tilde-message-pending" data-role="assistant" aria-live="polite">
+          <div class="tilde-label">assistant</div>
+          <div class="tilde-message-body tilde-muted">thinking…</div>
+        </article>
       </section>
 
       <section :if={@above_widgets != []} class="tilde-widgets tilde-widgets-above">
@@ -42,11 +46,7 @@ defmodule Tilde.Transport.Live.Console do
       </section>
 
       <section class="tilde-dock">
-        <div :if={@pending_text != ""} class="tilde-agent-pending" aria-live="polite">
-          {@pending_text}
-        </div>
-
-        <.input value={@input} running?={@running? or @pending_text != ""} />
+        <.input value={@input} running?={@running? or @pending?} />
 
         <section :if={@below_widgets != []} class="tilde-widgets tilde-widgets-below">
           <.widget :for={widget <- @below_widgets} widget={widget} />
@@ -75,6 +75,6 @@ defmodule Tilde.Transport.Live.Console do
   defp widgets(%Session{} = session, placement), do: Session.widgets(session, placement)
   defp widgets(_session, _placement), do: []
 
-  defp pending_text(%Session{statuses: %{"model" => "thinking…"}}), do: "assistant thinking…"
-  defp pending_text(_session), do: ""
+  defp pending?(%Session{statuses: %{"model" => "thinking…"}}), do: true
+  defp pending?(_session), do: false
 end

@@ -405,7 +405,8 @@ defmodule TildeTest do
     refute rendered =~ "# tilde"
     refute rendered =~ "one"
     assert rendered =~ "three"
-    assert rendered =~ "model: thinking…\r\n\r\n> "
+    assert rendered =~ "assistant\r\nthinking…\r\n\r\n> "
+    refute rendered =~ "model: thinking…"
     assert String.ends_with?(rendered, "> ")
   end
 
@@ -1576,15 +1577,17 @@ defmodule TildeTest do
     refute js =~ ~s|textarea.style.height = "auto"\n            textarea.style.height|
   end
 
-  test "live console shows pending assistant status near the input" do
+  test "live console shows pending assistant directly after transcript" do
     session =
       Tilde.session(id: "session_1")
       |> Session.put_status("model", "thinking…")
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
-    assert html =~ "tilde-agent-pending"
-    assert html =~ "assistant thinking…"
+    assert html =~ "tilde-message-pending"
+    assert html =~ "assistant"
+    assert html =~ "thinking…"
+    refute html =~ "model: thinking"
     assert html =~ "interrupt"
   end
 
