@@ -4,14 +4,14 @@ Tilde is a semantic console core. A session is not a terminal buffer and not a D
 
 ```text
 Tilde events
--> Tilde.Session / Tilde.Transcript
+-> Tilde.Core.Session / Tilde.Core.Transcript
 -> Tilde.View cells
 -> LiveView DOM / TUI ANSI / SSH normal-screen output / JSON / text
 ```
 
 ## Source of truth
 
-`Tilde.Session` owns semantic state:
+`Tilde.Core.Session` owns semantic state:
 
 - append-only events
 - reduced transcript blocks
@@ -29,7 +29,7 @@ The demo web router supports named sessions:
 /tilde/:session_id
 ```
 
-A named web session is backed by `Tilde.SessionRegistry` and a `Tilde.SessionServer` process. Session ids are normalized and do not create dynamic atoms.
+A named web session is backed by `Tilde.Session.Registry` and a `Tilde.Session.Server` process. Session ids are normalized and do not create dynamic atoms.
 
 ## SSH sessions
 
@@ -111,7 +111,7 @@ LiveView, TUI, and SSH rendering use shared semantic view primitives:
 Tilde.View.Cell
 Tilde.View.Line
 Tilde.View.Text
-Tilde.View.Builder
+Tilde.Viewable
 ```
 
-Compatibility Live components such as `Tilde.Live.Message`, `Tilde.Live.Tool`, and `Tilde.Live.Choice` delegate to this shared view pipeline.
+Live components such as `Tilde.Transport.Live.Message`, `Tilde.Transport.Live.Tool`, and `Tilde.Transport.Live.Choice` delegate to this shared view pipeline.

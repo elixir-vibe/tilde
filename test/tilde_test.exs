@@ -68,6 +68,35 @@ defmodule TildeTest.ToolStreamingLLMBackend do
   end
 end
 
+defmodule TildeTest.CrashingLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def respond(_session, _opts), do: {:ok, "unused"}
+
+  @impl true
+  def stream(_session, _opts), do: raise("boom")
+end
+
+defmodule TildeTest.BlockingLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def respond(_session, _opts), do: {:ok, "unused"}
+
+  @impl true
+  def stream(session, _opts) do
+    test_pid = Application.fetch_env!(:tilde, :blocking_llm_test_pid)
+    send(test_pid, {:blocking_llm_started, self(), Tilde.Runtime.LLM.latest_user_text(session)})
+
+    receive do
+      :release_blocking_llm -> [{:done, "reply: #{Tilde.Runtime.LLM.latest_user_text(session)}"}]
+    after
+      1_000 -> [{:error, :timeout}]
+    end
+  end
+end
+
 defmodule TildeTest do
   use ExUnit.Case, async: false
 
@@ -75,7 +104,8 @@ defmodule TildeTest do
   import Plug.Test
 
   alias Tilde.Core.{Block, Choice, Display, Input, Run, Session, Stream, Transcript}
-  alias Tilde.{Renderer, ToolView}
+  alias Tilde.Renderer
+  alias Tilde.Tool.ViewModel
 
   doctest Tilde
 
@@ -111,8 +141,8 @@ defmodule TildeTest do
       )
       |> Block.append_stream(:stdout, "one\ntwo\nthree\n")
 
-    compact = ToolView.view(tool)
-    expanded = tool |> Block.update_display(%{expanded?: true}) |> ToolView.view()
+    compact = ViewModel.view(tool)
+    expanded = tool |> Block.update_display(%{expanded?: true}) |> ViewModel.view()
 
     assert compact.lines == ["one", "two"]
     assert [%{kind: :stdout, lines: ["one", "two"], hidden_lines: 1}] = compact.streams
@@ -145,7 +175,7 @@ defmodule TildeTest do
       |> Block.append_stream(:stderr, "warning\nmore\n")
       |> Block.finish_tool(:success, %{exit_code: 0})
 
-    view = ToolView.view(tool)
+    view = ViewModel.view(tool)
 
     assert view.metadata_rows == [cwd: "/tmp/app", exit: "0", duration: "42ms"]
 
@@ -758,6 +788,71 @@ defmodule TildeTest do
     end)
   end
 
+  test "session server recovers when LLM streams raise" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.CrashingLLMBackend, fn ->
+        name = :"tilde_session_server_llm_crash_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_crash")
+                 )
+
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+
+        assert_receive {:tilde_session_updated, "llm_crash",
+                        %Session{statuses: %{"model" => "thinking…"}}}
+
+        assert_receive {:tilde_session_updated, "llm_crash",
+                        %Session{statuses: statuses, transcript: %{blocks: [_user, assistant]}}}
+
+        assert assistant.source == "The model is unavailable right now. Please try again."
+        refute Map.has_key?(statuses, "model")
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
+  test "session server answers a queued submission after the active LLM response finishes" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.BlockingLLMBackend, fn ->
+        with_application_env(:blocking_llm_test_pid, self(), fn ->
+          name = :"tilde_session_server_llm_queue_test_#{System.unique_integer([:positive])}"
+
+          assert {:ok, pid} =
+                   Tilde.Session.Server.start_link(
+                     name: name,
+                     session: Tilde.session(id: "llm_queue")
+                   )
+
+          assert %Session{} = Tilde.Session.Server.subscribe(name)
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("first"))
+          assert_receive {:blocking_llm_started, first_task, "first"}
+
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("second"))
+          send(first_task, :release_blocking_llm)
+
+          assert_receive {:blocking_llm_started, second_task, "second"}, 1_000
+          send(second_task, :release_blocking_llm)
+
+          sources = wait_for_sources("llm_queue", &("reply: first" in &1))
+          assert "reply: first" in sources
+
+          sources = wait_for_sources("llm_queue", &("reply: second" in &1))
+          assert "first" in sources
+          assert "second" in sources
+          assert "reply: first" in sources
+          assert "reply: second" in sources
+
+          GenServer.stop(pid)
+        end)
+      end)
+    end)
+  end
+
   test "jido LLM backend reports a missing OpenRouter key before calling the runtime" do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")
@@ -1109,8 +1204,8 @@ defmodule TildeTest do
 
   test "Tilde semantic HEEx components render to cells, LiveView, and TUI" do
     require Tilde.Template
-    require Tilde.Template.Live
-    require Tilde.Template.TUI
+    require Tilde.Template.Renderer.Live
+    require Tilde.Template.Renderer.TUI
 
     source = """
     <.cell kind="template" state="success" padding_x={1} padding_y={0}>
@@ -1135,8 +1230,8 @@ defmodule TildeTest do
     assert [%{style: :title}, %{style: :accent}] = hd(cell.lines).parts
     assert List.last(cell.lines).role == :primary
 
-    live = source |> Tilde.Template.Live.render!() |> rendered_to_string()
-    tui = Tilde.Template.TUI.render!(source, 50)
+    live = source |> Tilde.Template.Renderer.Live.render!() |> rendered_to_string()
+    tui = Tilde.Template.Renderer.TUI.render!(source, 50)
 
     assert live =~ "tilde-view-text-title"
     assert live =~ "tilde-view-text-accent"
@@ -1147,8 +1242,8 @@ defmodule TildeTest do
 
   test "Tilde semantic HEEx templates support assigns, message cells, and markdown" do
     require Tilde.Template
-    require Tilde.Template.Live
-    require Tilde.Template.TUI
+    require Tilde.Template.Renderer.Live
+    require Tilde.Template.Renderer.TUI
 
     source = """
     <.message role={@role}>
@@ -1173,10 +1268,10 @@ defmodule TildeTest do
 
     live =
       source
-      |> Tilde.Template.Live.render!(assigns: %{role: "user", name: "Ada"})
+      |> Tilde.Template.Renderer.Live.render!(assigns: %{role: "user", name: "Ada"})
       |> rendered_to_string()
 
-    tui = Tilde.Template.TUI.render!(source, 50, assigns: %{role: "user", name: "Ada"})
+    tui = Tilde.Template.Renderer.TUI.render!(source, 50, assigns: %{role: "user", name: "Ada"})
 
     assert live =~ "Hello"
     assert strip_ansi(tui) =~ "Hello Ada"
@@ -1347,6 +1442,22 @@ defmodule TildeTest do
     end)
   end
 
+  test "web demo login rejects protocol-relative return paths" do
+    with_application_env(:demo_password, "secret", fn ->
+      conn =
+        :post
+        |> conn("/login")
+        |> init_test_session(%{})
+        |> Tilde.Demo.Auth.create(%{
+          "password" => "secret",
+          "return_to" => "//evil.example/path"
+        })
+
+      assert conn.status == 302
+      assert Plug.Conn.get_resp_header(conn, "location") == ["/tilde"]
+    end)
+  end
+
   test "web demo login rejects wrong password" do
     with_application_env(:demo_password, "secret", fn ->
       conn =
@@ -1428,6 +1539,16 @@ defmodule TildeTest do
   end
 
   defp strip_html(text), do: Regex.replace(~r/<[^>]+>/, text, "")
+
+  defp wait_for_sources(session_id, predicate) do
+    receive do
+      {:tilde_session_updated, ^session_id, %Session{transcript: %{blocks: blocks}}} ->
+        sources = Enum.map(blocks, & &1.source)
+        if predicate.(sources), do: sources, else: wait_for_sources(session_id, predicate)
+    after
+      1_000 -> flunk("timed out waiting for session #{session_id}")
+    end
+  end
 
   defp latest_user_sources(%Session{} = session) do
     session.transcript.blocks

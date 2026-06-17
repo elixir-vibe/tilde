@@ -1,4 +1,4 @@
-defmodule Tilde.Template.Source do
+defmodule Tilde.Template.Compiler do
   @moduledoc false
 
   alias Phoenix.LiveView.TagEngine.Parser

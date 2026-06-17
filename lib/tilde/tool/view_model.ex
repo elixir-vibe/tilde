@@ -1,4 +1,4 @@
-defmodule Tilde.ToolView do
+defmodule Tilde.Tool.ViewModel do
   @moduledoc """
   Derived compact and expanded views for tool blocks.
 

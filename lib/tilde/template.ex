@@ -7,7 +7,7 @@ defmodule Tilde.Template do
   it back; semantic Tilde components are read directly from the HEEx AST.
   """
 
-  alias Tilde.Template.Source
+  alias Tilde.Template.Compiler
 
   @doc "Compiles HEEx source in the caller context and returns semantic view cells."
   defmacro to_cells(source, opts \\ []) do
@@ -31,5 +31,5 @@ defmodule Tilde.Template do
   end
 
   @doc false
-  def __to_cells__(source, opts, caller), do: Source.to_cells(source, opts, caller)
+  def __to_cells__(source, opts, caller), do: Compiler.to_cells(source, opts, caller)
 end

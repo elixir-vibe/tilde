@@ -13,7 +13,7 @@ defmodule Tilde.Session.Server do
   alias Tilde.Core.{Controller, Event, Session}
   alias Tilde.Runtime.{LLM, RateLimit}
 
-  defstruct session: nil, subscribers: %{}, responding?: false
+  defstruct session: nil, subscribers: %{}, responding?: false, responding_to_input_index: nil
 
   @type name :: GenServer.name()
   @type update_message :: {:tilde_session_updated, String.t(), Session.t()}
@@ -174,23 +174,27 @@ defmodule Tilde.Session.Server do
   end
 
   def handle_info({:tilde_llm_stream, block_id, {:done, text}}, state) do
+    answered_input_index = state.responding_to_input_index
+
     session =
       state.session
       |> Session.append_event(Tilde.status_changed("model", nil))
       |> maybe_append_done(block_id, text)
       |> trim_session()
 
-    state = %{state | responding?: false, session: session}
+    state = %{state | responding?: false, responding_to_input_index: nil, session: session}
     broadcast(state)
-    {:noreply, state}
+    {:noreply, maybe_start_pending_llm_response(state, answered_input_index)}
   end
 
   def handle_info({:tilde_llm_stream, _block_id, {:error, reason}}, state) do
+    answered_input_index = state.responding_to_input_index
     text = llm_error_message(reason)
 
     state = %{
       state
       | responding?: false,
+        responding_to_input_index: nil,
         session:
           state.session
           |> Session.append_event(Tilde.status_changed("model", nil))
@@ -199,7 +203,7 @@ defmodule Tilde.Session.Server do
     }
 
     broadcast(state)
-    {:noreply, state}
+    {:noreply, maybe_start_pending_llm_response(state, answered_input_index)}
   end
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
@@ -268,7 +272,13 @@ defmodule Tilde.Session.Server do
 
     broadcast(%{state | session: session})
     Task.start(fn -> stream_llm_response(server, block_id, session) end)
-    %{state | session: session, responding?: true}
+
+    %{
+      state
+      | session: session,
+        responding?: true,
+        responding_to_input_index: latest_input_index(session)
+    }
   end
 
   defp append_tool_result(%Session{} = session, tool_call_id, status, result) do
@@ -283,6 +293,9 @@ defmodule Tilde.Session.Server do
     session
     |> LLM.stream()
     |> Enum.each(&send(server, {:tilde_llm_stream, block_id, &1}))
+  catch
+    kind, reason ->
+      send(server, {:tilde_llm_stream, block_id, {:error, {kind, reason}}})
   end
 
   defp maybe_append_done(%Session{} = session, block_id, text) when is_binary(text) do
@@ -304,6 +317,37 @@ defmodule Tilde.Session.Server do
   defp new_input_submitted?(%Session{} = previous, %Session{} = session) do
     length(session.events) > length(previous.events) and
       last_event_type(session) == :input_submitted
+  end
+
+  defp maybe_start_pending_llm_response(%__MODULE__{} = state, nil), do: state
+
+  defp maybe_start_pending_llm_response(%__MODULE__{} = state, answered_input_index) do
+    with true <- LLM.enabled?(),
+         {latest_index, %Event{text: text}} when latest_index > answered_input_index <-
+           latest_input_submission(state.session),
+         :error <- Command.parse(text) do
+      maybe_start_rate_limited_llm_response(state)
+    else
+      _other -> state
+    end
+  end
+
+  defp latest_input_index(%Session{} = session) do
+    case latest_input_submission(session) do
+      {index, %Event{}} -> index
+      nil -> nil
+    end
+  end
+
+  defp latest_input_submission(%Session{} = session) do
+    session.events
+    |> Enum.with_index(1)
+    |> Enum.reverse()
+    |> Enum.find(fn {%Event{type: type}, _index} -> type == :input_submitted end)
+    |> case do
+      {%Event{} = event, index} -> {index, event}
+      nil -> nil
+    end
   end
 
   defp last_event_type(%Session{events: [%Event{} | _] = events}),

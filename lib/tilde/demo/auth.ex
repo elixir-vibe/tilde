@@ -68,8 +68,10 @@ defmodule Tilde.Demo.Auth do
 
   defp safe_return_to(nil), do: "/tilde"
   defp safe_return_to(""), do: "/tilde"
+  defp safe_return_to("//" <> _), do: "/tilde"
   defp safe_return_to("/login" <> _), do: "/tilde"
-  defp safe_return_to("/" <> _ = path), do: path
+  defp safe_return_to("/tilde" <> _ = path), do: path
+  defp safe_return_to("/"), do: "/"
   defp safe_return_to(_path), do: "/tilde"
 
   defp login_page(opts) do

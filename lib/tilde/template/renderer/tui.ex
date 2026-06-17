@@ -1,4 +1,4 @@
-defmodule Tilde.Template.TUI do
+defmodule Tilde.Template.Renderer.TUI do
   @moduledoc """
   Renders HEEx templates to terminal text through Tilde semantic view cells.
 
@@ -28,7 +28,7 @@ defmodule Tilde.Template.TUI do
   @doc "Compiles HEEx source and renders it as ANSI terminal text, raising on error."
   defmacro render!(source, width, opts \\ []) do
     quote do
-      case Tilde.Template.TUI.render(unquote(source), unquote(width), unquote(opts)) do
+      case Tilde.Template.Renderer.TUI.render(unquote(source), unquote(width), unquote(opts)) do
         {:ok, text} -> text
         {:error, reason} -> raise reason
       end

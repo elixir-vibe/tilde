@@ -8,7 +8,7 @@ defmodule Tilde.Renderer.Text do
   @behaviour Tilde.Renderer
 
   alias Tilde.Core.{Block, Session, Transcript}
-  alias Tilde.ToolView
+  alias Tilde.Tool.ViewModel
 
   @impl true
   def render(source, opts \\ [])
@@ -27,7 +27,7 @@ defmodule Tilde.Renderer.Text do
   end
 
   defp render_block(%Block{kind: :tool} = block) do
-    view = ToolView.view(block)
+    view = ViewModel.view(block)
     status = Atom.to_string(view.status)
 
     header =
