@@ -183,7 +183,11 @@ defmodule Tilde.Demo.Live do
     {SessionRegistry.via(session_id), session_id}
   end
 
-  defp session_server(_params), do: {SessionServer, "tilde_demo"}
+  defp session_server(_params) do
+    session_id = "tilde_demo"
+    {:ok, _pid} = SessionRegistry.ensure_started()
+    {SessionRegistry.via(session_id), session_id}
+  end
 
   @doc "Returns the initial semantic session used by the demo LiveView."
   @spec demo_session(keyword()) :: Session.t()

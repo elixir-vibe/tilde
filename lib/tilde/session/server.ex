@@ -21,7 +21,7 @@ defmodule Tilde.Session.Server do
             prompt_ref: nil,
             prompt_block_id: nil
 
-  @type name :: GenServer.name()
+  @type name :: GenServer.name() | pid()
   @type update_message :: {:tilde_session_updated, String.t(), Session.t()}
 
   @doc "Starts a session server."

@@ -29,6 +29,33 @@ defmodule Tilde.Session.Registry do
     end
   end
 
+  @doc "Returns current named sessions registered in the local registry."
+  @spec sessions() :: [Tilde.Core.Session.t()]
+  def sessions do
+    case ensure_started() do
+      {:ok, _pid} ->
+        __MODULE__
+        |> Registry.select([{{:"$1", :"$2", :"$3"}, [], [{{:"$1", :"$2"}}]}])
+        |> Enum.flat_map(fn {_id, pid} ->
+          session_for_pid(pid)
+        end)
+        |> Enum.sort_by(& &1.id)
+
+      _error ->
+        []
+    end
+  end
+
+  defp session_for_pid(pid) when is_pid(pid) do
+    if Process.alive?(pid) do
+      [Tilde.Session.Server.get_session(pid)]
+    else
+      []
+    end
+  catch
+    :exit, _reason -> []
+  end
+
   @doc "Returns a safe Registry via tuple for a session id."
   @spec via(String.t()) :: GenServer.name()
   def via(session_id) when is_binary(session_id) do

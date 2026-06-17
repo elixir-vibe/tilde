@@ -51,6 +51,50 @@ defmodule Tilde.SessionCommandServerTest do
     assert [%Block{source: "/new demo"}] = submitted.transcript.blocks
   end
 
+  test "attach command suggests sessions with bounded first and last message previews" do
+    id = "preview-#{System.unique_integer([:positive])}"
+    assert {:ok, _registry} = Tilde.Session.Registry.ensure_started()
+    name = Tilde.Session.Registry.via(id)
+
+    session =
+      Tilde.session(id: id)
+      |> Session.append_event(Tilde.input_submitted(String.duplicate("first message ", 8)))
+      |> Session.append_event(Tilde.input_submitted(String.duplicate("last message ", 8)))
+
+    assert {:ok, pid} = Tilde.Session.Server.ensure_started(name, session: session)
+
+    assert %Tilde.Core.Suggest{title: "sessions  first → last", items: [item]} =
+             Tilde.Command.suggestions("/attach #{id}")
+
+    assert item.label == id
+    assert item.insert == "/attach #{id}"
+    assert item.description =~ "→"
+    assert item.description =~ "…"
+    assert item.detail =~ "First:"
+    assert item.detail =~ "Last:"
+
+    GenServer.stop(pid)
+  end
+
+  test "attach session suggestions submit selected session on enter" do
+    id = "attach-#{System.unique_integer([:positive])}"
+    assert {:ok, _registry} = Tilde.Session.Registry.ensure_started()
+    name = Tilde.Session.Registry.via(id)
+    assert {:ok, pid} = Tilde.Session.Server.ensure_started(name, session: Tilde.session(id: id))
+
+    session = Session.append_event(Tilde.session(), Tilde.input_changed("/attach #{id}"))
+    assert %Tilde.Core.Suggest{id: "session-suggestions"} = Session.command_suggestions(session)
+
+    assert {:cont, submitted} = Tilde.Core.Controller.apply_key(session, :enter)
+
+    assert submitted.input.value == ""
+
+    assert [%Block{source: submitted_source}] = submitted.transcript.blocks
+    assert submitted_source == "/attach #{id}"
+
+    GenServer.stop(pid)
+  end
+
   test "slash commands parse and apply semantic effects" do
     assert {:ok, %Tilde.Command{name: "help"}} = Tilde.Command.parse("/help")
 

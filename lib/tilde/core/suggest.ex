@@ -3,6 +3,8 @@ defmodule Tilde.Core.Suggest do
   Renderer-neutral autocomplete suggestions with stable selection.
   """
 
+  alias Tilde.Core.Suggest.Item
+
   defstruct id: "suggestions",
             title: "suggestions",
             trigger: "",
@@ -11,7 +13,7 @@ defmodule Tilde.Core.Suggest do
             selected_index: 0,
             selected_id: nil
 
-  @type item :: %{label: String.t(), insert: String.t(), description: String.t()}
+  @type item :: Item.t() | %{label: String.t(), insert: String.t(), description: String.t()}
   @type t :: %__MODULE__{
           id: String.t(),
           title: String.t(),
@@ -48,6 +50,15 @@ defmodule Tilde.Core.Suggest do
     case selected(suggest) do
       %{insert: insert} -> insert
       _other -> nil
+    end
+  end
+
+  @doc "Returns selected item detail text when available."
+  @spec selected_detail(t()) :: String.t() | nil
+  def selected_detail(%__MODULE__{} = suggest) do
+    case selected(suggest) do
+      %{detail: detail} when is_binary(detail) and detail != "" -> detail
+      _item -> nil
     end
   end
 

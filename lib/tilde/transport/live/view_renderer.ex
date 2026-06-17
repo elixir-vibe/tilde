@@ -122,12 +122,16 @@ defmodule Tilde.Transport.Live.ViewRenderer do
           class={["row", index == @suggest.selected_index && "selected"]}
           phx-click="tilde:complete_input"
           phx-value-insert={item.insert}
+          aria-describedby={item.detail && "#{@suggest.id}-detail-#{index}"}
         >
           <span class="marker" aria-hidden="true">
             <%= if index == @suggest.selected_index, do: "›", else: "" %>
           </span>
           <code class="command">{item.label}</code>
           <span class="description">{item.description}</span>
+          <span :if={item.detail} id={"#{@suggest.id}-detail-#{index}"} class="detail" role="tooltip">
+            {item.detail}
+          </span>
         </button>
       </div>
     </section>

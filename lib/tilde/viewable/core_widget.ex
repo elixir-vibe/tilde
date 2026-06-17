@@ -13,7 +13,7 @@ defimpl Tilde.Viewable, for: Tilde.Core.Widget do
           marker <>
             item.label <>
             String.duplicate(" ", max(1, 12 - String.length(item.label))) <> item.description
-        end)
+        end) ++ selected_detail_lines(suggest)
 
     Cell.new(
       id: widget.id,
@@ -42,5 +42,12 @@ defimpl Tilde.Viewable, for: Tilde.Core.Widget do
       lines: [inspect(widget.content)],
       attrs: %{widget: widget}
     )
+  end
+
+  defp selected_detail_lines(%Suggest{} = suggest) do
+    case Suggest.selected_detail(suggest) do
+      nil -> []
+      detail -> [""] ++ String.split(detail, "\n", trim: true)
+    end
   end
 end
