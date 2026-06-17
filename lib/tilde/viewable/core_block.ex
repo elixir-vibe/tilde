@@ -135,12 +135,7 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
       label = if label?, do: [{:muted, stream.kind}], else: []
       visible = Enum.map(stream.lines, &{:primary, "  #{&1}"})
 
-      hidden =
-        if stream.hidden_lines > 0,
-          do: [{:muted, "  … #{stream.hidden_lines} more #{stream.kind} lines"}],
-          else: []
-
-      label ++ visible ++ hidden
+      label ++ visible
     end)
   end
 

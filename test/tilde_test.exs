@@ -208,6 +208,22 @@ defmodule TildeTest do
     refute html =~ "/tmp/app"
   end
 
+  test "live compact tool has a single expand affordance" do
+    tool =
+      Block.tool("tool_1", "bash", %{command: "mix test"},
+        display: %Display{compact_limit: {:lines, 2}}
+      )
+      |> Block.append_stream(:stdout, "one\ntwo\nthree\nfour\n")
+      |> Block.finish_tool(:success, %{exit_code: 0})
+
+    html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
+
+    refute html =~ "more stdout lines"
+    assert html =~ "… 2 more lines"
+    assert html =~ "ctrl+o"
+    assert html =~ "expand"
+  end
+
   test "markdown facade uses configured backend" do
     with_application_env(:markdown_backend, TildeTest.MarkdownBackend, fn ->
       assert Tilde.Runtime.Markdown.backend() == TildeTest.MarkdownBackend
