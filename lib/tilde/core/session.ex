@@ -187,12 +187,19 @@ defmodule Tilde.Core.Session do
     end
   end
 
-  @doc "Submits the selected command suggestion immediately."
+  @doc "Submits the selected command suggestion, or completes it when it needs arguments."
   @spec submit_suggestion(t()) :: {:ok, t()} | :error
   def submit_suggestion(%__MODULE__{} = session) do
     case selected_suggestion_completion(session) do
-      nil -> :error
-      completion -> {:ok, append_event(session, Tilde.input_submitted(completion))}
+      nil ->
+        :error
+
+      completion ->
+        if String.ends_with?(completion, " ") do
+          {:ok, change_input(session, Input.put_value(session.input, completion))}
+        else
+          {:ok, append_event(session, Tilde.input_submitted(completion))}
+        end
     end
   end
 

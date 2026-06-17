@@ -32,6 +32,21 @@ defmodule TildeDriverTest do
         |> Driver.refute_suggestions()
       end
 
+      test "enter completes commands that require arguments", %{state: state} do
+        state
+        |> Driver.type("/")
+        |> Driver.press(:down)
+        |> Driver.press(:down)
+        |> Driver.assert_suggestion("/new", selected?: true)
+        |> Driver.press(:enter)
+        |> Driver.assert_input("/new ")
+        |> Driver.refute_suggestions()
+        |> Driver.type("demo")
+        |> Driver.press(:enter)
+        |> Driver.assert_input("")
+        |> Driver.assert_text("/new demo")
+      end
+
       test "selection is preserved across query filtering", %{state: state} do
         state =
           state

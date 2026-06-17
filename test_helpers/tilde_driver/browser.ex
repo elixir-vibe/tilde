@@ -95,20 +95,11 @@ defmodule TildeTest.Driver.Browser do
     unwrap(Frame.evaluate(state.frame_id, expression: expression, timeout: @timeout, connection: state.connection))
   end
 
-  @doc "Asserts the console textarea value with Playwright's expect API."
+  @doc "Asserts the console textarea value using Playwright's input_value API."
   @spec assert_input(t(), String.t()) :: t()
   def assert_input(%__MODULE__{} = state, value) do
-    unwrap(
-      Frame.expect(state.frame_id,
-        selector: @input,
-        expression: "to.have.value",
-        expected_text: [%{string: value, matchSubstring: false, ignoreCase: false}],
-        timeout: @timeout,
-        connection: state.connection
-      )
-    )
-
-    state
+    deadline = System.monotonic_time(:millisecond) + @timeout
+    assert_input(state, value, deadline)
   end
 
   @doc "Returns visible document text."
@@ -213,6 +204,30 @@ defmodule TildeTest.Driver.Browser do
 
   defp playwright_executable do
     Path.expand("../../assets/node_modules/playwright/cli.js", __DIR__)
+  end
+
+  defp assert_input(state, value, deadline) do
+    current =
+      unwrap(
+        Frame.input_value(state.frame_id,
+          selector: @input,
+          timeout: @timeout,
+          connection: state.connection
+        )
+      )
+
+    cond do
+      current == value ->
+        state
+
+      System.monotonic_time(:millisecond) >= deadline ->
+        assert current == value
+        state
+
+      true ->
+        Process.sleep(25)
+        assert_input(state, value, deadline)
+    end
   end
 
   defp wait_until(state, expression, deadline) do

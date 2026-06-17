@@ -22,6 +22,23 @@ defmodule TildeBrowserDriverTest do
     end
   end
 
+  test "real browser enter completes argument-taking slash suggestions", %{browser: browser} do
+    if browser do
+      browser
+      |> Browser.type("/n")
+      |> Browser.assert_has(".suggest")
+      |> Browser.press(:enter)
+      |> Browser.assert_input("/new ")
+      |> Browser.refute_has(".suggest")
+      |> Browser.type("demo")
+      |> Browser.press(:enter)
+      |> Browser.assert_input("")
+      |> Browser.assert_text("session: demo")
+    else
+      skip_browser()
+    end
+  end
+
   test "real browser escape cancels slash suggestions without clearing input", %{browser: browser} do
     if browser do
       browser

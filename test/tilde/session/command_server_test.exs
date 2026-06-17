@@ -1,7 +1,7 @@
 defmodule Tilde.SessionCommandServerTest do
   use TildeTest.Case
 
-  test "command suggestions complete on tab and submit on enter" do
+  test "command suggestions complete on tab and submit executable commands on enter" do
     assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
     assert Enum.map(items, & &1.label) == ["/compact"]
     assert Tilde.Command.completion("/co") == "/compact"
@@ -29,6 +29,26 @@ defmodule Tilde.SessionCommandServerTest do
     assert submitted.input.value == ""
     assert [%Block{source: submitted_command}] = submitted.transcript.blocks
     assert submitted_command == Tilde.Command.completion(Session.command_suggestions(selected))
+  end
+
+  test "command suggestions complete argument-taking commands instead of executing them" do
+    session = Session.append_event(Tilde.session(), Tilde.input_changed("/"))
+
+    assert {:cont, selected} = Tilde.Core.Controller.apply_key(session, :down)
+    assert {:cont, selected} = Tilde.Core.Controller.apply_key(selected, :down)
+    assert Tilde.Core.Suggest.selected(Session.command_suggestions(selected)).label == "/new"
+
+    assert {:cont, completed} = Tilde.Core.Controller.apply_key(selected, :enter)
+
+    assert completed.input.value == "/new "
+    assert completed.transcript.blocks == []
+    assert Session.command_suggestions(completed) == nil
+
+    assert {:cont, with_name} = Tilde.Core.Controller.apply_key(completed, {:text, "demo"})
+    assert {:cont, submitted} = Tilde.Core.Controller.apply_key(with_name, :enter)
+
+    assert submitted.input.value == ""
+    assert [%Block{source: "/new demo"}] = submitted.transcript.blocks
   end
 
   test "slash commands parse and apply semantic effects" do
