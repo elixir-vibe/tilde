@@ -12,6 +12,43 @@ defmodule TildeTest.KeyProvider do
   def ensure_system_dir(path, _opts), do: {:ok, path}
 end
 
+defmodule TildeTest.StorageAdapter do
+  @behaviour Tilde.Storage
+
+  @impl true
+  def ensure_session(session) do
+    notify({:storage_ensure_session, session.id})
+    :ok
+  end
+
+  @impl true
+  def append_event(session, event) do
+    notify({:storage_append_event, session.id, event.type, event.text})
+    :ok
+  end
+
+  @impl true
+  def load_events(_session_id), do: {:ok, []}
+
+  @impl true
+  def load_session(session_id), do: {:ok, Tilde.session(id: session_id)}
+
+  @impl true
+  def save_state(session) do
+    notify({:storage_save_state, session.id, session.input.value})
+    :ok
+  end
+
+  @impl true
+  def search(_query, _opts), do: {:ok, []}
+
+  defp notify(message) do
+    if pid = Application.get_env(:tilde, :storage_test_pid) do
+      send(pid, message)
+    end
+  end
+end
+
 defmodule TildeTest.ToolRenderer do
   @behaviour Tilde.Tool.Viewer
 

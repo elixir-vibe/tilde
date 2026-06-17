@@ -9,9 +9,12 @@ defmodule Tilde.Session.Server do
 
   use GenServer
 
+  require Logger
+
   alias Tilde.Command
   alias Tilde.Core.{Controller, Event, Session}
   alias Tilde.Session.PromptLifecycle
+  alias Tilde.Storage
 
   defstruct session: nil,
             subscribers: %{},
@@ -148,7 +151,9 @@ defmodule Tilde.Session.Server do
 
   @impl true
   def handle_info({:tilde_prompt_stream, ref, event}, %{prompt_ref: ref} = state) do
+    previous = state.session
     state = PromptLifecycle.handle_stream_event(state, event, &broadcast/1)
+    persist_update(previous, state.session)
     {:noreply, state}
   end
 
@@ -159,15 +164,19 @@ defmodule Tilde.Session.Server do
   end
 
   defp handle_post_update(previous, %__MODULE__{} = state) do
-    case maybe_apply_command(state) do
-      {:command, state} ->
-        broadcast(state)
-        state
+    state =
+      case maybe_apply_command(state) do
+        {:command, state} ->
+          broadcast(state)
+          state
 
-      :not_command ->
-        broadcast(state)
-        PromptLifecycle.maybe_start(state, previous, &broadcast/1)
-    end
+        :not_command ->
+          broadcast(state)
+          PromptLifecycle.maybe_start(state, previous, &broadcast/1)
+      end
+
+    persist_update(previous, state.session)
+    state
   end
 
   defp maybe_apply_command(%__MODULE__{} = state) do
@@ -179,6 +188,36 @@ defmodule Tilde.Session.Server do
        %{state | session: state.session |> Command.apply_effects(effects) |> trim_session()}}
     else
       _other -> :not_command
+    end
+  end
+
+  defp persist_update(%Session{} = previous, %Session{} = current) do
+    previous_ids = MapSet.new(previous.events, & &1.id)
+
+    current.events
+    |> Enum.reject(&MapSet.member?(previous_ids, &1.id))
+    |> Enum.each(&persist_event(current, &1))
+
+    persist_state(current)
+  end
+
+  defp persist_event(%Session{} = session, %Event{} = event) do
+    case Storage.append_event(session, event) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("failed to persist Tilde session event: #{inspect(reason)}")
+    end
+  end
+
+  defp persist_state(%Session{} = session) do
+    case Storage.save_state(session) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("failed to persist Tilde session state: #{inspect(reason)}")
     end
   end
 
