@@ -11,9 +11,15 @@ defmodule Tilde.Session.Server do
 
   alias Tilde.Command
   alias Tilde.Core.{Controller, Event, Session}
-  alias Tilde.Runtime.{LLM, RateLimit}
+  alias Tilde.Session.PromptLifecycle
 
-  defstruct session: nil, subscribers: %{}, responding?: false, responding_to_input_index: nil
+  defstruct session: nil,
+            subscribers: %{},
+            responding?: false,
+            responding_to_input_index: nil,
+            prompt_task: nil,
+            prompt_ref: nil,
+            prompt_block_id: nil
 
   @type name :: GenServer.name()
   @type update_message :: {:tilde_session_updated, String.t(), Session.t()}
@@ -98,18 +104,7 @@ defmodule Tilde.Session.Server do
   def handle_call({:update_session, fun}, _from, state) do
     previous = state.session
     state = %{state | session: state.session |> fun.() |> trim_session()}
-
-    state =
-      case maybe_apply_command(state) do
-        {:command, state} ->
-          broadcast(state)
-          state
-
-        :not_command ->
-          broadcast(state)
-          maybe_start_llm_response(previous, state)
-      end
-
+    state = handle_post_update(previous, state)
     {:reply, state.session, state}
   end
 
@@ -130,81 +125,12 @@ defmodule Tilde.Session.Server do
   end
 
   @impl true
-  def handle_info({:tilde_llm_stream, block_id, {:delta, text}}, state) do
-    state = %{
-      state
-      | session:
-          state.session
-          |> Session.append_event(Tilde.assistant_delta(text, block_id: block_id))
-          |> trim_session()
-    }
-
-    broadcast(state)
+  def handle_info({:tilde_prompt_stream, ref, event}, %{prompt_ref: ref} = state) do
+    state = PromptLifecycle.handle_stream_event(state, event, &broadcast/1)
     {:noreply, state}
   end
 
-  def handle_info(
-        {:tilde_llm_stream, _block_id, {:tool_started, tool_call_id, name, args}},
-        state
-      ) do
-    state = %{
-      state
-      | session:
-          state.session
-          |> Session.append_event(Tilde.tool_started(name, args, tool_call_id: tool_call_id))
-          |> trim_session()
-    }
-
-    broadcast(state)
-    {:noreply, state}
-  end
-
-  def handle_info(
-        {:tilde_llm_stream, _block_id, {:tool_done, tool_call_id, status, result}},
-        state
-      ) do
-    state = %{
-      state
-      | session:
-          state.session |> append_tool_result(tool_call_id, status, result) |> trim_session()
-    }
-
-    broadcast(state)
-    {:noreply, state}
-  end
-
-  def handle_info({:tilde_llm_stream, block_id, {:done, text}}, state) do
-    answered_input_index = state.responding_to_input_index
-
-    session =
-      state.session
-      |> Session.append_event(Tilde.status_changed("model", nil))
-      |> maybe_append_done(block_id, text)
-      |> trim_session()
-
-    state = %{state | responding?: false, responding_to_input_index: nil, session: session}
-    broadcast(state)
-    {:noreply, maybe_start_pending_llm_response(state, answered_input_index)}
-  end
-
-  def handle_info({:tilde_llm_stream, _block_id, {:error, reason}}, state) do
-    answered_input_index = state.responding_to_input_index
-    text = llm_error_message(reason)
-
-    state = %{
-      state
-      | responding?: false,
-        responding_to_input_index: nil,
-        session:
-          state.session
-          |> Session.append_event(Tilde.status_changed("model", nil))
-          |> Session.append_event(Tilde.assistant_done(text))
-          |> trim_session()
-    }
-
-    broadcast(state)
-    {:noreply, maybe_start_pending_llm_response(state, answered_input_index)}
-  end
+  def handle_info({:tilde_prompt_stream, _stale_ref, _event}, state), do: {:noreply, state}
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
     {:noreply, update_in(state.subscribers, &Map.delete(&1, ref))}
@@ -218,7 +144,7 @@ defmodule Tilde.Session.Server do
 
       :not_command ->
         broadcast(state)
-        maybe_start_llm_response(previous, state)
+        PromptLifecycle.maybe_start(state, previous, &broadcast/1)
     end
   end
 
@@ -234,140 +160,9 @@ defmodule Tilde.Session.Server do
     end
   end
 
-  defp maybe_start_llm_response(_previous, %__MODULE__{responding?: true} = state), do: state
-
-  defp maybe_start_llm_response(previous, %__MODULE__{} = state) do
-    if LLM.enabled?() and new_input_submitted?(previous, state.session) do
-      maybe_start_rate_limited_llm_response(state)
-    else
-      state
-    end
-  end
-
-  defp maybe_start_rate_limited_llm_response(%__MODULE__{} = state) do
-    case RateLimit.check_llm(state.session) do
-      :ok ->
-        start_llm_response(state)
-
-      {:error, {:rate_limited, retry_after}} ->
-        session =
-          state.session
-          |> Session.append_event(Tilde.assistant_done(rate_limit_message(retry_after)))
-          |> trim_session()
-
-        state = %{state | session: session}
-        broadcast(state)
-        state
-    end
-  end
-
-  defp start_llm_response(%__MODULE__{} = state) do
-    server = self()
-    block_id = assistant_block_id(state.session)
-
-    session =
-      state.session
-      |> Session.append_event(Tilde.status_changed("model", "thinking…"))
-      |> trim_session()
-
-    broadcast(%{state | session: session})
-    Task.start(fn -> stream_llm_response(server, block_id, session) end)
-
-    %{
-      state
-      | session: session,
-        responding?: true,
-        responding_to_input_index: latest_input_index(session)
-    }
-  end
-
-  defp append_tool_result(%Session{} = session, tool_call_id, status, result) do
-    session
-    |> Session.append_event(
-      Tilde.tool_stream(tool_call_id, :result, inspect(result, pretty: true, limit: 20))
-    )
-    |> Session.append_event(Tilde.tool_done(tool_call_id, status, result))
-  end
-
-  defp stream_llm_response(server, block_id, %Session{} = session) do
-    session
-    |> LLM.stream()
-    |> Enum.each(&send(server, {:tilde_llm_stream, block_id, &1}))
-  catch
-    kind, reason ->
-      send(server, {:tilde_llm_stream, block_id, {:error, {kind, reason}}})
-  end
-
-  defp maybe_append_done(%Session{} = session, block_id, text) when is_binary(text) do
-    if assistant_block?(session, block_id) or String.trim(text) == "" do
-      session
-    else
-      Session.append_event(session, Tilde.assistant_done(text, block_id: block_id))
-    end
-  end
-
-  defp assistant_block?(%Session{} = session, block_id) do
-    Enum.any?(session.transcript.blocks, &(&1.id == block_id and &1.role == :assistant))
-  end
-
-  defp assistant_block_id(%Session{} = session) do
-    "msg_assistant_#{length(session.events) + 1}"
-  end
-
-  defp new_input_submitted?(%Session{} = previous, %Session{} = session) do
-    length(session.events) > length(previous.events) and
-      last_event_type(session) == :input_submitted
-  end
-
-  defp maybe_start_pending_llm_response(%__MODULE__{} = state, nil), do: state
-
-  defp maybe_start_pending_llm_response(%__MODULE__{} = state, answered_input_index) do
-    with true <- LLM.enabled?(),
-         {latest_index, %Event{text: text}} when latest_index > answered_input_index <-
-           latest_input_submission(state.session),
-         :error <- Command.parse(text) do
-      maybe_start_rate_limited_llm_response(state)
-    else
-      _other -> state
-    end
-  end
-
-  defp latest_input_index(%Session{} = session) do
-    case latest_input_submission(session) do
-      {index, %Event{}} -> index
-      nil -> nil
-    end
-  end
-
-  defp latest_input_submission(%Session{} = session) do
-    session.events
-    |> Enum.with_index(1)
-    |> Enum.reverse()
-    |> Enum.find(fn {%Event{type: type}, _index} -> type == :input_submitted end)
-    |> case do
-      {%Event{} = event, index} -> {index, event}
-      nil -> nil
-    end
-  end
-
-  defp last_event_type(%Session{events: [%Event{} | _] = events}),
-    do: events |> List.last() |> Map.get(:type)
-
-  defp last_event_type(_session), do: nil
-
   defp trim_session(%Session{} = session) do
     Session.trim_events(session, Application.get_env(:tilde, :session_event_limit, false))
   end
-
-  defp rate_limit_message(retry_after) do
-    seconds = retry_after |> div(1_000) |> max(1)
-    "The public demo is busy. Please try again in #{seconds}s."
-  end
-
-  defp llm_error_message(:missing_openrouter_api_key),
-    do: "The model is not configured yet. Set OPENROUTER_API_KEY to enable assistant replies."
-
-  defp llm_error_message(_reason), do: "The model is unavailable right now. Please try again."
 
   defp broadcast(%__MODULE__{} = state) do
     message = {:tilde_session_updated, state.session.id, state.session}

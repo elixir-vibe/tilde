@@ -9,6 +9,7 @@ defmodule Tilde.Runtime.LLM.Provider do
           {:delta, String.t()}
           | {:done, String.t()}
           | {:error, term()}
+          | {:tool_preparing, String.t(), String.t(), map()}
           | {:tool_started, String.t(), String.t(), map()}
           | {:tool_done, String.t(), atom(), term()}
 

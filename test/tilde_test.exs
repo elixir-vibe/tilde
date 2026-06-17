@@ -1351,6 +1351,23 @@ defmodule TildeTest do
     end
   end
 
+  test "tool result wrapper normalizes successes errors and exceptions" do
+    assert Tilde.Tool.Result.run(fn -> "ok" end) == {:ok, "ok"}
+    assert Tilde.Tool.Result.run(fn -> {:error, :boom} end) == {:error, :boom}
+    assert {:error, formatted} = Tilde.Tool.Result.run(fn -> raise "boom" end)
+    assert formatted =~ "boom"
+  end
+
+  test "tool lifecycle event normalizes finished outputs" do
+    event = Tilde.Tool.Event.finished(id: "tool_1", name: "demo", output: {:error, :boom})
+
+    assert event.id == "tool_1"
+    assert event.name == "demo"
+    assert event.output == %{error: :boom}
+    assert event.status == :error
+    assert event.phase == :finished
+  end
+
   test "tool renderer registry customizes semantic call and result views" do
     with_application_env(:tool_viewers, %{"custom_tool" => TildeTest.ToolRenderer}, fn ->
       session =
