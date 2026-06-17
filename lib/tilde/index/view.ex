@@ -1,43 +1,52 @@
 defmodule Tilde.Index.View do
   @moduledoc "Semantic widget composition for the console index."
 
-  alias Tilde.Core.{Index, Widget}
+  alias Tilde.Core.Index
 
-  @spec widgets(Index.t()) :: [Widget.t()]
+  @shortcuts [
+    %{key: "↑/↓", label: "select"},
+    %{key: "enter", label: "open"},
+    %{key: "n", label: "new"},
+    %{key: "/", label: "command"}
+  ]
+
+  @spec widgets(Index.t()) :: [Tilde.Core.Widget.t()]
   def widgets(%Index{} = index) do
-    [
-      Widget.screen("index-screen", screen_widgets(index), metadata: %{class: "index"})
-    ]
+    require Tilde.Template
+
+    Tilde.Template.to_widgets!(template(index),
+      assigns: %{
+        input: index.input,
+        shortcuts: @shortcuts,
+        suggest: index.command_suggest || index.session_suggest,
+        suggest_id: if(index.command_suggest, do: "command-suggestions", else: "session-index")
+      }
+    )
   end
 
-  defp screen_widgets(%Index{} = index) do
-    [
-      Widget.text("index-title", "tilde", kind: :heading),
-      sessions_widget(index),
-      Widget.input("index-input", index.input),
-      Widget.shortcut_bar("index-shortcuts", [
-        %{key: "↑/↓", label: "select"},
-        %{key: "enter", label: "open"},
-        %{key: "n", label: "new"},
-        %{key: "/", label: "command"}
-      ]),
-      Widget.footer("index-footer", right: "/new name · /attach name")
-    ]
-    |> List.flatten()
+  defp template(%Index{command_suggest: nil, session_suggest: nil}) do
+    """
+    <.screen id="tilde-console" class="index">
+      <.widget_text id="index-title" text="tilde" kind="heading" />
+      <.widget_text id="index-empty" text="no sessions" kind="muted" />
+      <.widget_input id="index-input" input={@input} />
+      <.shortcut_bar id="index-shortcuts" shortcuts={@shortcuts} />
+      <.widget_footer id="index-footer" right="/new name · /attach name" />
+    </.screen>
+    """
   end
 
-  defp sessions_widget(%Index{command_suggest: command_suggest})
-       when not is_nil(command_suggest) do
-    Widget.new("command-suggestions", :above_input, command_suggest, kind: :suggest)
-  end
-
-  defp sessions_widget(%Index{session_suggest: nil}) do
-    Widget.text("index-empty", "no sessions", kind: :muted)
-  end
-
-  defp sessions_widget(%Index{session_suggest: suggest}) do
-    Widget.section("index-sessions", "sessions", [
-      Widget.new("session-index", :above_input, suggest, kind: :suggest)
-    ])
+  defp template(%Index{}) do
+    """
+    <.screen id="tilde-console" class="index">
+      <.widget_text id="index-title" text="tilde" kind="heading" />
+      <.section id="index-sessions" title="sessions">
+        <.widget_suggest id={@suggest_id} suggest={@suggest} />
+      </.section>
+      <.widget_input id="index-input" input={@input} />
+      <.shortcut_bar id="index-shortcuts" shortcuts={@shortcuts} />
+      <.widget_footer id="index-footer" right="/new name · /attach name" />
+    </.screen>
+    """
   end
 end

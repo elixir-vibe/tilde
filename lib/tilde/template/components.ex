@@ -11,6 +11,52 @@ defmodule Tilde.Template.Components do
 
   use Phoenix.Component
 
+  attr(:id, :string, default: "screen")
+  attr(:class, :string, default: nil)
+  slot(:inner_block, required: true)
+
+  def screen(assigns) do
+    ~H"""
+    <section data-tilde-widget="screen" data-tilde-id={@id} data-tilde-class={@class}>{render_slot(@inner_block)}</section>
+    """
+  end
+
+  attr(:id, :string, required: true)
+  attr(:title, :string, required: true)
+  slot(:inner_block, required: true)
+
+  def section(assigns) do
+    ~H"""
+    <section data-tilde-widget="section" data-tilde-id={@id} data-tilde-title={@title}>{render_slot(@inner_block)}</section>
+    """
+  end
+
+  attr(:id, :string, required: true)
+  attr(:text, :string, required: true)
+  attr(:kind, :string, default: "text")
+
+  def widget_text(assigns) do
+    ~H"""
+    <span data-tilde-widget="text" data-tilde-id={@id} data-tilde-kind={@kind}>{@text}</span>
+    """
+  end
+
+  attr(:id, :string, required: true)
+  attr(:suggest, :any, required: true)
+  def widget_suggest(assigns), do: assigns |> assign(:_unused, nil) |> raw_widget()
+
+  attr(:id, :string, required: true)
+  attr(:input, :any, required: true)
+  def widget_input(assigns), do: assigns |> assign(:_unused, nil) |> raw_widget()
+
+  attr(:id, :string, required: true)
+  attr(:shortcuts, :list, required: true)
+  def shortcut_bar(assigns), do: assigns |> assign(:_unused, nil) |> raw_widget()
+
+  attr(:id, :string, required: true)
+  attr(:right, :string, default: "")
+  def widget_footer(assigns), do: assigns |> assign(:_unused, nil) |> raw_widget()
+
   attr(:kind, :string, default: "template")
   attr(:role, :string, default: nil)
   attr(:state, :string, default: "normal")
@@ -140,6 +186,12 @@ defmodule Tilde.Template.Components do
     <div data-tilde-line="true" data-tilde-role="title">
       <span class="text title">{@name}</span><span :if={@segment} class="text accent"> {@segment}</span><span :if={@suffix} class="text muted"> ({@suffix})</span>
     </div>
+    """
+  end
+
+  defp raw_widget(assigns) do
+    ~H"""
+    <span data-tilde-widget={@id}></span>
     """
   end
 

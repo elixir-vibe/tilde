@@ -2,10 +2,34 @@ defmodule Tilde.Template.Compiler do
   @moduledoc false
 
   alias Phoenix.LiveView.TagEngine.Parser
+  alias Tilde.Core.Widget
   alias Tilde.View.{Cell, Helpers, Line, Text}
 
   @title_tags ~w(h1 h2 h3 h4 h5 h6 strong b)
   @accent_tags ~w(em i code a)
+
+  @spec to_widgets(String.t(), keyword(), Macro.Env.t()) ::
+          {:ok, [Widget.t()]} | {:error, Exception.t()}
+  def to_widgets(source, opts, caller) do
+    parser = parse!(source, caller)
+    assigns = Keyword.get(opts, :assigns, %{})
+    env = %{assigns: assigns, caller: caller}
+
+    {:ok, Enum.flat_map(parser.nodes, &node_to_widgets(&1, env))}
+  rescue
+    exception in [
+      ArgumentError,
+      CompileError,
+      FunctionClauseError,
+      KeyError,
+      Phoenix.LiveView.TagEngine.Tokenizer.ParseError,
+      RuntimeError,
+      SyntaxError,
+      TokenMissingError,
+      UndefinedFunctionError
+    ] ->
+      {:error, exception}
+  end
 
   @spec to_cells(String.t(), keyword(), Macro.Env.t()) ::
           {:ok, [Cell.t()]} | {:error, Exception.t()}
@@ -46,6 +70,60 @@ defmodule Tilde.Template.Compiler do
       indentation: 0,
       tag_handler: Phoenix.LiveView.HTMLEngine
     )
+  end
+
+  defp node_to_widgets({:block, type, name, attrs, children, _meta, _close_meta}, env)
+       when type in [:local_component, :remote_component] do
+    widget_component(name, attrs_map(attrs, env), nodes_to_widgets(children, env))
+  end
+
+  defp node_to_widgets({:self_close, type, name, attrs, _meta}, env)
+       when type in [:local_component, :remote_component] do
+    widget_component(name, attrs_map(attrs, env), [])
+  end
+
+  defp node_to_widgets(_node, _env), do: []
+
+  defp nodes_to_widgets(nodes, env), do: Enum.flat_map(nodes, &node_to_widgets(&1, env))
+
+  defp widget_component(name, attrs, children) do
+    case component_name(name) do
+      "screen" ->
+        [
+          Widget.screen(Map.get(attrs, "id", "screen"), children,
+            metadata: %{class: Map.get(attrs, "class")}
+          )
+        ]
+
+      "section" ->
+        [Widget.section(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "title"), children)]
+
+      "widget_text" ->
+        [
+          Widget.text(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "text"),
+            kind: atom_attr(attrs, "kind", :text)
+          )
+        ]
+
+      "widget_suggest" ->
+        [
+          Widget.new(Map.fetch!(attrs, "id"), :above_input, Map.fetch!(attrs, "suggest"),
+            kind: :suggest
+          )
+        ]
+
+      "widget_input" ->
+        [Widget.input(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "input"))]
+
+      "shortcut_bar" ->
+        [Widget.shortcut_bar(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "shortcuts"))]
+
+      "widget_footer" ->
+        [Widget.footer(Map.fetch!(attrs, "id"), right: Map.get(attrs, "right", ""))]
+
+      _ ->
+        []
+    end
   end
 
   defp node_to_cells({:block, type, name, attrs, children, _meta, _close_meta}, env)
@@ -351,7 +429,12 @@ defmodule Tilde.Template.Compiler do
   defp allowed_atom("format", value, default), do: known_atom(value, ~w(plain markdown), default)
 
   defp allowed_atom("kind", value, default),
-    do: known_atom(value, ~w(template block message widget), default)
+    do:
+      known_atom(
+        value,
+        ~w(template block message widget screen section text heading muted suggest input shortcut_bar footer),
+        default
+      )
 
   defp allowed_atom("role", value, default),
     do:

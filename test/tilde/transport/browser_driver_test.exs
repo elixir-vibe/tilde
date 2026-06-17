@@ -29,7 +29,7 @@ defmodule TildeBrowserDriverTest do
       |> Browser.assert_has(".suggest")
       |> Browser.press(:enter)
       |> Browser.assert_input("/new ")
-      |> Browser.refute_has(".suggest")
+      |> Browser.assert_has(".suggest")
       |> Browser.type("demo")
       |> Browser.press(:enter)
       |> Browser.assert_input("")
@@ -49,6 +49,17 @@ defmodule TildeBrowserDriverTest do
       browser
       |> Browser.assert_input("/")
       |> Browser.refute_has(".suggest")
+    else
+      skip_browser()
+    end
+  end
+
+  test "real browser index lists sessions", %{browser: browser} do
+    if browser do
+      browser
+      |> Browser.visit("/tilde")
+      |> Browser.assert_text("sessions")
+      |> Browser.assert_text("browser-test")
     else
       skip_browser()
     end

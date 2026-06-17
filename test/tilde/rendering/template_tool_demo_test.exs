@@ -152,6 +152,29 @@ defmodule Tilde.Rendering.TemplateToolDemoTest do
     assert tui =~ IO.ANSI.bright()
   end
 
+  test "Tilde semantic HEEx templates compose widgets" do
+    require Tilde.Template
+
+    [screen] =
+      Tilde.Template.to_widgets!(
+        """
+        <.screen id="home" class="index">
+          <.widget_text id="title" text="tilde" kind="heading" />
+          <.widget_input id="input" input={@input} />
+          <.shortcut_bar id="shortcuts" shortcuts={@shortcuts} />
+        </.screen>
+        """,
+        assigns: %{
+          input: %Tilde.Core.Input{value: "/new ", cursor: 5},
+          shortcuts: [%{key: "n", label: "new"}]
+        }
+      )
+
+    assert screen.kind == :screen
+    assert screen.metadata.class == "index"
+    assert Enum.map(screen.children, & &1.kind) == [:heading, :input, :shortcut_bar]
+  end
+
   test "Tilde semantic HEEx templates support assigns, message cells, and markdown" do
     require Tilde.Template
     require Tilde.Template.Renderer.Live

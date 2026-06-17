@@ -63,7 +63,7 @@ defmodule Tilde.Transport.Live.WidgetRenderer do
 
     ~H"""
     <section class="dock">
-      <.input value={@input.value} running?={false} />
+      <.input value={@input.value} running?={false} keydown_event="tilde:index_keydown" />
     </section>
     """
   end

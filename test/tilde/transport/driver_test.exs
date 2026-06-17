@@ -40,7 +40,7 @@ defmodule TildeDriverTest do
         |> Driver.assert_suggestion("/new", selected?: true)
         |> Driver.press(:enter)
         |> Driver.assert_input("/new ")
-        |> Driver.refute_suggestions()
+        |> Driver.assert_suggestion("name", selected?: true)
         |> Driver.type("demo")
         |> Driver.press(:enter)
         |> Driver.assert_input("")

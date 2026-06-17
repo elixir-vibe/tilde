@@ -1,8 +1,32 @@
 # Tilde UI system
 
-Tilde's Live UI is a small DOM system backed by Volt-managed assets. Elixir owns
-semantic state and markup. TypeScript owns browser behavior. CSS owns visual
+Tilde's UI is shared across LiveView, TUI, and SSH. Elixir owns semantic state
+and widget composition. TypeScript owns browser behavior. CSS owns visual
 presentation.
+
+## Architecture layers
+
+```text
+Core state
+  Session / Index / Transcript / Input
+
+Semantic UI composition
+  Tilde.Core.Widget as the shared composition unit
+  Tilde.Core.Suggest / Choice / Action / Display as widget content contracts
+  Tilde.Template HEEx composes widgets first; cells are only a projection
+
+Renderer adapters
+  Tilde.Transport.Live.WidgetRenderer projects widgets to DOM
+  Tilde.Renderer.TUI.WidgetRenderer projects widgets to terminal text/cells
+  SSH uses the TUI projection
+
+Low-level projection
+  Tilde.View.Cell / Line / Text are TUI-ish projection primitives, not the
+  semantic source of truth
+```
+
+`Tilde.Index.View` is the shared index appearance source. The demo LiveView and
+SSH/TUI should consume that widget composition rather than owning index layout.
 
 ## Asset entrypoints
 

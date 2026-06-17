@@ -77,6 +77,17 @@ defmodule Tilde.Demo.Live do
 
   def handle_event(
         "tilde:input_changed",
+        %{"input" => "n"},
+        %{assigns: %{mode: :index, index: %Index{input: %Tilde.Core.Input{value: ""}}}} = socket
+      ) do
+    index = Index.new_shortcut(socket.assigns.index)
+
+    {:noreply,
+     socket |> assign(index: index) |> push_event("tilde:input_completed", %{insert: "/new "})}
+  end
+
+  def handle_event(
+        "tilde:input_changed",
         %{"input" => input},
         %{assigns: %{mode: :index}} = socket
       ) do
@@ -147,6 +158,25 @@ defmodule Tilde.Demo.Live do
     {:noreply,
      socket |> assign(index: index) |> push_event("tilde:input_completed", %{insert: "/new "})}
   end
+
+  def handle_event(
+        "tilde:index_keydown",
+        %{"key" => "Enter"},
+        %{assigns: %{mode: :index}} = socket
+      ) do
+    submit_index_suggestion(socket)
+  end
+
+  def handle_event(
+        "tilde:index_keydown",
+        %{"key" => "n", "value" => ""},
+        %{assigns: %{mode: :index}} = socket
+      ) do
+    handle_event("tilde:index_new", %{}, socket)
+  end
+
+  def handle_event("tilde:index_keydown", _params, %{assigns: %{mode: :index}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("tilde:toggle_expand", %{"id" => id}, socket) do
     session =
@@ -232,6 +262,8 @@ defmodule Tilde.Demo.Live do
   end
 
   def handle_event("tilde:suggest_submit", _params, socket) do
+    submitted_input = submitted_suggestion_input(socket.assigns.session)
+
     session =
       SessionServer.update_session(socket.assigns.session_server, fn session ->
         case Session.submit_suggestion(session) do
@@ -240,7 +272,11 @@ defmodule Tilde.Demo.Live do
         end
       end)
 
-    socket = push_event(socket, "tilde:input_completed", %{insert: session.input.value})
+    socket =
+      socket
+      |> maybe_apply_submitted_suggestion(submitted_input, session)
+      |> push_event("tilde:input_completed", %{insert: session.input.value})
+
     {:noreply, assign(socket, session: session)}
   end
 
@@ -370,6 +406,26 @@ defmodule Tilde.Demo.Live do
         socket
     end
   end
+
+  defp submitted_suggestion_input(%Session{} = session) do
+    case Session.command_suggestions(session) do
+      nil -> nil
+      suggest -> Tilde.Core.Suggest.accept(suggest)
+    end
+  end
+
+  defp maybe_apply_submitted_suggestion(socket, input, session) when is_binary(input) do
+    if String.ends_with?(input, " ") do
+      socket
+    else
+      input
+      |> Command.parse()
+      |> command_effects(session)
+      |> apply_transport_effects(socket)
+    end
+  end
+
+  defp maybe_apply_submitted_suggestion(socket, _input, _session), do: socket
 
   defp index_session_id(%Index{} = index, insert) do
     case Index.session_suggestions(index) do

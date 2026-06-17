@@ -11,9 +11,10 @@ defmodule Tilde.Transport.SSH.Channel do
   @behaviour :ssh_server_channel
 
   alias Tilde.Command, as: SlashCommand
-  alias Tilde.Core.{Block, Controller, Input, Keys, Session}
+  alias Tilde.Core.{Block, Controller, Index, Input, Keys, Session}
+  alias Tilde.Index.View, as: IndexView
   alias Tilde.Renderer.TUI
-  alias Tilde.Renderer.TUI.ViewRenderer
+  alias Tilde.Renderer.TUI.{ViewRenderer, WidgetRenderer}
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.SSH.Delta
@@ -23,6 +24,7 @@ defmodule Tilde.Transport.SSH.Channel do
             width: 100,
             height: 30,
             session: nil,
+            index: nil,
             session_server: nil,
             session_mode: :private,
             session_id: nil,
@@ -35,6 +37,7 @@ defmodule Tilde.Transport.SSH.Channel do
           width: pos_integer(),
           height: pos_integer(),
           session: Session.t() | nil,
+          index: Index.t() | nil,
           session_server: SessionServer.name() | nil,
           session_mode: :private | :shared,
           session_id: String.t() | nil,
@@ -56,6 +59,7 @@ defmodule Tilde.Transport.SSH.Channel do
        width: Keyword.get(opts, :width, 100),
        height: Keyword.get(opts, :height, 30),
        session: session,
+       index: Index.new(),
        session_server: session_server,
        session_mode: session_mode,
        session_id: session.id
@@ -160,13 +164,7 @@ defmodule Tilde.Transport.SSH.Channel do
     %{state | session: session, session_id: session.id, attached?: true}
   end
 
-  defp route_session(%__MODULE__{} = state) do
-    attach_session(state, private_session_id(), announce?: false, attached?: false)
-  end
-
-  defp private_session_id do
-    "ssh-#{System.unique_integer([:positive, :monotonic])}"
-  end
+  defp route_session(%__MODULE__{} = state), do: show_index(state)
 
   defp session_server_for(session_id) do
     {:ok, _pid} = SessionRegistry.ensure_started()
@@ -204,11 +202,22 @@ defmodule Tilde.Transport.SSH.Channel do
     state
   end
 
-  defp detach_session(%__MODULE__{} = state) do
-    attach_session(state, private_session_id(),
-      attached?: false,
-      label: "detached to private session"
-    )
+  defp detach_session(%__MODULE__{} = state), do: show_index(state)
+
+  defp show_index(%__MODULE__{} = state) do
+    if state.session_server do
+      SessionServer.unsubscribe(state.session_server)
+    end
+
+    %{
+      state
+      | session: nil,
+        index: Index.new(),
+        session_server: nil,
+        session_id: nil,
+        attached?: false,
+        streaming?: false
+    }
   end
 
   defp show_session_info(%__MODULE__{} = state) do
@@ -310,6 +319,10 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp preserve_local_prompt(%Session{} = incoming, _current), do: incoming
 
+  defp apply_keys(%__MODULE__{session_server: nil, index: %Index{}} = state, keys) do
+    apply_index_keys(state, keys)
+  end
+
   defp apply_keys(%__MODULE__{session_server: nil} = state, keys) do
     apply_local_keys(state, keys)
   end
@@ -352,6 +365,103 @@ defmodule Tilde.Transport.SSH.Channel do
     case SlashCommand.parse(input) do
       {:ok, command} -> SlashCommand.run(command, session, [])
       :error -> []
+    end
+  end
+
+  defp apply_index_keys(%__MODULE__{} = state, keys) do
+    Enum.reduce_while(keys, {:cont, state}, fn
+      :enter, {:cont, state} ->
+        {:cont, {:cont, submit_index(state)}}
+
+      :down, {:cont, state} ->
+        {:cont, {:cont, %{state | index: Index.select_next(state.index)}}}
+
+      :up, {:cont, state} ->
+        {:cont, {:cont, %{state | index: Index.select_previous(state.index)}}}
+
+      :tab, {:cont, state} ->
+        case Index.accept_suggestion(state.index) do
+          {:ok, index} -> {:cont, {:cont, %{state | index: index}}}
+          :error -> {:cont, {:cont, state}}
+        end
+
+      :cancel, {:cont, state} ->
+        {:cont, {:cont, %{state | index: Index.cancel_suggestions(state.index)}}}
+
+      :quit, {:cont, state} ->
+        if state.index.input.value == "",
+          do: {:halt, {:halt, state}},
+          else: index_text(state, "q")
+
+      :interrupt, {:cont, state} ->
+        if state.index.input.value == "" do
+          {:halt, {:halt, state}}
+        else
+          {:cont, {:cont, %{state | index: Index.input_changed(state.index, "")}}}
+        end
+
+      {:text, "n"}, {:cont, %{index: %Index{input: %Input{value: ""}}} = state} ->
+        {:cont, {:cont, %{state | index: Index.new_shortcut(state.index)}}}
+
+      {:text, text}, {:cont, state} ->
+        index_text(state, text)
+
+      _key, {:cont, state} ->
+        {:cont, {:cont, state}}
+    end)
+  end
+
+  defp index_text(%__MODULE__{} = state, text) do
+    input = Input.insert(state.index.input, text)
+    {:cont, {:cont, %{state | index: Index.input_changed(state.index, input.value)}}}
+  end
+
+  defp submit_index(%__MODULE__{index: %Index{} = index} = state) do
+    cond do
+      Index.command_suggestions(index) ->
+        submit_index_command_suggestion(state)
+
+      session_id = Index.selected_session_id(index) ->
+        attach_session(state, session_id)
+
+      true ->
+        state
+    end
+  end
+
+  defp submit_index_command_suggestion(%__MODULE__{} = state) do
+    case Index.accept_suggestion(state.index) do
+      {:ok, %Index{input: %{value: input}} = index} ->
+        if String.ends_with?(input, " ") do
+          %{state | index: index}
+        else
+          submit_index_input(%{state | index: index}, input)
+        end
+
+      :error ->
+        state
+    end
+  end
+
+  defp submit_index_input(%__MODULE__{} = state, input) do
+    case SlashCommand.parse(input) do
+      {:ok, command} ->
+        case SlashCommand.run(command, Tilde.session(id: "index"), []) do
+          [%Tilde.Command.Effect.AttachSession{id: session_id} | _effects] ->
+            attach_session(state, session_id)
+
+          [%Tilde.Command.Effect.NewSession{id: session_id} | _effects] ->
+            attach_session(state, session_id)
+
+          [%Tilde.Command.Effect.DetachSession{} | _effects] ->
+            show_index(state)
+
+          _effects ->
+            state
+        end
+
+      :error ->
+        state
     end
   end
 
@@ -437,6 +547,16 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp render(%__MODULE__{connection_ref: nil}), do: :ok
   defp render(%__MODULE__{channel_id: nil}), do: :ok
+
+  defp render(%__MODULE__{index: %Index{}, session_server: nil} = state) do
+    bytes =
+      state.index
+      |> IndexView.widgets()
+      |> WidgetRenderer.render(state.width, ansi: true)
+      |> IO.iodata_to_binary()
+
+    :ssh_connection.send(state.connection_ref, state.channel_id, bytes)
+  end
 
   defp render(%__MODULE__{} = state) do
     bytes =

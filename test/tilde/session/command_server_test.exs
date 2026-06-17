@@ -42,7 +42,7 @@ defmodule Tilde.SessionCommandServerTest do
 
     assert completed.input.value == "/new "
     assert completed.transcript.blocks == []
-    assert Session.command_suggestions(completed) == nil
+    assert %Tilde.Core.Suggest{id: "new-session-hints"} = Session.command_suggestions(completed)
 
     assert {:cont, with_name} = Tilde.Core.Controller.apply_key(completed, {:text, "demo"})
     assert {:cont, submitted} = Tilde.Core.Controller.apply_key(with_name, :enter)

@@ -9,6 +9,27 @@ defmodule Tilde.Template do
 
   alias Tilde.Template.Compiler
 
+  @doc "Compiles HEEx source in the caller context and returns semantic widgets."
+  defmacro to_widgets(source, opts \\ []) do
+    caller = Macro.escape(__CALLER__)
+
+    quote do
+      Tilde.Template.__to_widgets__(unquote(source), unquote(opts), unquote(caller))
+    end
+  end
+
+  @doc "Compiles HEEx source in the caller context and returns semantic widgets, raising on error."
+  defmacro to_widgets!(source, opts \\ []) do
+    caller = Macro.escape(__CALLER__)
+
+    quote do
+      case Tilde.Template.__to_widgets__(unquote(source), unquote(opts), unquote(caller)) do
+        {:ok, widgets} -> widgets
+        {:error, reason} -> raise reason
+      end
+    end
+  end
+
   @doc "Compiles HEEx source in the caller context and returns semantic view cells."
   defmacro to_cells(source, opts \\ []) do
     caller = Macro.escape(__CALLER__)
@@ -32,4 +53,7 @@ defmodule Tilde.Template do
 
   @doc false
   def __to_cells__(source, opts, caller), do: Compiler.to_cells(source, opts, caller)
+
+  @doc false
+  def __to_widgets__(source, opts, caller), do: Compiler.to_widgets(source, opts, caller)
 end
