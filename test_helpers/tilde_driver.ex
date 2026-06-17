@@ -86,6 +86,48 @@ defmodule TildeTest.Driver do
     state
   end
 
+  @doc "Asserts the assistant pending indicator is visible in the transport."
+  @spec assert_pending(state()) :: state()
+  def assert_pending(state) do
+    assert session(state).statuses["model"] == "thinking…"
+    assert_text(state, "thinking")
+  end
+
+  @doc "Refutes the assistant pending status."
+  @spec refute_pending(state()) :: state()
+  def refute_pending(state) do
+    refute Map.has_key?(session(state).statuses, "model")
+    state
+  end
+
+  @doc "Asserts a tool block exists."
+  @spec assert_tool(state(), String.t(), keyword()) :: state()
+  def assert_tool(state, name, opts \\ []) do
+    block = find_tool!(state, name)
+
+    if status = opts[:status] do
+      assert block.status == status
+    end
+
+    state
+  end
+
+  @doc "Asserts a tool block is currently expanded."
+  @spec assert_expanded(state(), String.t()) :: state()
+  def assert_expanded(state, name) do
+    block = find_tool!(state, name)
+    assert block.display.expanded?
+    state
+  end
+
+  @doc "Asserts a tool block is currently collapsed."
+  @spec assert_collapsed(state(), String.t()) :: state()
+  def assert_collapsed(state, name) do
+    block = find_tool!(state, name)
+    refute block.display.expanded?
+    state
+  end
+
   @doc "Refutes that command suggestions are visible."
   @spec refute_suggestions(state()) :: state()
   def refute_suggestions(state) do
@@ -96,4 +138,10 @@ defmodule TildeTest.Driver do
   @doc "Returns the transport module for a driver state."
   @spec driver(state()) :: module()
   def driver(%module{}), do: module
+
+  defp find_tool!(state, name) do
+    Enum.find(session(state).transcript.blocks, fn block ->
+      block.kind == :tool and block.name == name
+    end) || flunk("expected tool #{inspect(name)}")
+  end
 end

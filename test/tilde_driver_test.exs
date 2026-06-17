@@ -68,9 +68,22 @@ defmodule TildeDriverTest do
 
         unquote(driver)
         |> Driver.open(session: session)
+        |> Driver.assert_tool("bash")
+        |> Driver.assert_collapsed("bash")
         |> Driver.assert_text("more lines")
         |> Driver.press(:ctrl_o)
+        |> Driver.assert_expanded("bash")
         |> Driver.assert_text("two")
+      end
+
+      test "pending assistant status is visible" do
+        session =
+          Tilde.session()
+          |> Tilde.Core.Session.append_event(Tilde.status_changed("model", "thinking…"))
+
+        unquote(driver)
+        |> Driver.open(session: session)
+        |> Driver.assert_pending()
       end
     end
   end

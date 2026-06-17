@@ -31,6 +31,7 @@ defmodule Tilde.MixProject do
     [
       {:pi_bridge, "== 0.6.21", only: :dev},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
+      {:playwright_ex, "~> 0.7.0", only: :test},
       {:reach, "~> 2.0", only: [:dev, :test], runtime: false},
       {:ex_dna, "~> 1.0", only: [:dev, :test], runtime: false},
       {:dotenvy, "~> 1.1"},

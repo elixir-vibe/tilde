@@ -13,6 +13,7 @@ defmodule Tilde.Transport.SSH.Delta do
           :none
           | :status_only
           | :input_only
+          | :redraw
           | {:new_blocks, [Block.t()]}
           | {:assistant_delta, String.t()}
           | {:tool_delta, Block.t(), Stream.kind(), String.t(), boolean()}
@@ -21,31 +22,17 @@ defmodule Tilde.Transport.SSH.Delta do
   @doc "Classifies a session transition for append-oriented SSH rendering."
   @spec classify(Session.t(), Session.t()) :: t()
   def classify(%Session{} = old, %Session{} = new) do
-    cond do
-      old == new ->
-        :none
-
-      input_only?(old, new) ->
-        :input_only
-
-      status_only?(old, new) ->
-        :status_only
-
-      blocks = new_blocks(old, new) ->
-        {:new_blocks, blocks}
-
-      delta = assistant_delta(old, new) ->
-        {:assistant_delta, delta}
-
-      delta = tool_delta(old, new) ->
-        delta
-
-      done = tool_done(old, new) ->
-        done
-
-      true ->
-        :none
-    end
+    [
+      &same?/2,
+      &input_change/2,
+      &status_change/2,
+      &widget_change/2,
+      &block_change/2,
+      &assistant_change/2,
+      &tool_stream_change/2,
+      &tool_done/2
+    ]
+    |> Enum.find_value(:none, & &1.(old, new))
   end
 
   @doc "Returns true when blocks indicate an active append stream."
@@ -58,6 +45,21 @@ defmodule Tilde.Transport.SSH.Delta do
     end)
   end
 
+  defp same?(old, new), do: if(old == new, do: :none)
+  defp input_change(old, new), do: if(input_only?(old, new), do: :input_only)
+  defp status_change(old, new), do: if(status_only?(old, new), do: :status_only)
+  defp widget_change(old, new), do: if(widgets_changed?(old, new), do: :redraw)
+
+  defp block_change(old, new) do
+    if blocks = new_blocks(old, new), do: {:new_blocks, blocks}
+  end
+
+  defp assistant_change(old, new) do
+    if delta = assistant_delta(old, new), do: {:assistant_delta, delta}
+  end
+
+  defp tool_stream_change(old, new), do: tool_delta(old, new)
+
   defp input_only?(%Session{} = old, %Session{} = new) do
     old.input != new.input and
       old.transcript == new.transcript and
@@ -68,6 +70,11 @@ defmodule Tilde.Transport.SSH.Delta do
   defp status_only?(%Session{} = old, %Session{} = new) do
     old.input == new.input and old.transcript == new.transcript and old.widgets == new.widgets and
       old.statuses != new.statuses
+  end
+
+  defp widgets_changed?(%Session{} = old, %Session{} = new) do
+    old.widgets != new.widgets and old.transcript == new.transcript and
+      old.statuses == new.statuses
   end
 
   defp new_blocks(%Session{} = old, %Session{} = new) do

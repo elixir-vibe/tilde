@@ -316,13 +316,11 @@ defmodule Tilde.Transport.SSH.Channel do
   defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn
       :enter, {:cont, state} ->
-        case Controller.apply_key(state.session, :enter) do
-          {:cont, %Session{input: %Input{value: accepted}} = session}
-          when accepted != state.session.input.value ->
-            {:cont, {:cont, %{state | session: session}}}
-
-          _other ->
-            submit_or_command(server, state)
+        if Session.command_suggestions(state.session) do
+          {:cont, session} = Controller.apply_key(state.session, :enter)
+          {:cont, {:cont, %{state | session: session}}}
+        else
+          submit_or_command(server, state)
         end
 
       key, {:cont, state} ->
@@ -375,6 +373,12 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp render_delta_change(%__MODULE__{} = state, _old_session, :status_only), do: state
+
+  defp render_delta_change(%__MODULE__{} = state, _old_session, :redraw) do
+    render(state)
+    state
+  end
+
   defp render_delta_change(%__MODULE__{} = state, _old_session, :none), do: state
 
   defp render_delta_change(%__MODULE__{} = state, _old_session, {:new_blocks, blocks}) do
