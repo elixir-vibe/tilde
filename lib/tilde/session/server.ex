@@ -83,6 +83,12 @@ defmodule Tilde.Session.Server do
     GenServer.call(server, {:apply_key, key})
   end
 
+  @doc "Applies a transport-neutral interaction through `Tilde.Core.Controller`."
+  @spec apply_interaction(name(), Tilde.Core.Interaction.t()) :: Controller.interaction_result()
+  def apply_interaction(server, interaction) do
+    GenServer.call(server, {:apply_interaction, interaction})
+  end
+
   @impl true
   def init(%Session{} = session), do: {:ok, %__MODULE__{session: session}}
 
@@ -121,6 +127,22 @@ defmodule Tilde.Session.Server do
         state = %{state | session: trim_session(session)}
         state = handle_post_update(previous, state)
         {:reply, {:halt, state.session}, state}
+    end
+  end
+
+  def handle_call({:apply_interaction, interaction}, _from, state) do
+    case Controller.apply_interaction(state.session, interaction) do
+      {:cont, session, effects} ->
+        previous = state.session
+        state = %{state | session: trim_session(session)}
+        state = handle_post_update(previous, state)
+        {:reply, {:cont, state.session, effects}, state}
+
+      {:halt, session, effects} ->
+        previous = state.session
+        state = %{state | session: trim_session(session)}
+        state = handle_post_update(previous, state)
+        {:reply, {:halt, state.session, effects}, state}
     end
   end
 

@@ -345,17 +345,14 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp submit_or_command(server, state) do
     case transport_effects(state.session.input.value, state.session) do
-      [%Tilde.Command.Effect.AttachSession{id: session_id} | _effects] ->
+      [%InteractionEffect{type: :open_session, payload: %{id: session_id}} | _effects] ->
         {:cont, {:cont, attach_session(state, session_id)}}
 
-      [%Tilde.Command.Effect.DetachSession{} | _effects] ->
+      [%InteractionEffect{type: :open_index} | _effects] ->
         {:cont, {:cont, detach_session(state)}}
 
-      [%Tilde.Command.Effect.ShowSessionInfo{} | _effects] ->
+      [%InteractionEffect{type: :show_session_info} | _effects] ->
         {:cont, {:cont, show_session_info(state)}}
-
-      [%Tilde.Command.Effect.NewSession{id: session_id} | _effects] ->
-        {:cont, {:cont, attach_session(state, session_id)}}
 
       _effects ->
         submit_local_input(server, state)
@@ -364,8 +361,11 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp transport_effects(input, %Session{} = session) do
     case SlashCommand.parse(input) do
-      {:ok, command} -> SlashCommand.run(command, session, [])
-      :error -> []
+      {:ok, command} ->
+        command |> SlashCommand.run(session, []) |> InteractionEffect.from_command_effects()
+
+      :error ->
+        []
     end
   end
 

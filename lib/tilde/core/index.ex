@@ -210,30 +210,12 @@ defmodule Tilde.Core.Index do
     |> Command.parse()
     |> case do
       {:ok, %Command{} = command} ->
-        command
-        |> Command.run(Tilde.session(id: "index"), [])
-        |> index_command_effects(index)
+        effects = Command.run(command, Tilde.session(id: "index"), [])
+        continue(index, Effect.from_command_effects(effects))
 
       :error ->
         continue(index)
     end
-  end
-
-  defp index_command_effects(effects, %__MODULE__{} = index) do
-    Enum.reduce(effects, continue(index), fn
-      %Tilde.Command.Effect.AttachSession{id: id}, {:cont, index, effects} ->
-        {:cont, index, [Effect.open_session(id) | effects]}
-
-      %Tilde.Command.Effect.NewSession{id: id}, {:cont, index, effects} ->
-        {:cont, index, [Effect.open_session(id) | effects]}
-
-      %Tilde.Command.Effect.DetachSession{}, {:cont, index, effects} ->
-        {:cont, index, effects}
-
-      _effect, result ->
-        result
-    end)
-    |> normalize_effect_order()
   end
 
   defp session_id_for_insert(%__MODULE__{} = index, insert) do
@@ -247,6 +229,4 @@ defmodule Tilde.Core.Index do
   defp session_id_for_insert(_item, _insert), do: nil
 
   defp continue(%__MODULE__{} = index, effects \\ []), do: {:cont, index, effects}
-
-  defp normalize_effect_order({:cont, index, effects}), do: {:cont, index, Enum.reverse(effects)}
 end

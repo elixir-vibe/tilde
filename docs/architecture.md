@@ -27,7 +27,8 @@ Renderer adapters
 ```
 
 `Tilde.Core.Event` is durable history. `Tilde.Core.Interaction` is not durable;
-it is the shared transport-neutral event model for user intent.
+it is the shared transport-neutral event model for user intent in both index and
+session mode.
 
 ## Session source of truth
 
@@ -81,17 +82,20 @@ and SSH/TUI render the same widget composition through their adapters.
 ## Interactions
 
 Transports translate raw input into `Tilde.Core.Interaction` before applying
-index behavior. Applying an interaction returns updated core state plus
-transport-neutral `Tilde.Core.Interaction.Effect` values such as:
+index or session behavior. Applying an interaction returns updated core state
+plus transport-neutral `Tilde.Core.Interaction.Effect` values such as:
 
 - `:complete_input`
 - `:open_session`
+- `:open_index`
+- `:show_session_info`
 
 LiveView maps these to `push_event/3` or navigation. SSH maps them to local input
-updates or session attachment.
+updates, session attachment, index return, or an inline session-info display.
 
-Session prompt key handling still flows through `Tilde.Core.Controller`; it is
-the terminal-oriented controller for decoded `Tilde.Core.Keys` values.
+Session prompt key handling can still flow through `Tilde.Core.Controller.apply_key/2`
+for decoded `Tilde.Core.Keys` values; transports that already have semantic
+intent should prefer `Controller.apply_interaction/2`.
 
 ## Commands
 

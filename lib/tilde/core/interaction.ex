@@ -20,6 +20,10 @@ defmodule Tilde.Core.Interaction do
           | :submit
           | :interrupt
           | :new_shortcut
+          | :quit
+          | :toggle_expand
+          | :select_choice
+          | :choice_action
 
   @type t :: %__MODULE__{type: type(), payload: map()}
 
@@ -43,7 +47,7 @@ defmodule Tilde.Core.Interaction.Effect do
 
   defstruct type: nil, payload: %{}
 
-  @type type :: :complete_input | :open_session
+  @type type :: :complete_input | :open_session | :open_index | :show_session_info
   @type t :: %__MODULE__{type: type(), payload: map()}
 
   @spec complete_input(String.t()) :: t()
@@ -51,4 +55,21 @@ defmodule Tilde.Core.Interaction.Effect do
 
   @spec open_session(String.t()) :: t()
   def open_session(id), do: %__MODULE__{type: :open_session, payload: %{id: id}}
+
+  @spec open_index() :: t()
+  def open_index, do: %__MODULE__{type: :open_index, payload: %{}}
+
+  @spec show_session_info() :: t()
+  def show_session_info, do: %__MODULE__{type: :show_session_info, payload: %{}}
+
+  @spec from_command_effects([Tilde.Command.Effect.t()]) :: [t()]
+  def from_command_effects(effects) do
+    Enum.flat_map(effects, fn
+      %Tilde.Command.Effect.NewSession{id: id} -> [open_session(id)]
+      %Tilde.Command.Effect.AttachSession{id: id} -> [open_session(id)]
+      %Tilde.Command.Effect.DetachSession{} -> [open_index()]
+      %Tilde.Command.Effect.ShowSessionInfo{} -> [show_session_info()]
+      _effect -> []
+    end)
+  end
 end

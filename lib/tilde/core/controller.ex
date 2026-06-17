@@ -6,10 +6,103 @@ defmodule Tilde.Core.Controller do
   `Tilde.Core.Keys.key/0` values and apply them here.
   """
 
-  alias Tilde.Core.{Block, Input, Session}
-  alias Tilde.Core.Keys
+  alias Tilde.Command
+  alias Tilde.Core.{Block, Input, Interaction, Keys, Session, Suggest}
+  alias Tilde.Core.Interaction.Effect
 
   @type result :: {:cont, Session.t()} | {:halt, Session.t()}
+  @type interaction_result ::
+          {:cont, Session.t(), [Effect.t()]} | {:halt, Session.t(), [Effect.t()]}
+
+  @doc "Applies a transport-neutral interaction to a session."
+  @spec apply_interaction(Session.t(), Interaction.t()) :: interaction_result()
+  def apply_interaction(%Session{} = session, %Interaction{
+        type: :toggle_expand,
+        payload: %{id: id}
+      })
+      when is_binary(id) do
+    continue(Session.toggle_expand(session, id))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :toggle_expand}) do
+    {:cont, session} = apply_key(session, :toggle_expand)
+    continue(session)
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :select_choice, payload: payload}) do
+    continue(Session.select_choice(session, payload.block_id, payload.option_id))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{
+        type: :choice_action,
+        payload: %{action_id: action_id}
+      }) do
+    continue(Session.put_status(session, "choice", action_id))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{
+        type: :input_changed,
+        payload: %{input: input}
+      }) do
+    {:cont, session} = change_input(session, Input.put_value(session.input, input))
+    continue(session)
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{
+        type: :complete_input,
+        payload: payload
+      }) do
+    input =
+      Map.get(payload, :insert) || Command.completion(Map.get(payload, :input, "")) ||
+        Map.get(payload, :input, "")
+
+    {:cont, session} = change_input(session, Input.put_value(session.input, input))
+    continue(session, completion_effect(payload, input))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :suggest_next}) do
+    continue(Session.select_next_suggestion(session))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :suggest_previous}) do
+    continue(Session.select_previous_suggestion(session))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :suggest_cancel}) do
+    continue(Session.cancel_suggestions(session))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :suggest_accept}) do
+    case Session.accept_suggestion(session) do
+      {:ok, session} -> continue(session, [Effect.complete_input(session.input.value)])
+      :error -> continue(session)
+    end
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :suggest_submit}) do
+    submitted_input = selected_suggestion_completion(session)
+
+    case Session.submit_suggestion(session) do
+      {:ok, session} -> continue(session, submitted_suggestion_effects(submitted_input, session))
+      :error -> continue(session)
+    end
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{
+        type: :submit,
+        payload: %{input: input}
+      }) do
+    {:cont, session} = submit_input(%{session | input: Input.put_value(session.input, input)})
+    continue(session, command_effects(input, session))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :interrupt}) do
+    continue(Session.put_status(session, "runtime", "interrupted"))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{type: :quit}) do
+    {:halt, session, []}
+  end
 
   @doc "Applies a decoded key to a session."
   @spec apply_key(Session.t(), Keys.key()) :: result()
@@ -98,4 +191,38 @@ defmodule Tilde.Core.Controller do
       _block -> nil
     end)
   end
+
+  defp selected_suggestion_completion(%Session{} = session) do
+    case Session.command_suggestions(session) do
+      %Suggest{} = suggest -> Suggest.accept(suggest)
+      nil -> nil
+    end
+  end
+
+  defp submitted_suggestion_effects(nil, _session), do: []
+
+  defp submitted_suggestion_effects(input, %Session{} = session) when is_binary(input) do
+    if String.ends_with?(input, " ") do
+      [Effect.complete_input(session.input.value)]
+    else
+      [Effect.complete_input(session.input.value) | command_effects(input, session)]
+    end
+  end
+
+  defp command_effects(input, %Session{} = session) do
+    case Command.parse(input) do
+      {:ok, command} -> command |> Command.run(session, []) |> Effect.from_command_effects()
+      :error -> []
+    end
+  end
+
+  defp completion_effect(%{insert: insert}, input) when insert != input,
+    do: [Effect.complete_input(input)]
+
+  defp completion_effect(%{input: input}, completed) when input != completed,
+    do: [Effect.complete_input(completed)]
+
+  defp completion_effect(_payload, _input), do: []
+
+  defp continue(%Session{} = session, effects \\ []), do: {:cont, session, effects}
 end

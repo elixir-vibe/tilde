@@ -15,7 +15,6 @@ defmodule Tilde.Demo.Live do
   import Tilde.Transport.Live.Console
   import Tilde.Transport.Live.WidgetRenderer
 
-  alias Tilde.Command
   alias Tilde.Core.{Index, Interaction, Session}
   alias Tilde.Core.Interaction.Effect, as: InteractionEffect
   alias Tilde.Session.Registry, as: SessionRegistry
@@ -152,10 +151,7 @@ defmodule Tilde.Demo.Live do
     do: {:noreply, socket}
 
   def handle_event("tilde:toggle_expand", %{"id" => id}, socket) do
-    session =
-      SessionServer.update_session(socket.assigns.session_server, &Session.toggle_expand(&1, id))
-
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(socket, Interaction.new(:toggle_expand, %{id: id}))
   end
 
   def handle_event(
@@ -163,120 +159,56 @@ defmodule Tilde.Demo.Live do
         %{"block-id" => block_id, "option-id" => option_id},
         socket
       ) do
-    session =
-      SessionServer.update_session(
-        socket.assigns.session_server,
-        &Session.select_choice(&1, block_id, option_id)
-      )
-
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(
+      socket,
+      Interaction.new(:select_choice, %{block_id: block_id, option_id: option_id})
+    )
   end
 
   def handle_event("tilde:choice_action", %{"action-id" => action_id}, socket) do
-    session =
-      SessionServer.update_session(
-        socket.assigns.session_server,
-        &Session.put_status(&1, "choice", action_id)
-      )
-
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(socket, Interaction.new(:choice_action, %{action_id: action_id}))
   end
 
   def handle_event("tilde:input_changed", %{"input" => input}, socket) do
-    session =
-      SessionServer.update_session(
-        socket.assigns.session_server,
-        &Session.append_event(&1, Tilde.input_changed(input))
-      )
-
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(socket, Interaction.input_changed(input))
   end
 
   def handle_event("tilde:complete_input", params, socket) do
-    input = Map.get(params, "insert") || complete_input(Map.get(params, "input", ""))
+    payload = %{
+      input: Map.get(params, "input", ""),
+      insert: Map.get(params, "insert")
+    }
 
-    session =
-      SessionServer.update_session(
-        socket.assigns.session_server,
-        &Session.append_event(&1, Tilde.input_changed(input))
-      )
-
-    socket =
-      if input != Map.get(params, "input"),
-        do: push_event(socket, "tilde:input_completed", %{insert: input}),
-        else: socket
-
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(socket, Interaction.new(:complete_input, payload))
   end
 
   def handle_event("tilde:suggest_next", _params, socket) do
-    update_suggestions(socket, &Session.select_next_suggestion/1)
+    apply_session_interaction(socket, Interaction.new(:suggest_next))
   end
 
   def handle_event("tilde:suggest_previous", _params, socket) do
-    update_suggestions(socket, &Session.select_previous_suggestion/1)
+    apply_session_interaction(socket, Interaction.new(:suggest_previous))
   end
 
   def handle_event("tilde:suggest_cancel", _params, socket) do
-    update_suggestions(socket, &Session.cancel_suggestions/1)
+    apply_session_interaction(socket, Interaction.new(:suggest_cancel))
   end
 
   def handle_event("tilde:suggest_accept", _params, socket) do
-    session =
-      SessionServer.update_session(socket.assigns.session_server, fn session ->
-        case Session.accept_suggestion(session) do
-          {:ok, session} -> session
-          :error -> session
-        end
-      end)
-
-    socket = push_event(socket, "tilde:input_completed", %{insert: session.input.value})
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(socket, Interaction.new(:suggest_accept))
   end
 
   def handle_event("tilde:suggest_submit", _params, socket) do
-    submitted_input = submitted_suggestion_input(socket.assigns.session)
-
-    session =
-      SessionServer.update_session(socket.assigns.session_server, fn session ->
-        case Session.submit_suggestion(session) do
-          {:ok, session} -> session
-          :error -> session
-        end
-      end)
-
-    socket =
-      socket
-      |> maybe_apply_submitted_suggestion(submitted_input, session)
-      |> push_event("tilde:input_completed", %{insert: session.input.value})
-
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(socket, Interaction.new(:suggest_submit))
   end
 
   def handle_event("tilde:submit", %{"input" => input}, socket) do
-    session =
-      SessionServer.update_session(
-        socket.assigns.session_server,
-        &Session.append_event(&1, Tilde.input_submitted(input))
-      )
-
-    socket =
-      input
-      |> Command.parse()
-      |> command_effects(session)
-      |> apply_transport_effects(socket)
-
-    {:noreply, assign(socket, session: session)}
+    apply_session_interaction(socket, Interaction.submit(input))
   end
 
   def handle_event("tilde:interrupt", _params, socket) do
-    session =
-      SessionServer.update_session(
-        socket.assigns.session_server,
-        &Session.put_status(&1, "runtime", "interrupted")
-      )
-
-    {:noreply, assign(socket, session: session, running?: false)}
+    {:noreply, socket} = apply_session_interaction(socket, Interaction.new(:interrupt))
+    {:noreply, assign(socket, running?: false)}
   end
 
   @impl true
@@ -310,30 +242,16 @@ defmodule Tilde.Demo.Live do
     )
   end
 
-  defp update_suggestions(socket, fun) when is_function(fun, 1) do
-    session = SessionServer.update_session(socket.assigns.session_server, fun)
-    {:noreply, assign(socket, session: session)}
-  end
+  defp apply_session_interaction(socket, %Interaction{} = interaction) do
+    {:cont, session, effects} =
+      SessionServer.apply_interaction(socket.assigns.session_server, interaction)
 
-  defp command_effects({:ok, %Command{} = command}, %Session{} = session),
-    do: Command.run(command, session, [])
+    socket =
+      socket
+      |> assign(session: session)
+      |> apply_interaction_effects(effects)
 
-  defp command_effects(:error, _session), do: []
-
-  defp apply_transport_effects(effects, socket) do
-    Enum.reduce(effects, socket, fn
-      %Tilde.Command.Effect.NewSession{id: id}, socket ->
-        push_navigate(socket, to: session_path(id))
-
-      %Tilde.Command.Effect.AttachSession{id: id}, socket ->
-        push_navigate(socket, to: session_path(id))
-
-      %Tilde.Command.Effect.DetachSession{}, socket ->
-        push_navigate(socket, to: "/")
-
-      _effect, socket ->
-        socket
-    end)
+    {:noreply, socket}
   end
 
   defp apply_index_interaction(socket, %Interaction{} = interaction) do
@@ -347,37 +265,23 @@ defmodule Tilde.Demo.Live do
     {:noreply, socket}
   end
 
-  defp apply_index_effects(socket, effects) do
+  defp apply_index_effects(socket, effects), do: apply_interaction_effects(socket, effects)
+
+  defp apply_interaction_effects(socket, effects) do
     Enum.reduce(effects, socket, fn
       %InteractionEffect{type: :complete_input, payload: %{input: input}}, socket ->
         push_event(socket, "tilde:input_completed", %{insert: input})
 
       %InteractionEffect{type: :open_session, payload: %{id: id}}, socket ->
         push_navigate(socket, to: session_path(id))
+
+      %InteractionEffect{type: :open_index}, socket ->
+        push_navigate(socket, to: "/")
+
+      %InteractionEffect{type: :show_session_info}, socket ->
+        socket
     end)
   end
 
-  defp submitted_suggestion_input(%Session{} = session) do
-    case Session.command_suggestions(session) do
-      nil -> nil
-      suggest -> Tilde.Core.Suggest.accept(suggest)
-    end
-  end
-
-  defp maybe_apply_submitted_suggestion(socket, input, session) when is_binary(input) do
-    if String.ends_with?(input, " ") do
-      socket
-    else
-      input
-      |> Command.parse()
-      |> command_effects(session)
-      |> apply_transport_effects(socket)
-    end
-  end
-
-  defp maybe_apply_submitted_suggestion(socket, _input, _session), do: socket
-
   defp session_path(id), do: "/tilde/#{id}"
-
-  defp complete_input(input), do: Command.completion(input) || input
 end
