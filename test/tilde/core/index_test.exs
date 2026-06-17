@@ -1,7 +1,8 @@
 defmodule Tilde.CoreIndexTest do
   use TildeTest.Case
 
-  alias Tilde.Core.Index
+  alias Tilde.Core.{Index, Interaction}
+  alias Tilde.Core.Interaction.Effect
 
   test "empty index has no session suggestions" do
     assert {:ok, _pid} = Tilde.Session.Registry.ensure_started()
@@ -56,5 +57,22 @@ defmodule Tilde.CoreIndexTest do
     assert Index.new_shortcut(index).input.value == "/new "
 
     GenServer.stop(pid)
+  end
+
+  test "index applies transport-neutral interactions" do
+    index = Index.new()
+
+    assert {:cont, index, []} =
+             Index.apply_interaction(index, Interaction.input_changed("/n"))
+
+    assert {:cont, index, [%Effect{type: :complete_input, payload: %{input: "/new "}}]} =
+             Index.apply_interaction(index, Interaction.new(:suggest_submit))
+
+    assert index.input.value == "/new "
+
+    assert {:cont, _index, [%Effect{type: :open_session, payload: %{id: id}}]} =
+             Index.apply_interaction(index, Interaction.submit("/new interaction-demo"))
+
+    assert id == "interaction-demo"
   end
 end

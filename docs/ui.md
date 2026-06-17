@@ -2,7 +2,7 @@
 
 Tilde's UI is shared across LiveView, TUI, and SSH. Elixir owns semantic state
 and widget composition. TypeScript owns browser behavior. CSS owns visual
-presentation.
+presentation. See `docs/architecture.md` for the broader event/session model.
 
 ## Architecture layers
 

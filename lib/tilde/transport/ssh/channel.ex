@@ -11,7 +11,8 @@ defmodule Tilde.Transport.SSH.Channel do
   @behaviour :ssh_server_channel
 
   alias Tilde.Command, as: SlashCommand
-  alias Tilde.Core.{Block, Controller, Index, Input, Keys, Session}
+  alias Tilde.Core.{Block, Controller, Index, Input, Interaction, Keys, Session}
+  alias Tilde.Core.Interaction.Effect, as: InteractionEffect
   alias Tilde.Index.View, as: IndexView
   alias Tilde.Renderer.TUI
   alias Tilde.Renderer.TUI.{ViewRenderer, WidgetRenderer}
@@ -369,100 +370,59 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp apply_index_keys(%__MODULE__{} = state, keys) do
-    Enum.reduce_while(keys, {:cont, state}, fn
-      :enter, {:cont, state} ->
-        {:cont, {:cont, submit_index(state)}}
-
-      :down, {:cont, state} ->
-        {:cont, {:cont, %{state | index: Index.select_next(state.index)}}}
-
-      :up, {:cont, state} ->
-        {:cont, {:cont, %{state | index: Index.select_previous(state.index)}}}
-
-      :tab, {:cont, state} ->
-        case Index.accept_suggestion(state.index) do
-          {:ok, index} -> {:cont, {:cont, %{state | index: index}}}
-          :error -> {:cont, {:cont, state}}
-        end
-
-      :cancel, {:cont, state} ->
-        {:cont, {:cont, %{state | index: Index.cancel_suggestions(state.index)}}}
-
-      :quit, {:cont, state} ->
-        if state.index.input.value == "",
-          do: {:halt, {:halt, state}},
-          else: index_text(state, "q")
-
-      :interrupt, {:cont, state} ->
-        if state.index.input.value == "" do
+    Enum.reduce_while(keys, {:cont, state}, fn key, {:cont, state} ->
+      case index_interaction(state, key) do
+        :halt ->
           {:halt, {:halt, state}}
-        else
-          {:cont, {:cont, %{state | index: Index.input_changed(state.index, "")}}}
-        end
 
-      {:text, "n"}, {:cont, %{index: %Index{input: %Input{value: ""}}} = state} ->
-        {:cont, {:cont, %{state | index: Index.new_shortcut(state.index)}}}
+        nil ->
+          {:cont, {:cont, state}}
 
-      {:text, text}, {:cont, state} ->
-        index_text(state, text)
-
-      _key, {:cont, state} ->
-        {:cont, {:cont, state}}
+        %Interaction{} = interaction ->
+          {:cont, {:cont, apply_index_interaction(state, interaction)}}
+      end
     end)
   end
 
-  defp index_text(%__MODULE__{} = state, text) do
+  defp index_interaction(%__MODULE__{}, :enter), do: Interaction.new(:suggest_submit)
+  defp index_interaction(%__MODULE__{}, :down), do: Interaction.new(:suggest_next)
+  defp index_interaction(%__MODULE__{}, :up), do: Interaction.new(:suggest_previous)
+  defp index_interaction(%__MODULE__{}, :tab), do: Interaction.new(:suggest_accept)
+  defp index_interaction(%__MODULE__{}, :cancel), do: Interaction.new(:suggest_cancel)
+
+  defp index_interaction(%__MODULE__{index: %Index{input: %Input{value: ""}}}, key)
+       when key in [:quit, :interrupt],
+       do: :halt
+
+  defp index_interaction(%__MODULE__{}, :quit), do: nil
+  defp index_interaction(%__MODULE__{}, :interrupt), do: Interaction.new(:interrupt)
+
+  defp index_interaction(%__MODULE__{index: %Index{input: %Input{value: ""}}}, {:text, "n"}),
+    do: Interaction.new(:new_shortcut)
+
+  defp index_interaction(%__MODULE__{} = state, {:text, text}) do
     input = Input.insert(state.index.input, text)
-    {:cont, {:cont, %{state | index: Index.input_changed(state.index, input.value)}}}
+    Interaction.input_changed(input.value)
   end
 
-  defp submit_index(%__MODULE__{index: %Index{} = index} = state) do
-    cond do
-      Index.command_suggestions(index) ->
-        submit_index_command_suggestion(state)
+  defp index_interaction(%__MODULE__{}, _key), do: nil
 
-      session_id = Index.selected_session_id(index) ->
-        attach_session(state, session_id)
+  defp apply_index_interaction(%__MODULE__{} = state, %Interaction{} = interaction) do
+    {:cont, index, effects} = Index.apply_interaction(state.index, interaction)
 
-      true ->
-        state
-    end
+    state
+    |> Map.put(:index, index)
+    |> apply_index_effects(effects)
   end
 
-  defp submit_index_command_suggestion(%__MODULE__{} = state) do
-    case Index.accept_suggestion(state.index) do
-      {:ok, %Index{input: %{value: input}} = index} ->
-        if String.ends_with?(input, " ") do
-          %{state | index: index}
-        else
-          submit_index_input(%{state | index: index}, input)
-        end
-
-      :error ->
+  defp apply_index_effects(%__MODULE__{} = state, effects) do
+    Enum.reduce(effects, state, fn
+      %InteractionEffect{type: :complete_input}, state ->
         state
-    end
-  end
 
-  defp submit_index_input(%__MODULE__{} = state, input) do
-    case SlashCommand.parse(input) do
-      {:ok, command} ->
-        case SlashCommand.run(command, Tilde.session(id: "index"), []) do
-          [%Tilde.Command.Effect.AttachSession{id: session_id} | _effects] ->
-            attach_session(state, session_id)
-
-          [%Tilde.Command.Effect.NewSession{id: session_id} | _effects] ->
-            attach_session(state, session_id)
-
-          [%Tilde.Command.Effect.DetachSession{} | _effects] ->
-            show_index(state)
-
-          _effects ->
-            state
-        end
-
-      :error ->
-        state
-    end
+      %InteractionEffect{type: :open_session, payload: %{id: id}}, state ->
+        attach_session(state, id)
+    end)
   end
 
   defp apply_local_keys(%__MODULE__{} = state, keys) do

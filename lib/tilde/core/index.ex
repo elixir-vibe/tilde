@@ -2,7 +2,8 @@ defmodule Tilde.Core.Index do
   @moduledoc "Semantic console index state and behavior."
 
   alias Tilde.Command
-  alias Tilde.Core.{Input, Suggest}
+  alias Tilde.Core.{Input, Interaction, Suggest}
+  alias Tilde.Core.Interaction.Effect
   alias Tilde.Session.Summary
 
   @type t :: %__MODULE__{
@@ -31,6 +32,66 @@ defmodule Tilde.Core.Index do
 
   @spec new_shortcut(t()) :: t()
   def new_shortcut(%__MODULE__{} = index), do: input_changed(index, "/new ")
+
+  @type interaction_result :: {:cont, t(), [Effect.t()]} | {:halt, t(), [Effect.t()]}
+
+  @spec apply_interaction(t(), Interaction.t()) :: interaction_result()
+  def apply_interaction(%__MODULE__{} = index, %Interaction{
+        type: :input_changed,
+        payload: %{input: input}
+      }) do
+    continue(input_changed(index, input))
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{
+        type: :complete_input,
+        payload: %{insert: insert}
+      }) do
+    case session_id_for_insert(index, insert) do
+      nil -> continue(input_changed(index, insert), [Effect.complete_input(insert)])
+      session_id -> continue(index, [Effect.open_session(session_id)])
+    end
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{type: :suggest_next}) do
+    continue(select_next(index))
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{type: :suggest_previous}) do
+    continue(select_previous(index))
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{type: :suggest_cancel}) do
+    continue(cancel_suggestions(index))
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{type: :suggest_accept}) do
+    case accept_suggestion(index) do
+      {:ok, index} -> continue(index, [Effect.complete_input(index.input.value)])
+      :error -> continue(index)
+    end
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{type: :suggest_submit}) do
+    submit_suggestion(index)
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{
+        type: :submit,
+        payload: %{input: input}
+      }) do
+    submit_input(index, input)
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{type: :interrupt}) do
+    index = input_changed(index, "")
+    continue(index, [Effect.complete_input("")])
+  end
+
+  def apply_interaction(%__MODULE__{} = index, %Interaction{type: :new_shortcut}) do
+    index = new_shortcut(index)
+    continue(index, [Effect.complete_input(index.input.value)])
+  end
 
   @spec accept_suggestion(t()) :: {:ok, t()} | :error
   def accept_suggestion(%__MODULE__{} = index) do
@@ -116,4 +177,76 @@ defmodule Tilde.Core.Index do
       true -> index
     end
   end
+
+  defp submit_suggestion(%__MODULE__{} = index) do
+    cond do
+      command_suggestions(index) ->
+        submit_command_suggestion(index)
+
+      session_id = selected_session_id(index) ->
+        continue(index, [Effect.open_session(session_id)])
+
+      true ->
+        continue(index)
+    end
+  end
+
+  defp submit_command_suggestion(%__MODULE__{} = index) do
+    case accept_suggestion(index) do
+      {:ok, %__MODULE__{input: %{value: input}} = index} ->
+        if String.ends_with?(input, " ") do
+          continue(index, [Effect.complete_input(input)])
+        else
+          submit_input(index, input)
+        end
+
+      :error ->
+        continue(index)
+    end
+  end
+
+  defp submit_input(%__MODULE__{} = index, input) do
+    input
+    |> Command.parse()
+    |> case do
+      {:ok, %Command{} = command} ->
+        command
+        |> Command.run(Tilde.session(id: "index"), [])
+        |> index_command_effects(index)
+
+      :error ->
+        continue(index)
+    end
+  end
+
+  defp index_command_effects(effects, %__MODULE__{} = index) do
+    Enum.reduce(effects, continue(index), fn
+      %Tilde.Command.Effect.AttachSession{id: id}, {:cont, index, effects} ->
+        {:cont, index, [Effect.open_session(id) | effects]}
+
+      %Tilde.Command.Effect.NewSession{id: id}, {:cont, index, effects} ->
+        {:cont, index, [Effect.open_session(id) | effects]}
+
+      %Tilde.Command.Effect.DetachSession{}, {:cont, index, effects} ->
+        {:cont, index, effects}
+
+      _effect, result ->
+        result
+    end)
+    |> normalize_effect_order()
+  end
+
+  defp session_id_for_insert(%__MODULE__{} = index, insert) do
+    case session_suggestions(index) do
+      nil -> nil
+      suggest -> Enum.find_value(suggest.items, &session_id_for_insert(&1, insert))
+    end
+  end
+
+  defp session_id_for_insert(%{insert: insert, metadata: %{session_id: id}}, insert), do: id
+  defp session_id_for_insert(_item, _insert), do: nil
+
+  defp continue(%__MODULE__{} = index, effects \\ []), do: {:cont, index, effects}
+
+  defp normalize_effect_order({:cont, index, effects}), do: {:cont, index, Enum.reverse(effects)}
 end

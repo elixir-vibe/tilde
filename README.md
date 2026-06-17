@@ -62,7 +62,8 @@ Tilde.Renderer.Text.render(transcript)
 
 ## Semantic HEEx templates
 
-Tilde can parse a constrained, Tilde-native HEEx surface into semantic view cells:
+Tilde can parse a constrained, Tilde-native HEEx surface into semantic widgets
+or low-level view cells:
 
 ```elixir
 require Tilde.Template
@@ -78,6 +79,11 @@ source = """
 """
 
 cells = Tilde.Template.to_cells!(source)
+widgets = Tilde.Template.to_widgets!("""
+<.screen id="home">
+  <.widget_text kind="heading">tilde</.widget_text>
+</.screen>
+""")
 ansi = Tilde.Template.Renderer.TUI.render!(source, 80)
 live = Tilde.Template.Renderer.Live.render!(source)
 ```
@@ -89,16 +95,18 @@ HEEx source
   ↓ Phoenix.LiveView.TagEngine.Parser.parse!/2
 HEEx AST
   ↓ Tilde.Template.Compiler
-Tilde.View.Cell / Tilde.View.Line / Tilde.View.Text
+Tilde.Core.Widget or Tilde.View.Cell / Line / Text
   ↓
 LiveView / TUI / SSH renderers
 ```
 
 Tilde does **not** parse rendered HTML and does not use terminal emulation. The
-supported template surface is intentionally Tilde-native: `<.cell>`, `<.message>`,
-`<.markdown>`, `<.tool>`, `<.choice>`, `<.suggest>`, `<.line>`, `<.tool_call>`,
-and inline roles such as `<.title>`, `<.accent>`, `<.meta>`, `<.primary>`,
-`<.muted>`, `<.error>`, `<.success>`, and `<.code>`. Basic source tags such as
+supported template surface is intentionally Tilde-native. Widget templates use
+components such as `<.screen>`, `<.section>`, `<.widget_text>`, `<.widget_suggest>`,
+`<.widget_input>`, `<.shortcut_bar>`, and `<.widget_footer>`. Cell templates use
+`<.cell>`, `<.message>`, `<.markdown>`, `<.tool>`, `<.choice>`, `<.suggest>`,
+`<.line>`, `<.tool_call>`, and inline roles such as `<.title>`, `<.accent>`,
+`<.meta>`, `<.primary>`, `<.muted>`, `<.error>`, `<.success>`, and `<.code>`. Basic source tags such as
 `<ul>/<li>`, `<pre>`, and `<table>/<tr>/<th>/<td>` are mapped directly from the
 HEEx source AST into text lines.
 
@@ -207,17 +215,16 @@ esc        clear prompt text
 ctrl+c     clear prompt text, or quit when empty
 ```
 
-In the SSH demo, each new connection gets its own private session by default.
-Prompt edits are local to the SSH client, so two attached clients do not type
-into the same live input buffer. Submitting input appends a user message to the
-semantic transcript for that session.
+In the SSH demo, each new connection starts on the index. Opening or attaching
+to a named session shares the submitted transcript while prompt edits remain
+local to each SSH client.
 
 Use slash commands to control sessions:
 
 ```text
 /session        show the current semantic session id and mode
 /attach name    explicitly attach this SSH client to a named shared session
-/detach         leave an attached session for a fresh private SSH session
+/detach         leave an attached session and return to the index
 /new name       create/navigate to a named isolated web session
 ```
 
@@ -251,12 +258,11 @@ ssh tilde@localhost -p 4022 \
 
 Password: printed by `mix tilde.demo`; override with `--password` or `TILDE_DEMO_PASSWORD`.
 
-By default, each SSH connection gets a fresh private session. This prevents
-unrelated terminal clients from seeing each other’s prompt text or transcript.
-To share intentionally, run `/attach <session_id>` in SSH/TUI and open
-`/tilde/<session_id>` in the browser. Named sessions are stored through
-`Tilde.Session.Registry` without creating dynamic atoms. Use `--web-port`,
-`--ssh-port`, or `--password` to customize the task.
+By default, each SSH connection starts on the shared index. Open a session from
+the list or run `/attach <session_id>` in SSH/TUI and open `/tilde/<session_id>`
+in the browser. Named sessions are stored through `Tilde.Session.Registry`
+without creating dynamic atoms. Use `--web-port`, `--ssh-port`, or `--password`
+to customize the task.
 
 The demo includes a small renderer-neutral slash command layer through
 `Tilde.Command`. Commands such as `/help`, `/session`, `/attach <name>`,
@@ -288,9 +294,9 @@ session events so shared demo history stays bounded.
 
 ## Mirrored sessions
 
-See [`docs/session-model.md`](docs/session-model.md) for the full web/SSH/TUI
-session model, including private SSH sessions, `/attach`, `/detach`, local
-prompt buffers, and normal-screen append rendering.
+See [`docs/architecture.md`](docs/architecture.md) for the full web/SSH/TUI
+architecture, including interactions, index behavior, `/attach`, `/detach`,
+local prompt buffers, and normal-screen append rendering.
 
 `Tilde.Session.Server` owns a single semantic `%Tilde.Core.Session{}` process and
 broadcasts `{:tilde_session_updated, session_id, session}` to subscribers.
@@ -304,10 +310,9 @@ Tilde.Session.Server.apply_key(:demo, {:text, "h"})
 Tilde.Session.Server.append_event(:demo, Tilde.input_submitted("hello"))
 ```
 
-`Tilde.Demo.Live` uses named sessions for `/tilde/:session_id`. `Tilde.Transport.SSH.Demo`
-creates a private named session for each new SSH connection by default, can
-explicitly attach a channel to a named session with `/attach <session_id>`, and
-can return to a fresh private session with `/detach`.
+`Tilde.Demo.Live` uses named sessions for `/tilde/:session_id`.
+`Tilde.Transport.SSH.Demo` starts on the index, can attach a channel to a named
+session with `/attach <session_id>`, and returns to the index with `/detach`.
 
 ## Display state
 
