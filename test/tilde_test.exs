@@ -1553,6 +1553,20 @@ defmodule TildeTest do
     assert js =~ "tilde:complete_input"
     assert js =~ "tilde:toggle_expand"
     assert js =~ "[data-block-id]"
+    assert js =~ "tildeLastValue"
+    refute js =~ ~s|textarea.style.height = "auto"\n            textarea.style.height|
+  end
+
+  test "live console shows pending assistant status near the input" do
+    session =
+      Tilde.session(id: "session_1")
+      |> Session.put_status("model", "thinking…")
+
+    html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
+
+    assert html =~ "tilde-agent-pending"
+    assert html =~ "assistant thinking…"
+    assert html =~ "interrupt"
   end
 
   test "live console renders transcript, widgets, input, and footer" do

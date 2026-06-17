@@ -35,8 +35,21 @@ defmodule Tilde.Transport.Live.Hooks do
 
           this.resizeInput = (textarea) => {
             if (!textarea) return
-            textarea.style.height = "auto"
-            textarea.style.height = `${textarea.scrollHeight}px`
+
+            const previousValue = textarea.dataset.tildeLastValue || ""
+            const currentHeight = textarea.getBoundingClientRect().height
+            const growing = textarea.scrollHeight > currentHeight + 1
+            const shrinking = textarea.value.length < previousValue.length
+
+            if (growing || shrinking) {
+              if (shrinking) textarea.style.height = "auto"
+              const nextHeight = textarea.scrollHeight
+              if (Math.abs(nextHeight - currentHeight) > 1) {
+                textarea.style.height = `${nextHeight}px`
+              }
+            }
+
+            textarea.dataset.tildeLastValue = textarea.value
           }
 
           this.resizeCurrentInput = () => this.resizeInput(this.el.querySelector("textarea[name='input']"))

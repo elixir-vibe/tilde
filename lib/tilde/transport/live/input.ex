@@ -15,7 +15,7 @@ defmodule Tilde.Transport.Live.Input do
   def input(assigns) do
     ~H"""
     <form class="tilde-input" phx-submit={@submit_event} phx-change={@change_event}>
-      <textarea name="input" rows="1" placeholder={@placeholder} value={@value}>{@value}</textarea>
+      <textarea name="input" rows="1" placeholder={@placeholder}>{@value}</textarea>
       <button type="submit" class="tilde-link-button">send</button>
       <button :if={@running?} type="button" class="tilde-link-button" phx-click={@interrupt_event}>
         interrupt

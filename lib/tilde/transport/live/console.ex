@@ -29,6 +29,7 @@ defmodule Tilde.Transport.Live.Console do
       |> assign(:transcript, transcript(assigns))
       |> assign(:above_widgets, widgets(assigns.session, :above_input))
       |> assign(:below_widgets, widgets(assigns.session, :below_input))
+      |> assign(:pending_text, pending_text(assigns.session))
 
     ~H"""
     <main id={@id} class={["tilde-console", @class]} phx-hook="TildeConsole">
@@ -41,7 +42,11 @@ defmodule Tilde.Transport.Live.Console do
       </section>
 
       <section class="tilde-dock">
-        <.input value={@input} running?={@running?} />
+        <div :if={@pending_text != ""} class="tilde-agent-pending" aria-live="polite">
+          {@pending_text}
+        </div>
+
+        <.input value={@input} running?={@running? or @pending_text != ""} />
 
         <section :if={@below_widgets != []} class="tilde-widgets tilde-widgets-below">
           <.widget :for={widget <- @below_widgets} widget={widget} />
@@ -69,4 +74,7 @@ defmodule Tilde.Transport.Live.Console do
 
   defp widgets(%Session{} = session, placement), do: Session.widgets(session, placement)
   defp widgets(_session, _placement), do: []
+
+  defp pending_text(%Session{statuses: %{"model" => "thinking…"}}), do: "assistant thinking…"
+  defp pending_text(_session), do: ""
 end

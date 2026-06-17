@@ -279,6 +279,12 @@ defmodule Tilde.Transport.Live.Styles do
       margin-top: 0;
     }
 
+    .tilde-agent-pending {
+      color: var(--tilde-muted);
+      font-size: 0.9rem;
+      padding: 0.5rem 0 0.25rem;
+    }
+
     .tilde-input {
       display: grid;
       grid-template-columns: 1fr auto auto;
