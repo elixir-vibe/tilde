@@ -6,7 +6,8 @@ defmodule Tilde.ToolView do
   HTML. Renderers decide how to draw the view.
   """
 
-  alias Tilde.{Block, ToolRenderer}
+  alias Tilde.Core.Block
+  alias Tilde.Tool.Viewer
 
   @type t :: map()
 
@@ -29,10 +30,10 @@ defmodule Tilde.ToolView do
 
   @doc "Returns all output lines across streams, annotated by stream kind when useful."
   @spec output_lines(Block.t()) :: [String.t()]
-  def output_lines(%Block{} = block), do: ToolRenderer.Default.output_lines(block)
+  def output_lines(%Block{} = block), do: Viewer.Default.output_lines(block)
 
   defp build(block, opts) do
-    renderer = ToolRenderer.for(block)
+    renderer = Tilde.Tool.Registry.fetch(block)
     call = renderer.call(block)
     result = renderer.result(block, opts)
 

@@ -8,7 +8,7 @@ defmodule Tilde do
   and future TUI adapters are derived from semantic data.
   """
 
-  alias Tilde.{Block, Choice, Event, Session, Transcript, Widget}
+  alias Tilde.Core.{Block, Choice, Event, Session, Transcript, Widget}
 
   @doc "Creates a user message event."
   @spec user_message(String.t(), keyword()) :: Event.t()

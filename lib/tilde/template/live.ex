@@ -8,7 +8,7 @@ defmodule Tilde.Template.Live do
 
   use Phoenix.Component
 
-  import Tilde.Live.ViewRenderer
+  import Tilde.Transport.Live.ViewRenderer
 
   @doc "Compiles HEEx source and renders it through the shared LiveView renderer."
   defmacro render(source, opts \\ []) do

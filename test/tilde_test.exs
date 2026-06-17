@@ -1,48 +1,48 @@
 defmodule TildeTest.MarkdownBackend do
-  @behaviour Tilde.Markdown.Backend
+  @behaviour Tilde.Runtime.Markdown.Provider
 
   @impl true
   def to_html(markdown, _opts), do: {:ok, "<p>fake #{markdown}</p>"}
 end
 
 defmodule TildeTest.KeyProvider do
-  @behaviour Tilde.SSH.KeyProvider
+  @behaviour Tilde.Transport.SSH.KeyProvider
 
   @impl true
   def ensure_system_dir(path, _opts), do: {:ok, path}
 end
 
 defmodule TildeTest.ToolRenderer do
-  @behaviour Tilde.ToolRenderer
+  @behaviour Tilde.Tool.Viewer
 
   @impl true
   def call(block) do
-    Tilde.ToolRenderer.call_view("custom",
+    Tilde.Tool.View.call("custom",
       segments: [%{text: block.args.value, color: :success}],
       tags: ["demo"]
     )
   end
 
   @impl true
-  def result(_block, _opts), do: Tilde.ToolRenderer.result_view(lines: ["custom result"])
+  def result(_block, _opts), do: Tilde.Tool.View.result(lines: ["custom result"])
 end
 
 defmodule TildeTest.LLMBackend do
-  @behaviour Tilde.LLM.Backend
+  @behaviour Tilde.Runtime.LLM.Provider
 
   @impl true
-  def respond(session, _opts), do: {:ok, "echo: #{Tilde.LLM.latest_user_text(session)}"}
+  def respond(session, _opts), do: {:ok, "echo: #{Tilde.Runtime.LLM.latest_user_text(session)}"}
 end
 
 defmodule TildeTest.FailingLLMBackend do
-  @behaviour Tilde.LLM.Backend
+  @behaviour Tilde.Runtime.LLM.Provider
 
   @impl true
   def respond(_session, _opts), do: {:error, :boom}
 end
 
 defmodule TildeTest.StreamingLLMBackend do
-  @behaviour Tilde.LLM.Backend
+  @behaviour Tilde.Runtime.LLM.Provider
 
   @impl true
   def respond(_session, _opts), do: {:ok, "unused"}
@@ -52,7 +52,7 @@ defmodule TildeTest.StreamingLLMBackend do
 end
 
 defmodule TildeTest.ToolStreamingLLMBackend do
-  @behaviour Tilde.LLM.Backend
+  @behaviour Tilde.Runtime.LLM.Provider
 
   @impl true
   def respond(_session, _opts), do: {:ok, "unused"}
@@ -74,18 +74,8 @@ defmodule TildeTest do
   import Phoenix.LiveViewTest
   import Plug.Test
 
-  alias Tilde.{
-    Block,
-    Choice,
-    Display,
-    Input,
-    Renderer,
-    Run,
-    Session,
-    Stream,
-    ToolView,
-    Transcript
-  }
+  alias Tilde.Core.{Block, Choice, Display, Input, Run, Session, Stream, Transcript}
+  alias Tilde.{Renderer, ToolView}
 
   doctest Tilde
 
@@ -177,7 +167,7 @@ defmodule TildeTest do
       |> Block.append_stream(:stderr, "warning\n")
       |> Block.finish_tool(:success, %{exit_code: 0})
 
-    html = render_component(&Tilde.Live.Tool.tool/1, block: tool)
+    html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
 
     assert html =~ "tilde-tool-cell-lines"
     assert html =~ ~s|tilde-view-text-muted">stdout|
@@ -190,21 +180,23 @@ defmodule TildeTest do
 
   test "markdown facade uses configured backend" do
     with_application_env(:markdown_backend, TildeTest.MarkdownBackend, fn ->
-      assert Tilde.Markdown.backend() == TildeTest.MarkdownBackend
-      assert Tilde.Markdown.to_html("hello") == {:ok, "<p>fake hello</p>"}
+      assert Tilde.Runtime.Markdown.backend() == TildeTest.MarkdownBackend
+      assert Tilde.Runtime.Markdown.to_html("hello") == {:ok, "<p>fake hello</p>"}
     end)
   end
 
   test "markdown renderer uses MDEx for safe HTML" do
-    assert {:ok, html} = Tilde.Markdown.to_html("**bold** and `code`")
+    assert {:ok, html} = Tilde.Runtime.Markdown.to_html("**bold** and `code`")
     assert html =~ "<strong>bold</strong>"
     assert html =~ "<code>code</code>"
 
-    assert {:ok, safe_html} = Tilde.Markdown.to_html("<script>alert(1)</script>")
+    assert {:ok, safe_html} = Tilde.Runtime.Markdown.to_html("<script>alert(1)</script>")
     refute safe_html =~ "<script>"
 
     assert {:ok, table_html} =
-             Tilde.Markdown.to_html("| name | status |\n| --- | ---: |\n| LiveView | ok |")
+             Tilde.Runtime.Markdown.to_html(
+               "| name | status |\n| --- | ---: |\n| LiveView | ok |"
+             )
 
     assert table_html =~ "<table>"
     assert table_html =~ "<th>name</th>"
@@ -212,24 +204,27 @@ defmodule TildeTest do
   end
 
   test "markdown renderer can complete streaming fragments with MDEx" do
-    assert {:ok, bold_html} = Tilde.Markdown.to_html("**Fol", streaming: true)
+    assert {:ok, bold_html} = Tilde.Runtime.Markdown.to_html("**Fol", streaming: true)
     assert bold_html =~ "<strong>Fol</strong>"
 
     assert {:ok, table_html} =
-             Tilde.Markdown.to_html("| surface | renderer\n| --- | ---\n| web | LiveView",
+             Tilde.Runtime.Markdown.to_html(
+               "| surface | renderer\n| --- | ---\n| web | LiveView",
                streaming: true
              )
 
     assert table_html =~ "<table>"
     assert table_html =~ "<td>LiveView</td>"
 
-    assert {:ok, safe_html} = Tilde.Markdown.to_html("<script>alert(1)</script>", streaming: true)
+    assert {:ok, safe_html} =
+             Tilde.Runtime.Markdown.to_html("<script>alert(1)</script>", streaming: true)
+
     refute safe_html =~ "<script>"
   end
 
   test "live message renders markdown source with MDEx" do
     block = Block.message("msg_1", :assistant, "**bold** and `code`")
-    html = render_component(&Tilde.Live.Message.message/1, block: block)
+    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
 
     assert html =~ "tilde-markdown"
     assert html =~ "<strong>bold</strong>"
@@ -248,7 +243,7 @@ defmodule TildeTest do
     After
     """
 
-    lines = Tilde.TUI.Markdown.render_lines(markdown)
+    lines = Tilde.Renderer.TUI.Markdown.render_lines(markdown)
 
     assert "Before" in lines
     assert "┌─────────┬──────────────┐" in lines
@@ -263,8 +258,8 @@ defmodule TildeTest do
     block =
       Block.message("msg_1", :assistant, "| name | status |\n| --- | --- |\n| LiveView | ok |")
 
-    html = render_component(&Tilde.Live.Message.message/1, block: block)
-    css = Tilde.Live.Styles.css()
+    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
+    css = Tilde.Transport.Live.Styles.css()
 
     assert html =~ "<table>"
     assert html =~ "<th>name</th>"
@@ -287,7 +282,7 @@ defmodule TildeTest do
         ]
       )
 
-    html = render_component(&Tilde.Live.Message.message/1, block: block)
+    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
 
     assert html =~ "<strong>"
     assert html =~ "bold"
@@ -313,7 +308,7 @@ defmodule TildeTest do
       ])
       |> Session.put_status("model", "demo")
 
-    rendered = Tilde.TUI.Renderer.render_to_string(session, width: 60)
+    rendered = Tilde.Renderer.TUI.render_to_string(session, width: 60)
     plain = strip_ansi(rendered)
 
     assert plain =~ "user\r\nRun tests"
@@ -340,7 +335,7 @@ defmodule TildeTest do
     rendered =
       Tilde.session(id: "session_1")
       |> Session.append_event(Tilde.user_message("hello", id: "evt_user"))
-      |> Tilde.TUI.Renderer.render_to_string(width: 40, clear?: false)
+      |> Tilde.Renderer.TUI.render_to_string(width: 40, clear?: false)
 
     refute rendered =~ IO.ANSI.clear()
     refute rendered =~ IO.ANSI.home()
@@ -359,7 +354,7 @@ defmodule TildeTest do
       |> Session.put_status("model", "thinking…")
 
     rendered =
-      session |> Tilde.TUI.Renderer.render_to_string(width: 40, height: 6) |> strip_ansi()
+      session |> Tilde.Renderer.TUI.render_to_string(width: 40, height: 6) |> strip_ansi()
 
     refute rendered =~ "# tilde"
     refute rendered =~ "one"
@@ -372,7 +367,7 @@ defmodule TildeTest do
     rendered =
       Tilde.session(id: "session_1")
       |> Session.append_event(Tilde.user_message("hello", id: "evt_user"))
-      |> Tilde.TUI.Renderer.render_to_string(width: 40, ansi: false)
+      |> Tilde.Renderer.TUI.render_to_string(width: 40, ansi: false)
 
     refute rendered =~ IO.ANSI.clear()
     assert rendered =~ "# tilde"
@@ -383,15 +378,15 @@ defmodule TildeTest do
 
   test "ssh keys facade uses configured provider" do
     with_application_env(:ssh_key_provider, TildeTest.KeyProvider, fn ->
-      assert Tilde.SSH.Keys.provider() == TildeTest.KeyProvider
-      assert Tilde.SSH.Keys.ensure_system_dir("/tmp/fake") == {:ok, "/tmp/fake"}
+      assert Tilde.Transport.SSH.Keys.provider() == TildeTest.KeyProvider
+      assert Tilde.Transport.SSH.Keys.ensure_system_dir("/tmp/fake") == {:ok, "/tmp/fake"}
     end)
   end
 
   test "ssh key generation uses Erlang public_key PEM host keys" do
     dir = Path.join(System.tmp_dir!(), "tilde-ssh-test-#{System.unique_integer([:positive])}")
 
-    assert {:ok, ^dir} = Tilde.SSH.Keys.ensure_system_dir(dir)
+    assert {:ok, ^dir} = Tilde.Transport.SSH.Keys.ensure_system_dir(dir)
     key_path = Path.join(dir, "ssh_host_rsa_key")
     assert File.exists?(key_path)
 
@@ -402,20 +397,20 @@ defmodule TildeTest do
   end
 
   test "command suggestions are semantic widgets and TUI tab completes them" do
-    assert %Tilde.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
+    assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
     assert Enum.map(items, & &1.label) == ["/compact"]
     assert Tilde.Command.completion("/co") == "/compact"
 
     session = Session.append_event(Tilde.session(), Tilde.input_changed("/co"))
     assert [suggest_widget] = Session.widgets(session, :above_input)
-    assert %Tilde.Suggest{} = suggest_widget.content
+    assert %Tilde.Core.Suggest{} = suggest_widget.content
 
-    html = render_component(&Tilde.Live.Console.console/1, session: session)
+    html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
     assert html =~ "tilde-suggest"
     assert html =~ "/compact"
     assert html =~ "phx-click=\"tilde:complete_input\""
 
-    assert {:cont, completed} = Tilde.TUI.Controller.apply_key(session, :tab)
+    assert {:cont, completed} = Tilde.Core.Controller.apply_key(session, :tab)
     assert completed.input.value == "/compact"
   end
 
@@ -442,14 +437,14 @@ defmodule TildeTest do
         name = :"tilde_session_server_command_test_#{System.unique_integer([:positive])}"
 
         assert {:ok, pid} =
-                 Tilde.SessionServer.start_link(
+                 Tilde.Session.Server.start_link(
                    name: name,
                    session: Tilde.session(id: "cmd_test")
                  )
 
-        assert %Session{} = Tilde.SessionServer.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-        updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("/help"))
+        updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("/help"))
 
         assert [%Block{role: :user, source: "/help"}, %Block{role: :assistant, source: source}] =
                  updated.transcript.blocks
@@ -467,26 +462,26 @@ defmodule TildeTest do
 
   test "session registry names isolate session servers without dynamic atoms" do
     with_application_env(:llm_enabled, false, fn ->
-      assert Tilde.SessionRegistry.normalize_id("My Session!!") == "my-session"
-      assert {:ok, _pid} = Tilde.SessionRegistry.ensure_started()
+      assert Tilde.Session.Registry.normalize_id("My Session!!") == "my-session"
+      assert {:ok, _pid} = Tilde.Session.Registry.ensure_started()
 
-      left = Tilde.SessionRegistry.via("left-#{System.unique_integer([:positive])}")
-      right = Tilde.SessionRegistry.via("right-#{System.unique_integer([:positive])}")
+      left = Tilde.Session.Registry.via("left-#{System.unique_integer([:positive])}")
+      right = Tilde.Session.Registry.via("right-#{System.unique_integer([:positive])}")
 
       assert {:ok, left_pid} =
-               Tilde.SessionServer.ensure_started(left, session: Tilde.session(id: "left"))
+               Tilde.Session.Server.ensure_started(left, session: Tilde.session(id: "left"))
 
       assert {:ok, right_pid} =
-               Tilde.SessionServer.ensure_started(right, session: Tilde.session(id: "right"))
+               Tilde.Session.Server.ensure_started(right, session: Tilde.session(id: "right"))
 
-      Tilde.SessionServer.append_event(left, Tilde.input_submitted("left only"))
-      Tilde.SessionServer.append_event(right, Tilde.input_submitted("right only"))
+      Tilde.Session.Server.append_event(left, Tilde.input_submitted("left only"))
+      Tilde.Session.Server.append_event(right, Tilde.input_submitted("right only"))
 
       assert [%Block{source: "left only"}] =
-               Tilde.SessionServer.get_session(left).transcript.blocks
+               Tilde.Session.Server.get_session(left).transcript.blocks
 
       assert [%Block{source: "right only"}] =
-               Tilde.SessionServer.get_session(right).transcript.blocks
+               Tilde.Session.Server.get_session(right).transcript.blocks
 
       GenServer.stop(left_pid)
       GenServer.stop(right_pid)
@@ -497,10 +492,10 @@ defmodule TildeTest do
     name = :"tilde_session_server_test_#{System.unique_integer([:positive])}"
     session = Tilde.session(id: "mirror_test")
 
-    assert {:ok, pid} = Tilde.SessionServer.start_link(name: name, session: session)
-    assert %Session{id: "mirror_test"} = Tilde.SessionServer.subscribe(name)
+    assert {:ok, pid} = Tilde.Session.Server.start_link(name: name, session: session)
+    assert %Session{id: "mirror_test"} = Tilde.Session.Server.subscribe(name)
 
-    updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("from ssh"))
+    updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("from ssh"))
 
     assert [%Block{role: :user, source: "from ssh"}] = updated.transcript.blocks
     assert_receive {:tilde_session_updated, "mirror_test", ^updated}
@@ -513,14 +508,14 @@ defmodule TildeTest do
       name = :"tilde_session_server_llm_disabled_test_#{System.unique_integer([:positive])}"
 
       assert {:ok, pid} =
-               Tilde.SessionServer.start_link(
+               Tilde.Session.Server.start_link(
                  name: name,
                  session: Tilde.session(id: "llm_disabled")
                )
 
-      assert %Session{} = Tilde.SessionServer.subscribe(name)
+      assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-      updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+      updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
       assert [%Block{role: :user, source: "hello"}] = updated.transcript.blocks
       assert_receive {:tilde_session_updated, "llm_disabled", ^updated}
@@ -539,14 +534,14 @@ defmodule TildeTest do
         name = :"tilde_session_server_llm_test_#{System.unique_integer([:positive])}"
 
         assert {:ok, pid} =
-                 Tilde.SessionServer.start_link(
+                 Tilde.Session.Server.start_link(
                    name: name,
                    session: Tilde.session(id: "llm_test")
                  )
 
-        assert %Session{} = Tilde.SessionServer.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-        Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
         assert_receive {:tilde_session_updated, "llm_test",
                         %Session{transcript: %{blocks: [_user]}}}
@@ -578,14 +573,14 @@ defmodule TildeTest do
         name = :"tilde_session_server_llm_stream_test_#{System.unique_integer([:positive])}"
 
         assert {:ok, pid} =
-                 Tilde.SessionServer.start_link(
+                 Tilde.Session.Server.start_link(
                    name: name,
                    session: Tilde.session(id: "llm_stream")
                  )
 
-        assert %Session{} = Tilde.SessionServer.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-        Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
         assert_receive {:tilde_session_updated, "llm_stream",
                         %Session{statuses: %{"model" => "thinking…"}}}
@@ -631,14 +626,14 @@ defmodule TildeTest do
         name = :"tilde_session_server_llm_tool_stream_test_#{System.unique_integer([:positive])}"
 
         assert {:ok, pid} =
-                 Tilde.SessionServer.start_link(
+                 Tilde.Session.Server.start_link(
                    name: name,
                    session: Tilde.session(id: "llm_tool_stream")
                  )
 
-        assert %Session{} = Tilde.SessionServer.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-        Tilde.SessionServer.append_event(name, Tilde.input_submitted("what time is it?"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("what time is it?"))
 
         assert_receive {:tilde_session_updated, "llm_tool_stream",
                         %Session{
@@ -685,18 +680,18 @@ defmodule TildeTest do
         ]
 
         with_application_env(:llm_rate_limit, rate_limit, fn ->
-          assert {:ok, _pid} = Tilde.RateLimit.ensure_started()
+          assert {:ok, _pid} = Tilde.Runtime.RateLimit.ensure_started()
           name = :"tilde_session_server_llm_rate_limit_test_#{System.unique_integer([:positive])}"
 
           assert {:ok, pid} =
-                   Tilde.SessionServer.start_link(
+                   Tilde.Session.Server.start_link(
                      name: name,
                      session: Tilde.session(id: "llm_rate_limit")
                    )
 
-          assert %Session{} = Tilde.SessionServer.subscribe(name)
+          assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
           assert_receive {:tilde_session_updated, "llm_rate_limit",
                           %Session{
@@ -727,14 +722,14 @@ defmodule TildeTest do
         name = :"tilde_session_server_llm_failure_test_#{System.unique_integer([:positive])}"
 
         assert {:ok, pid} =
-                 Tilde.SessionServer.start_link(
+                 Tilde.Session.Server.start_link(
                    name: name,
                    session: Tilde.session(id: "llm_failure")
                  )
 
-        assert %Session{} = Tilde.SessionServer.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-        Tilde.SessionServer.append_event(name, Tilde.input_submitted("hello"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
         assert_receive {:tilde_session_updated, "llm_failure",
                         %Session{transcript: %{blocks: [_user]}}}
@@ -767,19 +762,20 @@ defmodule TildeTest do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")
 
-    assert Tilde.LLM.Jido.respond(Tilde.session()) == {:error, :missing_openrouter_api_key}
+    assert Tilde.Runtime.LLM.Provider.Jido.respond(Tilde.session()) ==
+             {:error, :missing_openrouter_api_key}
 
     if previous, do: System.put_env("OPENROUTER_API_KEY", previous)
   end
 
   test "session server applies TUI keys for mirrored renderers" do
     name = :"tilde_session_server_keys_test_#{System.unique_integer([:positive])}"
-    assert {:ok, pid} = Tilde.SessionServer.start_link(name: name, session: Tilde.session())
+    assert {:ok, pid} = Tilde.Session.Server.start_link(name: name, session: Tilde.session())
 
-    assert {:cont, session} = Tilde.SessionServer.apply_key(name, {:text, "h"})
+    assert {:cont, session} = Tilde.Session.Server.apply_key(name, {:text, "h"})
     assert session.input.value == "h"
 
-    assert {:cont, submitted} = Tilde.SessionServer.apply_key(name, :enter)
+    assert {:cont, submitted} = Tilde.Session.Server.apply_key(name, :enter)
     assert submitted.input.value == ""
     assert [%Block{role: :user, source: "h"}] = submitted.transcript.blocks
 
@@ -790,51 +786,51 @@ defmodule TildeTest do
     dir =
       Path.join(System.tmp_dir!(), "tilde-ssh-daemon-test-#{System.unique_integer([:positive])}")
 
-    assert {:ok, pid} = Tilde.SSH.Demo.start_link(port: 0, system_dir: dir)
-    assert is_pid(Tilde.SSH.Demo.daemon_ref(pid))
+    assert {:ok, pid} = Tilde.Transport.SSH.Demo.start_link(port: 0, system_dir: dir)
+    assert is_pid(Tilde.Transport.SSH.Demo.daemon_ref(pid))
     GenServer.stop(pid)
     File.rm_rf!(dir)
   end
 
   test "ssh session servers are private until explicitly shared" do
     with_application_env(:llm_enabled, false, fn ->
-      {:ok, _pid} = Tilde.SessionRegistry.ensure_started()
+      {:ok, _pid} = Tilde.Session.Registry.ensure_started()
       stamp = System.unique_integer([:positive])
 
-      private_a = Tilde.SessionRegistry.via("ssh-private-a-#{stamp}")
-      private_b = Tilde.SessionRegistry.via("ssh-private-b-#{stamp}")
-      shared = Tilde.SessionRegistry.via("ssh-shared-#{stamp}")
+      private_a = Tilde.Session.Registry.via("ssh-private-a-#{stamp}")
+      private_b = Tilde.Session.Registry.via("ssh-private-b-#{stamp}")
+      shared = Tilde.Session.Registry.via("ssh-shared-#{stamp}")
 
       {:ok, _pid} =
-        Tilde.SessionServer.ensure_started(private_a,
-          session: Tilde.Live.Demo.demo_session(id: "ssh-private-a-#{stamp}")
+        Tilde.Session.Server.ensure_started(private_a,
+          session: Tilde.Transport.Live.Demo.demo_session(id: "ssh-private-a-#{stamp}")
         )
 
       {:ok, _pid} =
-        Tilde.SessionServer.ensure_started(private_b,
-          session: Tilde.Live.Demo.demo_session(id: "ssh-private-b-#{stamp}")
+        Tilde.Session.Server.ensure_started(private_b,
+          session: Tilde.Transport.Live.Demo.demo_session(id: "ssh-private-b-#{stamp}")
         )
 
       {:ok, _pid} =
-        Tilde.SessionServer.ensure_started(shared,
-          session: Tilde.Live.Demo.demo_session(id: "ssh-shared-#{stamp}")
+        Tilde.Session.Server.ensure_started(shared,
+          session: Tilde.Transport.Live.Demo.demo_session(id: "ssh-shared-#{stamp}")
         )
 
       a_marker = "AAA_PRIVATE_#{stamp}"
       b_marker = "BBB_PRIVATE_#{stamp}"
 
-      Tilde.SessionServer.update_session(
+      Tilde.Session.Server.update_session(
         private_a,
         &Session.append_event(&1, Tilde.input_submitted(a_marker))
       )
 
-      Tilde.SessionServer.update_session(
+      Tilde.Session.Server.update_session(
         private_b,
         &Session.append_event(&1, Tilde.input_submitted(b_marker))
       )
 
-      private_a_session = Tilde.SessionServer.get_session(private_a)
-      private_b_session = Tilde.SessionServer.get_session(private_b)
+      private_a_session = Tilde.Session.Server.get_session(private_a)
+      private_b_session = Tilde.Session.Server.get_session(private_b)
 
       assert latest_user_sources(private_a_session) == [a_marker]
       assert latest_user_sources(private_b_session) == [b_marker]
@@ -844,22 +840,22 @@ defmodule TildeTest do
       shared_a = "AAA_ATTACHED_#{stamp}"
       shared_b_prompt = "BBB_ATTACHED_PROMPT_#{stamp}"
 
-      Tilde.SessionServer.update_session(
+      Tilde.Session.Server.update_session(
         shared,
         &Session.append_event(&1, Tilde.input_submitted(shared_a))
       )
 
-      shared_for_a = Tilde.SessionServer.get_session(shared)
+      shared_for_a = Tilde.Session.Server.get_session(shared)
 
       shared_for_b =
         shared
-        |> Tilde.SessionServer.get_session()
+        |> Tilde.Session.Server.get_session()
         |> Session.put_input(Input.put_value(%Input{}, shared_b_prompt))
 
       assert shared_a in latest_user_sources(shared_for_a)
       assert shared_a in latest_user_sources(shared_for_b)
       assert shared_for_b.input.value == shared_b_prompt
-      assert Tilde.SessionServer.get_session(shared).input.value == ""
+      assert Tilde.Session.Server.get_session(shared).input.value == ""
     end)
   end
 
@@ -892,15 +888,15 @@ defmodule TildeTest do
   end
 
   test "tui controller edits and submits semantic input" do
-    assert {:cont, session} = Tilde.TUI.Controller.apply_key(Tilde.session(), {:text, "h"})
-    assert {:cont, session} = Tilde.TUI.Controller.apply_key(session, {:text, "i"})
+    assert {:cont, session} = Tilde.Core.Controller.apply_key(Tilde.session(), {:text, "h"})
+    assert {:cont, session} = Tilde.Core.Controller.apply_key(session, {:text, "i"})
     assert session.input.value == "hi"
 
-    assert {:cont, session} = Tilde.TUI.Controller.apply_key(session, :backspace)
+    assert {:cont, session} = Tilde.Core.Controller.apply_key(session, :backspace)
     assert session.input.value == "h"
 
-    assert {:cont, session} = Tilde.TUI.Controller.apply_key(session, {:text, "!"})
-    assert {:cont, submitted} = Tilde.TUI.Controller.apply_key(session, :enter)
+    assert {:cont, session} = Tilde.Core.Controller.apply_key(session, {:text, "!"})
+    assert {:cont, submitted} = Tilde.Core.Controller.apply_key(session, :enter)
 
     assert submitted.input.value == ""
     assert [%Block{role: :user, source: "h!"}] = submitted.transcript.blocks
@@ -913,26 +909,26 @@ defmodule TildeTest do
         Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
       )
 
-    assert {:cont, toggled} = Tilde.TUI.Controller.apply_key(session, :toggle_expand)
+    assert {:cont, toggled} = Tilde.Core.Controller.apply_key(session, :toggle_expand)
     assert [%Block{display: %{expanded?: true}}] = toggled.transcript.blocks
-    assert {:halt, ^toggled} = Tilde.TUI.Controller.apply_key(toggled, :quit)
+    assert {:halt, ^toggled} = Tilde.Core.Controller.apply_key(toggled, :quit)
   end
 
   test "ssh channel initializes semantic demo state" do
-    assert {:ok, state} = Tilde.SSH.Channel.init([[width: 72, height: 24]])
+    assert {:ok, state} = Tilde.Transport.SSH.Channel.init([[width: 72, height: 24]])
     assert state.width == 72
     assert state.height == 24
     assert %Session{} = state.session
   end
 
   test "ssh transport command parser handles session routing commands" do
-    assert Tilde.SSH.Command.parse("/attach demo") == {:attach, "demo"}
-    assert Tilde.SSH.Command.parse("/attach Demo Session!") == {:attach, "demo-session"}
-    assert Tilde.SSH.Command.parse("/attach") == {:attach, "shared"}
-    assert Tilde.SSH.Command.parse("/detach") == :detach
-    assert Tilde.SSH.Command.parse("/session") == :session
-    assert Tilde.SSH.Command.parse("hello") == :submit
-    assert Tilde.SSH.Command.parse("/clear") == :submit
+    assert Tilde.Transport.SSH.Command.parse("/attach demo") == {:attach, "demo"}
+    assert Tilde.Transport.SSH.Command.parse("/attach Demo Session!") == {:attach, "demo-session"}
+    assert Tilde.Transport.SSH.Command.parse("/attach") == {:attach, "shared"}
+    assert Tilde.Transport.SSH.Command.parse("/detach") == :detach
+    assert Tilde.Transport.SSH.Command.parse("/session") == :session
+    assert Tilde.Transport.SSH.Command.parse("hello") == :submit
+    assert Tilde.Transport.SSH.Command.parse("/clear") == :submit
   end
 
   test "ssh delta classifier detects append-oriented tool updates" do
@@ -949,16 +945,16 @@ defmodule TildeTest do
       Session.append_event(streamed_more, Tilde.tool_done("tool_1", :success, %{exit_code: 0}))
 
     assert {:new_blocks, [%Block{kind: :tool, id: "tool_1"}]} =
-             Tilde.SSH.Delta.classify(Tilde.session(), started)
+             Tilde.Transport.SSH.Delta.classify(Tilde.session(), started)
 
     assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "one\n", true} =
-             Tilde.SSH.Delta.classify(started, streamed)
+             Tilde.Transport.SSH.Delta.classify(started, streamed)
 
     assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "two\n", false} =
-             Tilde.SSH.Delta.classify(streamed, streamed_more)
+             Tilde.Transport.SSH.Delta.classify(streamed, streamed_more)
 
     assert {:tool_done, %Block{id: "tool_1", status: :success}} =
-             Tilde.SSH.Delta.classify(streamed_more, done)
+             Tilde.Transport.SSH.Delta.classify(streamed_more, done)
   end
 
   test "ssh shell applies tui keys to semantic session" do
@@ -968,27 +964,27 @@ defmodule TildeTest do
         Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
       )
 
-    assert {:cont, toggled} = Tilde.SSH.Shell.apply_key(session, :toggle_expand)
+    assert {:cont, toggled} = Tilde.Transport.SSH.Shell.apply_key(session, :toggle_expand)
     assert [%Block{display: %{expanded?: true}}] = toggled.transcript.blocks
-    assert {:halt, ^toggled} = Tilde.SSH.Shell.apply_key(toggled, :quit)
+    assert {:halt, ^toggled} = Tilde.Transport.SSH.Shell.apply_key(toggled, :quit)
   end
 
   test "tui key decoder maps terminal bytes to semantic actions" do
-    assert Tilde.TUI.Keys.decode(<<15>>) == :toggle_expand
-    assert Tilde.TUI.Keys.decode("q") == :quit
-    assert Tilde.TUI.Keys.decode("r") == :redraw
-    assert Tilde.TUI.Keys.decode("\t") == :tab
-    assert Tilde.TUI.Keys.decode("\e[Z") == :backtab
-    assert Tilde.TUI.Keys.decode("\r") == :enter
-    assert Tilde.TUI.Keys.decode(<<127>>) == :backspace
-    assert Tilde.TUI.Keys.decode(<<27>>) == :cancel
-    assert Tilde.TUI.Keys.decode(<<3>>) == :interrupt
-    assert Tilde.TUI.Keys.decode("a") == {:text, "a"}
+    assert Tilde.Core.Keys.decode(<<15>>) == :toggle_expand
+    assert Tilde.Core.Keys.decode("q") == :quit
+    assert Tilde.Core.Keys.decode("r") == :redraw
+    assert Tilde.Core.Keys.decode("\t") == :tab
+    assert Tilde.Core.Keys.decode("\e[Z") == :backtab
+    assert Tilde.Core.Keys.decode("\r") == :enter
+    assert Tilde.Core.Keys.decode(<<127>>) == :backspace
+    assert Tilde.Core.Keys.decode(<<27>>) == :cancel
+    assert Tilde.Core.Keys.decode(<<3>>) == :interrupt
+    assert Tilde.Core.Keys.decode("a") == {:text, "a"}
 
-    assert Tilde.TUI.Keys.decode_many("q\r") == [:quit]
-    assert Tilde.TUI.Keys.decode_many("r\r") == [:redraw]
+    assert Tilde.Core.Keys.decode_many("q\r") == [:quit]
+    assert Tilde.Core.Keys.decode_many("r\r") == [:redraw]
 
-    assert Tilde.TUI.Keys.decode_many("hello\r") == [
+    assert Tilde.Core.Keys.decode_many("hello\r") == [
              {:text, "h"},
              {:text, "e"},
              {:text, "l"},
@@ -1041,14 +1037,14 @@ defmodule TildeTest do
         name = :"tilde_session_server_trim_test_#{System.unique_integer([:positive])}"
 
         assert {:ok, pid} =
-                 Tilde.SessionServer.start_link(
+                 Tilde.Session.Server.start_link(
                    name: name,
                    session: Tilde.session(id: "trim_test")
                  )
 
-        Tilde.SessionServer.append_event(name, Tilde.input_submitted("one"))
-        Tilde.SessionServer.append_event(name, Tilde.assistant_done("two"))
-        updated = Tilde.SessionServer.append_event(name, Tilde.input_submitted("three"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("one"))
+        Tilde.Session.Server.append_event(name, Tilde.assistant_done("two"))
+        updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("three"))
 
         assert Enum.map(updated.events, & &1.text) == ["two", "three"]
         assert Enum.map(updated.transcript.blocks, & &1.source) == ["two", "three"]
@@ -1241,12 +1237,12 @@ defmodule TildeTest do
       ])
 
     [block] = session.transcript.blocks
-    cell = Tilde.View.Builder.block(block)
+    cell = Tilde.Viewable.to_view(block)
 
     assert cell.attrs.template == :source
-    live = render_component(&Tilde.Live.ViewRenderer.cell/1, cell: cell)
+    live = render_component(&Tilde.Transport.Live.ViewRenderer.cell/1, cell: cell)
     live_text = strip_html(live)
-    tui = cell |> Tilde.TUI.ViewRenderer.render(60, ansi: true) |> strip_ansi()
+    tui = cell |> Tilde.Renderer.TUI.ViewRenderer.render(60, ansi: true) |> strip_ansi()
 
     refute live_text =~ "cwd /tmp/app"
     refute live_text =~ "exit 0"
@@ -1261,7 +1257,7 @@ defmodule TildeTest do
   end
 
   test "tool renderer registry customizes semantic call and result views" do
-    with_application_env(:tool_renderers, %{"custom_tool" => TildeTest.ToolRenderer}, fn ->
+    with_application_env(:tool_viewers, %{"custom_tool" => TildeTest.ToolRenderer}, fn ->
       session =
         Tilde.session()
         |> Session.append_events([
@@ -1269,8 +1265,8 @@ defmodule TildeTest do
           Tilde.tool_done("tool_1")
         ])
 
-      html = render_component(&Tilde.Live.Console.console/1, session: session)
-      tui = session |> Tilde.TUI.Renderer.render() |> Enum.join() |> strip_ansi()
+      html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
+      tui = session |> Tilde.Renderer.TUI.render() |> Enum.join() |> strip_ansi()
 
       assert html =~ "custom"
       assert html =~ "ok"
@@ -1288,8 +1284,8 @@ defmodule TildeTest do
         Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
       )
 
-    html = render_component(&Tilde.Live.Console.console/1, session: session)
-    tui = session |> Tilde.TUI.Renderer.render() |> Enum.join()
+    html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
+    tui = session |> Tilde.Renderer.TUI.render() |> Enum.join()
 
     assert html =~ "bash"
     assert html =~ "mix test"
@@ -1299,11 +1295,11 @@ defmodule TildeTest do
   end
 
   test "demo session renders a complete dogfood console" do
-    session = Tilde.Live.Demo.demo_session()
-    html = render_component(&Tilde.Live.Console.console/1, session: session)
+    session = Tilde.Transport.Live.Demo.demo_session()
+    html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
     tool_cell =
-      session.transcript.blocks |> Enum.find(&(&1.kind == :tool)) |> Tilde.View.Builder.block()
+      session.transcript.blocks |> Enum.find(&(&1.kind == :tool)) |> Tilde.Viewable.to_view()
 
     assert tool_cell.attrs.template == :source
     assert html =~ "Build a pi-like console"
@@ -1326,7 +1322,7 @@ defmodule TildeTest do
         :get
         |> conn("/tilde")
         |> init_test_session(%{})
-        |> Tilde.Live.DemoRouter.call([])
+        |> Tilde.Transport.Live.DemoRouter.call([])
 
       assert conn.status == 302
       assert [location] = Plug.Conn.get_resp_header(conn, "location")
@@ -1340,7 +1336,7 @@ defmodule TildeTest do
         :post
         |> conn("/login")
         |> init_test_session(%{})
-        |> Tilde.Live.DemoAuth.create(%{
+        |> Tilde.Transport.Live.DemoAuth.create(%{
           "password" => "secret",
           "return_to" => "/tilde/auth-smoke"
         })
@@ -1357,7 +1353,7 @@ defmodule TildeTest do
         :post
         |> conn("/login")
         |> init_test_session(%{})
-        |> Tilde.Live.DemoAuth.create(%{"password" => "wrong", "return_to" => "/tilde"})
+        |> Tilde.Transport.Live.DemoAuth.create(%{"password" => "wrong", "return_to" => "/tilde"})
 
       assert conn.status == 401
       refute Plug.Conn.get_session(conn, :tilde_demo_authenticated)
@@ -1366,7 +1362,7 @@ defmodule TildeTest do
   end
 
   test "live hooks expose ctrl-o focused block expansion JavaScript" do
-    js = Tilde.Live.Hooks.js()
+    js = Tilde.Transport.Live.Hooks.js()
 
     assert js =~ "TildeConsole"
     assert js =~ "ctrlKey"
@@ -1388,7 +1384,8 @@ defmodule TildeTest do
       |> Session.put_widget(Tilde.widget("logs", :below_input, ["server running"]))
       |> Session.put_status("model", "sonnet")
 
-    html = render_component(&Tilde.Live.Console.console/1, session: session, input: "next")
+    html =
+      render_component(&Tilde.Transport.Live.Console.console/1, session: session, input: "next")
 
     assert html =~ "phx-hook=\"TildeConsole\""
     assert html =~ "tilde-console"

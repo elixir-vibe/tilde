@@ -7,7 +7,8 @@ defmodule Tilde.Renderer.Text do
 
   @behaviour Tilde.Renderer
 
-  alias Tilde.{Block, Session, ToolView, Transcript}
+  alias Tilde.Core.{Block, Session, Transcript}
+  alias Tilde.ToolView
 
   @impl true
   def render(source, opts \\ [])

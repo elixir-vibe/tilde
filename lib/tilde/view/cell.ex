@@ -6,7 +6,7 @@ defmodule Tilde.View.Cell do
   and source content without committing to HTML, ANSI, or a terminal grid.
   """
 
-  alias Tilde.Run
+  alias Tilde.Core.Run
   alias Tilde.View.Line
 
   defstruct id: nil,

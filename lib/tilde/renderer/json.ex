@@ -5,7 +5,7 @@ defmodule Tilde.Renderer.JSON do
 
   @behaviour Tilde.Renderer
 
-  alias Tilde.{Block, Session, Stream, Transcript}
+  alias Tilde.Core.{Block, Session, Stream, Transcript}
 
   @impl true
   def render(source, opts \\ [])

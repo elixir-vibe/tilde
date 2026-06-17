@@ -1,0 +1,23 @@
+defmodule Tilde.Command.Builtin.Help do
+  @moduledoc false
+
+  @behaviour Tilde.Command.Behaviour
+
+  @help """
+  Available commands:
+
+  - `/help` — Show this help
+  - `/new [name]` — Start an isolated web session
+  - `/attach <name>` — Attach SSH/TUI to a named session
+  - `/detach` — Detach SSH/TUI to a new private session
+  - `/session` — Show current session details
+  - `/clear` — Clear this session
+  - `/compact` — Trim older session history
+  - `/quit` — Quit in SSH/TUI; not applicable on web
+  """
+
+  def spec, do: Tilde.Command.Spec.new("/help", "/help", "Show this help")
+  def run(_command, _session, _opts), do: [assistant(@help)]
+
+  def assistant(text), do: {:append_event, Tilde.assistant_done(text)}
+end

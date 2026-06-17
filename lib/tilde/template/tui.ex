@@ -16,7 +16,7 @@ defmodule Tilde.Template.TUI do
            cells
            |> Enum.map_join(
              "\n",
-             &Tilde.TUI.ViewRenderer.render(&1, unquote(width), unquote(opts))
+             &Tilde.Renderer.TUI.ViewRenderer.render(&1, unquote(width), unquote(opts))
            )}
 
         {:error, reason} ->
