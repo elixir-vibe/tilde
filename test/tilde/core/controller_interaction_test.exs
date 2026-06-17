@@ -2,7 +2,7 @@ defmodule Tilde.Core.ControllerInteractionTest do
   use TildeTest.Case, async: true
 
   alias Tilde.Core.{Controller, Display, Interaction, Session}
-  alias Tilde.Core.Interaction.Effect
+  alias Tilde.Core.Interaction.Outcome
 
   test "session interactions edit suggestions and submit commands" do
     session = Tilde.session()
@@ -12,12 +12,12 @@ defmodule Tilde.Core.ControllerInteractionTest do
 
     assert Session.command_suggestions(session)
 
-    assert {:cont, session, [%Effect{type: :complete_input, payload: %{input: "/help"}}]} =
+    assert {:cont, session, [%Outcome{type: :complete_input, payload: %{input: "/help"}}]} =
              Controller.apply_interaction(session, Interaction.new(:suggest_accept))
 
     assert session.input.value == "/help"
 
-    assert {:cont, session, [%Effect{type: :complete_input, payload: %{input: ""}}]} =
+    assert {:cont, session, [%Outcome{type: :complete_input, payload: %{input: ""}}]} =
              Controller.apply_interaction(session, Interaction.new(:suggest_submit))
 
     assert session.input.value == ""
@@ -26,7 +26,7 @@ defmodule Tilde.Core.ControllerInteractionTest do
   test "session interactions expose navigation effects for slash commands" do
     session = Tilde.session()
 
-    assert {:cont, _session, [%Effect{type: :open_session, payload: %{id: "demo"}}]} =
+    assert {:cont, _session, [%Outcome{type: :open_session, payload: %{id: "demo"}}]} =
              Controller.apply_interaction(session, Interaction.submit("/new demo"))
   end
 

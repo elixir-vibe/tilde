@@ -3,7 +3,7 @@ defmodule Tilde.Core.Index do
 
   alias Tilde.Command
   alias Tilde.Core.{Input, Interaction, Suggest}
-  alias Tilde.Core.Interaction.Effect
+  alias Tilde.Core.Interaction.Outcome
   alias Tilde.Session.Summary
 
   @type t :: %__MODULE__{
@@ -33,7 +33,7 @@ defmodule Tilde.Core.Index do
   @spec new_shortcut(t()) :: t()
   def new_shortcut(%__MODULE__{} = index), do: input_changed(index, "/new ")
 
-  @type interaction_result :: {:cont, t(), [Effect.t()]} | {:halt, t(), [Effect.t()]}
+  @type interaction_result :: {:cont, t(), [Outcome.t()]} | {:halt, t(), [Outcome.t()]}
 
   @spec apply_interaction(t(), Interaction.t()) :: interaction_result()
   def apply_interaction(%__MODULE__{} = index, %Interaction{
@@ -48,8 +48,8 @@ defmodule Tilde.Core.Index do
         payload: %{insert: insert}
       }) do
     case session_id_for_insert(index, insert) do
-      nil -> continue(input_changed(index, insert), [Effect.complete_input(insert)])
-      session_id -> continue(index, [Effect.open_session(session_id)])
+      nil -> continue(input_changed(index, insert), [Outcome.complete_input(insert)])
+      session_id -> continue(index, [Outcome.open_session(session_id)])
     end
   end
 
@@ -67,7 +67,7 @@ defmodule Tilde.Core.Index do
 
   def apply_interaction(%__MODULE__{} = index, %Interaction{type: :suggest_accept}) do
     case accept_suggestion(index) do
-      {:ok, index} -> continue(index, [Effect.complete_input(index.input.value)])
+      {:ok, index} -> continue(index, [Outcome.complete_input(index.input.value)])
       :error -> continue(index)
     end
   end
@@ -85,12 +85,12 @@ defmodule Tilde.Core.Index do
 
   def apply_interaction(%__MODULE__{} = index, %Interaction{type: :interrupt}) do
     index = input_changed(index, "")
-    continue(index, [Effect.complete_input("")])
+    continue(index, [Outcome.complete_input("")])
   end
 
   def apply_interaction(%__MODULE__{} = index, %Interaction{type: :new_shortcut}) do
     index = new_shortcut(index)
-    continue(index, [Effect.complete_input(index.input.value)])
+    continue(index, [Outcome.complete_input(index.input.value)])
   end
 
   @spec accept_suggestion(t()) :: {:ok, t()} | :error
@@ -184,7 +184,7 @@ defmodule Tilde.Core.Index do
         submit_command_suggestion(index)
 
       session_id = selected_session_id(index) ->
-        continue(index, [Effect.open_session(session_id)])
+        continue(index, [Outcome.open_session(session_id)])
 
       true ->
         continue(index)
@@ -195,7 +195,7 @@ defmodule Tilde.Core.Index do
     case accept_suggestion(index) do
       {:ok, %__MODULE__{input: %{value: input}} = index} ->
         if String.ends_with?(input, " ") do
-          continue(index, [Effect.complete_input(input)])
+          continue(index, [Outcome.complete_input(input)])
         else
           submit_input(index, input)
         end
@@ -211,7 +211,7 @@ defmodule Tilde.Core.Index do
     |> case do
       {:ok, %Command{} = command} ->
         effects = Command.run(command, Tilde.session(id: "index"), [])
-        continue(index, Effect.from_command_effects(effects))
+        continue(index, Outcome.from_command_effects(effects))
 
       :error ->
         continue(index)

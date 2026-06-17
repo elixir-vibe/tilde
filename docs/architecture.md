@@ -83,15 +83,17 @@ and SSH/TUI render the same widget composition through their adapters.
 
 Transports translate raw input into `Tilde.Core.Interaction` before applying
 index or session behavior. Applying an interaction returns updated core state
-plus transport-neutral `Tilde.Core.Interaction.Effect` values such as:
+plus transport-neutral `Tilde.Core.Interaction.Outcome` values such as:
 
 - `:complete_input`
 - `:open_session`
 - `:open_index`
 - `:show_session_info`
 
-LiveView maps these to `push_event/3` or navigation. SSH maps them to local input
-updates, session attachment, index return, or an inline session-info display.
+`Tilde.Transport.Live.Interaction` and `Tilde.Transport.SSH.Interaction` perform
+transport input translation. LiveView maps outcomes to `push_event/3` or
+navigation. SSH maps outcomes to local input updates, session attachment, index
+return, or an inline session-info display.
 
 Session prompt key handling can still flow through `Tilde.Core.Controller.apply_key/2`
 for decoded `Tilde.Core.Keys` values; transports that already have semantic

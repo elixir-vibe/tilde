@@ -8,11 +8,11 @@ defmodule Tilde.Core.Controller do
 
   alias Tilde.Command
   alias Tilde.Core.{Block, Input, Interaction, Keys, Session, Suggest}
-  alias Tilde.Core.Interaction.Effect
+  alias Tilde.Core.Interaction.Outcome
 
   @type result :: {:cont, Session.t()} | {:halt, Session.t()}
   @type interaction_result ::
-          {:cont, Session.t(), [Effect.t()]} | {:halt, Session.t(), [Effect.t()]}
+          {:cont, Session.t(), [Outcome.t()]} | {:halt, Session.t(), [Outcome.t()]}
 
   @doc "Applies a transport-neutral interaction to a session."
   @spec apply_interaction(Session.t(), Interaction.t()) :: interaction_result()
@@ -74,7 +74,7 @@ defmodule Tilde.Core.Controller do
 
   def apply_interaction(%Session{} = session, %Interaction{type: :suggest_accept}) do
     case Session.accept_suggestion(session) do
-      {:ok, session} -> continue(session, [Effect.complete_input(session.input.value)])
+      {:ok, session} -> continue(session, [Outcome.complete_input(session.input.value)])
       :error -> continue(session)
     end
   end
@@ -203,24 +203,24 @@ defmodule Tilde.Core.Controller do
 
   defp submitted_suggestion_effects(input, %Session{} = session) when is_binary(input) do
     if String.ends_with?(input, " ") do
-      [Effect.complete_input(session.input.value)]
+      [Outcome.complete_input(session.input.value)]
     else
-      [Effect.complete_input(session.input.value) | command_effects(input, session)]
+      [Outcome.complete_input(session.input.value) | command_effects(input, session)]
     end
   end
 
   defp command_effects(input, %Session{} = session) do
     case Command.parse(input) do
-      {:ok, command} -> command |> Command.run(session, []) |> Effect.from_command_effects()
+      {:ok, command} -> command |> Command.run(session, []) |> Outcome.from_command_effects()
       :error -> []
     end
   end
 
   defp completion_effect(%{insert: insert}, input) when insert != input,
-    do: [Effect.complete_input(input)]
+    do: [Outcome.complete_input(input)]
 
   defp completion_effect(%{input: input}, completed) when input != completed,
-    do: [Effect.complete_input(completed)]
+    do: [Outcome.complete_input(completed)]
 
   defp completion_effect(_payload, _input), do: []
 

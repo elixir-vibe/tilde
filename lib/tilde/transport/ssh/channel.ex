@@ -12,13 +12,14 @@ defmodule Tilde.Transport.SSH.Channel do
 
   alias Tilde.Command, as: SlashCommand
   alias Tilde.Core.{Block, Controller, Index, Input, Interaction, Keys, Session}
-  alias Tilde.Core.Interaction.Effect, as: InteractionEffect
+  alias Tilde.Core.Interaction.Outcome
   alias Tilde.Index.View, as: IndexView
   alias Tilde.Renderer.TUI
   alias Tilde.Renderer.TUI.{ViewRenderer, WidgetRenderer}
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.SSH.Delta
+  alias Tilde.Transport.SSH.Interaction, as: SSHInteraction
 
   defstruct connection_ref: nil,
             channel_id: nil,
@@ -345,13 +346,13 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp submit_or_command(server, state) do
     case transport_effects(state.session.input.value, state.session) do
-      [%InteractionEffect{type: :open_session, payload: %{id: session_id}} | _effects] ->
+      [%Outcome{type: :open_session, payload: %{id: session_id}} | _effects] ->
         {:cont, {:cont, attach_session(state, session_id)}}
 
-      [%InteractionEffect{type: :open_index} | _effects] ->
+      [%Outcome{type: :open_index} | _effects] ->
         {:cont, {:cont, detach_session(state)}}
 
-      [%InteractionEffect{type: :show_session_info} | _effects] ->
+      [%Outcome{type: :show_session_info} | _effects] ->
         {:cont, {:cont, show_session_info(state)}}
 
       _effects ->
@@ -362,7 +363,7 @@ defmodule Tilde.Transport.SSH.Channel do
   defp transport_effects(input, %Session{} = session) do
     case SlashCommand.parse(input) do
       {:ok, command} ->
-        command |> SlashCommand.run(session, []) |> InteractionEffect.from_command_effects()
+        command |> SlashCommand.run(session, []) |> Outcome.from_command_effects()
 
       :error ->
         []
@@ -371,7 +372,7 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp apply_index_keys(%__MODULE__{} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn key, {:cont, state} ->
-      case index_interaction(state, key) do
+      case SSHInteraction.index(state.index, key) do
         :halt ->
           {:halt, {:halt, state}}
 
@@ -384,29 +385,6 @@ defmodule Tilde.Transport.SSH.Channel do
     end)
   end
 
-  defp index_interaction(%__MODULE__{}, :enter), do: Interaction.new(:suggest_submit)
-  defp index_interaction(%__MODULE__{}, :down), do: Interaction.new(:suggest_next)
-  defp index_interaction(%__MODULE__{}, :up), do: Interaction.new(:suggest_previous)
-  defp index_interaction(%__MODULE__{}, :tab), do: Interaction.new(:suggest_accept)
-  defp index_interaction(%__MODULE__{}, :cancel), do: Interaction.new(:suggest_cancel)
-
-  defp index_interaction(%__MODULE__{index: %Index{input: %Input{value: ""}}}, key)
-       when key in [:quit, :interrupt],
-       do: :halt
-
-  defp index_interaction(%__MODULE__{}, :quit), do: nil
-  defp index_interaction(%__MODULE__{}, :interrupt), do: Interaction.new(:interrupt)
-
-  defp index_interaction(%__MODULE__{index: %Index{input: %Input{value: ""}}}, {:text, "n"}),
-    do: Interaction.new(:new_shortcut)
-
-  defp index_interaction(%__MODULE__{} = state, {:text, text}) do
-    input = Input.insert(state.index.input, text)
-    Interaction.input_changed(input.value)
-  end
-
-  defp index_interaction(%__MODULE__{}, _key), do: nil
-
   defp apply_index_interaction(%__MODULE__{} = state, %Interaction{} = interaction) do
     {:cont, index, effects} = Index.apply_interaction(state.index, interaction)
 
@@ -417,10 +395,10 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp apply_index_effects(%__MODULE__{} = state, effects) do
     Enum.reduce(effects, state, fn
-      %InteractionEffect{type: :complete_input}, state ->
+      %Outcome{type: :complete_input}, state ->
         state
 
-      %InteractionEffect{type: :open_session, payload: %{id: id}}, state ->
+      %Outcome{type: :open_session, payload: %{id: id}}, state ->
         attach_session(state, id)
     end)
   end

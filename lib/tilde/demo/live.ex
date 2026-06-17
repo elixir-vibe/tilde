@@ -16,9 +16,10 @@ defmodule Tilde.Demo.Live do
   import Tilde.Transport.Live.WidgetRenderer
 
   alias Tilde.Core.{Index, Interaction, Session}
-  alias Tilde.Core.Interaction.Effect, as: InteractionEffect
+  alias Tilde.Core.Interaction.Outcome
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.Server, as: SessionServer
+  alias Tilde.Transport.Live.Interaction, as: LiveInteraction
 
   @impl true
   def mount(%{"session_id" => _session_id} = params, _session, socket) do
@@ -72,143 +73,25 @@ defmodule Tilde.Demo.Live do
   end
 
   @impl true
-  def handle_event("tilde:toggle_expand", _params, %{assigns: %{mode: :index}} = socket),
-    do: {:noreply, socket}
-
-  def handle_event(
-        "tilde:input_changed",
-        %{"input" => "n"},
-        %{assigns: %{mode: :index, index: %Index{input: %Tilde.Core.Input{value: ""}}}} = socket
-      ) do
-    apply_index_interaction(socket, Interaction.new(:new_shortcut))
+  def handle_event(event, params, %{assigns: %{mode: :index, index: %Index{} = index}} = socket) do
+    case LiveInteraction.index(event, params, index) do
+      %Interaction{} = interaction -> apply_index_interaction(socket, interaction)
+      nil -> {:noreply, socket}
+    end
   end
 
-  def handle_event(
-        "tilde:input_changed",
-        %{"input" => input},
-        %{assigns: %{mode: :index}} = socket
-      ) do
-    apply_index_interaction(socket, Interaction.input_changed(input))
-  end
+  def handle_event(event, params, socket) do
+    case LiveInteraction.session(event, params) do
+      %Interaction{type: :interrupt} = interaction ->
+        {:noreply, socket} = apply_session_interaction(socket, interaction)
+        {:noreply, assign(socket, running?: false)}
 
-  def handle_event(
-        "tilde:complete_input",
-        %{"insert" => insert},
-        %{assigns: %{mode: :index}} = socket
-      ) do
-    apply_index_interaction(socket, Interaction.complete_input(insert))
-  end
+      %Interaction{} = interaction ->
+        apply_session_interaction(socket, interaction)
 
-  def handle_event("tilde:suggest_next", _params, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.new(:suggest_next))
-  end
-
-  def handle_event("tilde:suggest_previous", _params, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.new(:suggest_previous))
-  end
-
-  def handle_event("tilde:suggest_cancel", _params, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.new(:suggest_cancel))
-  end
-
-  def handle_event("tilde:suggest_accept", _params, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.new(:suggest_accept))
-  end
-
-  def handle_event("tilde:suggest_submit", _params, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.new(:suggest_submit))
-  end
-
-  def handle_event("tilde:submit", %{"input" => input}, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.submit(input))
-  end
-
-  def handle_event("tilde:interrupt", _params, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.new(:interrupt))
-  end
-
-  def handle_event("tilde:index_new", _params, %{assigns: %{mode: :index}} = socket) do
-    apply_index_interaction(socket, Interaction.new(:new_shortcut))
-  end
-
-  def handle_event(
-        "tilde:index_keydown",
-        %{"key" => "Enter"},
-        %{assigns: %{mode: :index}} = socket
-      ) do
-    apply_index_interaction(socket, Interaction.new(:suggest_submit))
-  end
-
-  def handle_event(
-        "tilde:index_keydown",
-        %{"key" => "n", "value" => ""},
-        %{assigns: %{mode: :index}} = socket
-      ) do
-    handle_event("tilde:index_new", %{}, socket)
-  end
-
-  def handle_event("tilde:index_keydown", _params, %{assigns: %{mode: :index}} = socket),
-    do: {:noreply, socket}
-
-  def handle_event("tilde:toggle_expand", %{"id" => id}, socket) do
-    apply_session_interaction(socket, Interaction.new(:toggle_expand, %{id: id}))
-  end
-
-  def handle_event(
-        "tilde:select_choice",
-        %{"block-id" => block_id, "option-id" => option_id},
-        socket
-      ) do
-    apply_session_interaction(
-      socket,
-      Interaction.new(:select_choice, %{block_id: block_id, option_id: option_id})
-    )
-  end
-
-  def handle_event("tilde:choice_action", %{"action-id" => action_id}, socket) do
-    apply_session_interaction(socket, Interaction.new(:choice_action, %{action_id: action_id}))
-  end
-
-  def handle_event("tilde:input_changed", %{"input" => input}, socket) do
-    apply_session_interaction(socket, Interaction.input_changed(input))
-  end
-
-  def handle_event("tilde:complete_input", params, socket) do
-    payload = %{
-      input: Map.get(params, "input", ""),
-      insert: Map.get(params, "insert")
-    }
-
-    apply_session_interaction(socket, Interaction.new(:complete_input, payload))
-  end
-
-  def handle_event("tilde:suggest_next", _params, socket) do
-    apply_session_interaction(socket, Interaction.new(:suggest_next))
-  end
-
-  def handle_event("tilde:suggest_previous", _params, socket) do
-    apply_session_interaction(socket, Interaction.new(:suggest_previous))
-  end
-
-  def handle_event("tilde:suggest_cancel", _params, socket) do
-    apply_session_interaction(socket, Interaction.new(:suggest_cancel))
-  end
-
-  def handle_event("tilde:suggest_accept", _params, socket) do
-    apply_session_interaction(socket, Interaction.new(:suggest_accept))
-  end
-
-  def handle_event("tilde:suggest_submit", _params, socket) do
-    apply_session_interaction(socket, Interaction.new(:suggest_submit))
-  end
-
-  def handle_event("tilde:submit", %{"input" => input}, socket) do
-    apply_session_interaction(socket, Interaction.submit(input))
-  end
-
-  def handle_event("tilde:interrupt", _params, socket) do
-    {:noreply, socket} = apply_session_interaction(socket, Interaction.new(:interrupt))
-    {:noreply, assign(socket, running?: false)}
+      nil ->
+        {:noreply, socket}
+    end
   end
 
   @impl true
@@ -269,16 +152,16 @@ defmodule Tilde.Demo.Live do
 
   defp apply_interaction_effects(socket, effects) do
     Enum.reduce(effects, socket, fn
-      %InteractionEffect{type: :complete_input, payload: %{input: input}}, socket ->
+      %Outcome{type: :complete_input, payload: %{input: input}}, socket ->
         push_event(socket, "tilde:input_completed", %{insert: input})
 
-      %InteractionEffect{type: :open_session, payload: %{id: id}}, socket ->
+      %Outcome{type: :open_session, payload: %{id: id}}, socket ->
         push_navigate(socket, to: session_path(id))
 
-      %InteractionEffect{type: :open_index}, socket ->
+      %Outcome{type: :open_index}, socket ->
         push_navigate(socket, to: "/")
 
-      %InteractionEffect{type: :show_session_info}, socket ->
+      %Outcome{type: :show_session_info}, socket ->
         socket
     end)
   end

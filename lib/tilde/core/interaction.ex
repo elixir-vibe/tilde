@@ -42,8 +42,8 @@ defmodule Tilde.Core.Interaction do
   def submit(input), do: new(:submit, %{input: input})
 end
 
-defmodule Tilde.Core.Interaction.Effect do
-  @moduledoc "Transport-neutral side effect requested by applying an interaction."
+defmodule Tilde.Core.Interaction.Outcome do
+  @moduledoc "Transport-neutral outcome requested by applying an interaction."
 
   defstruct type: nil, payload: %{}
 

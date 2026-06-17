@@ -2,7 +2,7 @@ defmodule Tilde.CoreIndexTest do
   use TildeTest.Case
 
   alias Tilde.Core.{Index, Interaction}
-  alias Tilde.Core.Interaction.Effect
+  alias Tilde.Core.Interaction.Outcome
 
   test "empty index has no session suggestions" do
     assert {:ok, _pid} = Tilde.Session.Registry.ensure_started()
@@ -65,12 +65,12 @@ defmodule Tilde.CoreIndexTest do
     assert {:cont, index, []} =
              Index.apply_interaction(index, Interaction.input_changed("/n"))
 
-    assert {:cont, index, [%Effect{type: :complete_input, payload: %{input: "/new "}}]} =
+    assert {:cont, index, [%Outcome{type: :complete_input, payload: %{input: "/new "}}]} =
              Index.apply_interaction(index, Interaction.new(:suggest_submit))
 
     assert index.input.value == "/new "
 
-    assert {:cont, _index, [%Effect{type: :open_session, payload: %{id: id}}]} =
+    assert {:cont, _index, [%Outcome{type: :open_session, payload: %{id: id}}]} =
              Index.apply_interaction(index, Interaction.submit("/new interaction-demo"))
 
     assert id == "interaction-demo"
