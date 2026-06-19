@@ -114,6 +114,17 @@ defmodule Tilde.Rendering.TemplateToolDemoTest do
     assert Enum.map(block.actions, & &1.id) == [:confirm, :cancel]
   end
 
+  test "choice actions render from shared semantic actions in TUI" do
+    choice = Tilde.choice("Proceed?", [{"yes", "Yes"}, {"no", "No"}])
+    cell = Tilde.choice_block("choice_1", choice) |> Tilde.Viewable.to_view()
+
+    rendered = cell |> Tilde.Renderer.TUI.ViewRenderer.render(60, ansi: false) |> strip_ansi()
+
+    assert rendered =~ "Proceed?"
+    assert rendered =~ "[ ] Yes"
+    assert rendered =~ "enter Confirm    escape Cancel"
+  end
+
   test "Tilde semantic HEEx components render to cells, LiveView, and TUI" do
     require Tilde.Template
     require Tilde.Template.Renderer.Live
@@ -402,13 +413,13 @@ defmodule Tilde.Rendering.TemplateToolDemoTest do
     with_application_env(:demo_password, "secret", fn ->
       conn =
         :get
-        |> conn("/tilde")
+        |> conn("/")
         |> init_test_session(%{})
         |> Tilde.Demo.Router.call([])
 
       assert conn.status == 302
       assert [location] = Plug.Conn.get_resp_header(conn, "location")
-      assert location =~ "/login?return_to=%2Ftilde"
+      assert location =~ "/login?return_to=%2F"
     end)
   end
 
@@ -420,12 +431,12 @@ defmodule Tilde.Rendering.TemplateToolDemoTest do
         |> init_test_session(%{})
         |> Tilde.Demo.Auth.create(%{
           "password" => "secret",
-          "return_to" => "/tilde/auth-smoke"
+          "return_to" => "/sessions/auth-smoke"
         })
 
       assert conn.status == 302
       assert Plug.Conn.get_session(conn, :tilde_demo_authenticated) == true
-      assert Plug.Conn.get_resp_header(conn, "location") == ["/tilde/auth-smoke"]
+      assert Plug.Conn.get_resp_header(conn, "location") == ["/sessions/auth-smoke"]
     end)
   end
 
@@ -441,7 +452,7 @@ defmodule Tilde.Rendering.TemplateToolDemoTest do
         })
 
       assert conn.status == 302
-      assert Plug.Conn.get_resp_header(conn, "location") == ["/tilde"]
+      assert Plug.Conn.get_resp_header(conn, "location") == ["/"]
     end)
   end
 
@@ -451,7 +462,7 @@ defmodule Tilde.Rendering.TemplateToolDemoTest do
         :post
         |> conn("/login")
         |> init_test_session(%{})
-        |> Tilde.Demo.Auth.create(%{"password" => "wrong", "return_to" => "/tilde"})
+        |> Tilde.Demo.Auth.create(%{"password" => "wrong", "return_to" => "/"})
 
       assert conn.status == 401
       refute Plug.Conn.get_session(conn, :tilde_demo_authenticated)

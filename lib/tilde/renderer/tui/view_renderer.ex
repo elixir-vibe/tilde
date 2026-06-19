@@ -21,7 +21,20 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
     |> Enum.join("\n")
   end
 
+  def render(%Cell{kind: :choice} = cell, width, opts) do
+    cell
+    |> render_cell_lines(width, opts)
+    |> append_action_footer(cell, width, opts)
+    |> Enum.join("\n")
+  end
+
   def render(%Cell{} = cell, width, opts) do
+    cell
+    |> render_cell_lines(width, opts)
+    |> Enum.join("\n")
+  end
+
+  defp render_cell_lines(%Cell{} = cell, width, opts) do
     inner_width = max(width - cell.padding_x * 2, 1)
     blank = ""
 
@@ -32,10 +45,38 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
 
     lines
     |> Enum.with_index()
-    |> Enum.map_join("\n", fn {line, index} ->
+    |> Enum.map(fn {line, index} ->
       render_cell_line(line, inner_width, cell, opts, index)
     end)
   end
+
+  defp append_action_footer(lines, %Cell{actions: []}, _width, _opts), do: lines
+
+  defp append_action_footer(lines, %Cell{} = cell, width, opts) do
+    action_text =
+      cell.actions
+      |> Enum.map(&action_hint/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.join("    ")
+
+    if action_text == "" do
+      lines
+    else
+      inner_width = max(width - cell.padding_x * 2, 1)
+      indent = String.duplicate(" ", max(inner_width - visible_width(action_text), 0))
+
+      padded =
+        String.duplicate(" ", cell.padding_x) <>
+          indent <> Theme.muted(action_text, opts) <> String.duplicate(" ", cell.padding_x)
+
+      lines ++ [state(padded, cell.state, opts)]
+    end
+  end
+
+  defp action_hint(%{key: key, label: label}) when is_binary(key) and key != "",
+    do: "#{key} #{label}"
+
+  defp action_hint(%{label: label}), do: to_string(label)
 
   defp message_lines(%Cell{runs: [_ | _] = runs}, _width, _opts),
     do: text_lines(Enum.map_join(runs, & &1.text), 0)

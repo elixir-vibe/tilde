@@ -14,6 +14,13 @@ mix ci
 - For non-web Elixir projects, VibeKit is the default project baseline.
 - Keep changes small, tested, and formatted.
 
+## UI/style conventions
+
+- Do not introduce ad hoc component or CSS class names when an existing semantic class/component fits.
+- Before adding UI classes/components, read nearby component modules and CSS files and reuse the established vocabulary.
+- CSS class names use the existing semantic style (`actions`, `action`, `tool`, `choice`, etc.); do not invent dashed or underscored variants as quick fixes.
+- Shared affordances such as shortcut/action controls should go through shared LiveView components and shared CSS, not one-off markup per block.
+
 ## QuackDB / storage conventions
 
 - Do not use raw SQL strings or ad hoc SQL fragments for Tilde storage work.

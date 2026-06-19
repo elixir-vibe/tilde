@@ -5,9 +5,9 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
   use Phoenix.Component
 
+  import Tilde.Transport.Live.Controls
   import Tilde.Transport.Live.Markdown
   import Tilde.Transport.Live.Run
-  import Tilde.Transport.Live.Shortcut
 
   alias Tilde.View.{Cell, Helpers, Line, Text}
 
@@ -39,6 +39,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
       id={@cell.id}
       class={["block", "tool", @view.status]}
       data-block-id={@cell.id}
+      data-expandable={tool_expandable?(@view)}
       data-expand-key="ctrl+o"
       tabindex="0"
     >
@@ -47,23 +48,17 @@ defmodule Tilde.Transport.Live.ViewRenderer do
       </header>
 
       <div :if={@body_lines != []} class="lines">
-        <div :for={line <- @body_lines} class="line"><.view_line line={line} /></div>
+        <div :for={line <- @body_lines} class={["line", line_role(line)]}><.view_line line={line} /></div>
       </div>
 
-      <footer :if={tool_expandable?(@view)} class="footer">
-        <span :if={@view.hidden_lines > 0} class="muted">… {@view.hidden_lines} more lines</span>
-        <button
-          type="button"
-          class="link"
-          phx-click="tilde:toggle_expand"
-          phx-value-id={@cell.id}
-        >
-          <%= if @view.expanded? do %>
-            collapse
-          <% else %>
-            <.shortcut key="ctrl+o" label="expand" />
-          <% end %>
-        </button>
+      <footer :if={tool_expandable?(@view)} class="footer actions">
+        <span :if={@view.hidden_lines > 0} class="muted">… {@view.hidden_lines} {@view.hidden_unit || "more lines"}</span>
+        <.action
+          event="tilde:toggle_expand"
+          label={if @view.expanded?, do: "collapse", else: "expand"}
+          key={if @view.expanded?, do: nil, else: "ctrl+o"}
+          values={%{"phx-value-id" => @cell.id}}
+        />
       </footer>
     </article>
     """
@@ -74,7 +69,6 @@ defmodule Tilde.Transport.Live.ViewRenderer do
       assigns
       |> assign(:choice, assigns.cell.attrs.choice)
       |> assign(:question, List.first(assigns.cell.lines) || Helpers.line(""))
-      |> assign(:option_lines, Enum.drop(assigns.cell.lines, 1))
 
     ~H"""
     <article id={@cell.id} class="block choice" data-block-id={@cell.id} tabindex="0">
@@ -82,28 +76,28 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
       <div class="options">
         <button
-          :for={{option, line} <- Enum.zip(@choice.options, @option_lines)}
+          :for={option <- @choice.options}
           type="button"
           class={["option", option.id in @choice.selected && "selected"]}
           phx-click="tilde:select_choice"
           phx-value-block-id={@cell.id}
           phx-value-option-id={option.id}
         >
-          <.view_line line={line} />
+          <span class="marker">{if option.id in @choice.selected, do: "[x]", else: "[ ]"}</span>
+          <span>{option.label}</span>
+          <span :if={option[:description]} class="description">— {option.description}</span>
         </button>
       </div>
 
       <footer class="actions">
-        <button
+        <.action
           :for={action <- @choice.actions}
-          type="button"
-          class={["action", action.kind]}
-          phx-click="tilde:choice_action"
-          phx-value-block-id={@cell.id}
-          phx-value-action-id={action.id}
-        >
-          {action.label}<.shortcut :if={action.key} key={action.key} />
-        </button>
+          event="tilde:choice_action"
+          label={action.label}
+          key={action.key}
+          kind={action.kind}
+          values={%{"phx-value-block-id" => @cell.id, "phx-value-action-id" => action.id}}
+        />
       </footer>
     </article>
     """
@@ -147,6 +141,9 @@ defmodule Tilde.Transport.Live.ViewRenderer do
   end
 
   attr(:line, :any, required: true)
+
+  defp line_role(%Line{role: role}), do: role
+  defp line_role(_line), do: nil
 
   def view_line(%{line: %Line{} = line} = assigns) do
     assigns = assign(assigns, :parts, line.parts)

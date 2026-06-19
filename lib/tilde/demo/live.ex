@@ -4,7 +4,8 @@ defmodule Tilde.Demo.Live do
 
   Mount this LiveView in a Phoenix router while dogfooding the package:
 
-      live "/tilde", Tilde.Demo.Live
+      live "/", Tilde.Demo.Live
+      live "/sessions/:session_id", Tilde.Demo.Live
 
   It exercises the semantic session model, the LiveView renderer, tool
   expansion, choice selection, input submission, widgets, and footer status.
@@ -208,5 +209,5 @@ defmodule Tilde.Demo.Live do
     LiveOutcome.apply(socket, outcomes, session_path: &session_path/1)
   end
 
-  defp session_path(id), do: "/tilde/#{id}"
+  defp session_path(id), do: "/sessions/#{id}"
 end

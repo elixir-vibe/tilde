@@ -54,7 +54,7 @@ defmodule Tilde.Transport.SSH.Rendering do
       IO.ANSI.faint(),
       "web: ",
       IO.ANSI.normal(),
-      "/tilde/#{id}",
+      "/sessions/#{id}",
       "\r\n",
       IO.ANSI.faint(),
       "commands: ",

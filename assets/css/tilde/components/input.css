@@ -19,16 +19,4 @@
     }
   }
 
-  .link,
-  .action,
-  .choice .option {
-    font: inherit;
-    color: var(--color-link);
-    background: transparent;
-    border: 0;
-    padding: 0;
-    cursor: pointer;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
 }

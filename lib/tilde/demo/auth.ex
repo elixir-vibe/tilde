@@ -62,13 +62,13 @@ defmodule Tilde.Demo.Auth do
     if query == "", do: path, else: path <> "?" <> query
   end
 
-  defp safe_return_to(nil), do: "/tilde"
-  defp safe_return_to(""), do: "/tilde"
-  defp safe_return_to("//" <> _), do: "/tilde"
-  defp safe_return_to("/login" <> _), do: "/tilde"
-  defp safe_return_to("/tilde" <> _ = path), do: path
+  defp safe_return_to(nil), do: "/"
+  defp safe_return_to(""), do: "/"
+  defp safe_return_to("//" <> _), do: "/"
+  defp safe_return_to("/login" <> _), do: "/"
+  defp safe_return_to("/sessions/" <> _ = path), do: path
   defp safe_return_to("/"), do: "/"
-  defp safe_return_to(_path), do: "/tilde"
+  defp safe_return_to(_path), do: "/"
 
   defp login_page(opts) do
     error? = Keyword.fetch!(opts, :error)

@@ -40,5 +40,5 @@ defmodule Tilde.Transport.Live.Outcome do
 
   defp open_session(_payload), do: :ok
 
-  defp default_session_path(id), do: "/tilde/#{id}"
+  defp default_session_path(id), do: "/sessions/#{id}"
 end

@@ -7,7 +7,7 @@ defmodule Tilde.View.Line do
 
   defstruct parts: [], role: :normal
 
-  @type role :: :normal | :metadata | :primary | :muted | :error | :title | :hint
+  @type role :: :normal | :metadata | :primary | :muted | :error | :title | :hint | :blank
   @type t :: %__MODULE__{parts: [Text.t()], role: role()}
 
   @spec new([Text.t() | String.t()] | Text.t() | String.t(), keyword()) :: t()

@@ -1,0 +1,56 @@
+.tilde.playground {
+  gap: var(--space-md);
+}
+
+.tilde .playground-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding-bottom: var(--space-lg);
+}
+
+.tilde .playground-header,
+.tilde .playground-section-header {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--space-sm);
+}
+
+.tilde .playground-header h1,
+.tilde .playground-section-header h2 {
+  margin: 0;
+  color: var(--color-fg);
+  font-size: 1.125rem;
+  line-height: 1.25;
+}
+
+.tilde .playground-header p,
+.tilde .playground-section-header p {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-muted);
+}
+
+.tilde .playground-header .eyebrow,
+.tilde .playground-section-header .eyebrow {
+  margin: 0 0 var(--space-xs);
+  color: var(--color-link);
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tilde .playground-section {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.tilde .playground-frame {
+  min-height: auto;
+  overflow: visible;
+  border: 1px solid var(--color-border);
+  background: var(--surface-tool);
+  padding: var(--space-md);
+}
+
+.tilde .playground-dock {
+  margin-top: 0;
+}

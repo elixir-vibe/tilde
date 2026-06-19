@@ -78,6 +78,9 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
       lines
       |> Enum.with_index()
       |> Enum.map_join("\n", fn
+        {{:title, _value}, index} ->
+          ~s|  <.line role="title"><.title>{Enum.at(@lines, #{index})}</.title></.line>|
+
         {{:metadata, _value}, index} ->
           ~s|  <.line role="metadata"><.meta>{Enum.at(@lines, #{index})}</.meta></.line>|
 
@@ -111,7 +114,7 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
   end
 
   defp tool_template_lines(view) do
-    [waiting_entry(view), stream_entries(view), hidden_entry(view)]
+    [waiting_entry(view), result_entries(view), stream_entries(view), hidden_entry(view)]
     |> List.flatten()
     |> Enum.reject(&is_nil/1)
   end
@@ -121,6 +124,24 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
 
   defp waiting_entry(%{waiting?: true}), do: {:muted, "Waiting…"}
   defp waiting_entry(_view), do: nil
+
+  defp result_entries(%{entries: []}), do: []
+
+  defp result_entries(%{entries: entries}) do
+    entries
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {entry, index} ->
+      separator = if index == 0, do: [], else: []
+      body = Enum.map(entry.body, &{:primary, &1})
+
+      separator ++
+        [{:title, entry.title}] ++
+        if(entry.metadata in [nil, ""], do: [], else: [{:metadata, entry.metadata}]) ++
+        body
+    end)
+  end
+
+  defp stream_entries(%{entries: [_ | _]}), do: []
 
   defp stream_entries(%{streams: [], lines: lines}),
     do: Enum.map(lines, &{:primary, "  #{&1}"})
@@ -143,8 +164,13 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
   defp multiple?(_streams), do: false
 
   defp hidden_entry(%{hidden_lines: 0, expanded?: false}), do: nil
-  defp hidden_entry(%{hidden_lines: 0, expanded?: true}), do: {:hint, "(ctrl+o to collapse)"}
-  defp hidden_entry(view), do: {:hint, "… #{view.hidden_lines} more lines (ctrl+o to expand)"}
+
+  defp hidden_entry(%{hidden_lines: 0, expanded?: true}),
+    do: {:hint, "(ctrl+o to collapse)"}
+
+  defp hidden_entry(view) do
+    {:hint, "… #{view.hidden_lines} #{view.hidden_unit || "more lines"} (ctrl+o to expand)"}
+  end
 
   defp choice_lines(choice) do
     [H.line(choice.question, role: :title)] ++

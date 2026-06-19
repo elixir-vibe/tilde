@@ -12,8 +12,16 @@
     .footer {
       display: flex;
       gap: var(--space-md);
-      justify-content: space-between;
       align-items: baseline;
+    }
+
+    .header,
+    .footer:has(.muted) {
+      justify-content: space-between;
+    }
+
+    .footer:not(:has(.muted)) {
+      justify-content: flex-end;
     }
 
     &.queued,
@@ -97,6 +105,10 @@
 
     .line {
       overflow-wrap: anywhere;
+    }
+
+    .line.primary + .line.title {
+      margin-top: 1.4em;
     }
 
     .waiting {

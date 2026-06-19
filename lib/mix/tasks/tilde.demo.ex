@@ -5,7 +5,7 @@ defmodule Mix.Tasks.Tilde.Demo do
       mix tilde.demo
       mix tilde.demo --web-port 4000 --ssh-port 4022
 
-  Open the LiveView at <http://localhost:4000/tilde> and connect over SSH:
+  Open the LiveView at <http://localhost:4000/> and connect over SSH:
 
       ssh tilde@localhost -p 4022 \
         -o StrictHostKeyChecking=no \
@@ -48,13 +48,13 @@ defmodule Mix.Tasks.Tilde.Demo do
 
     Tilde mirrored demo is running.
 
-      LiveView: http://localhost:#{web_port}/tilde
+      LiveView: http://localhost:#{web_port}/
       SSH:      ssh tilde@localhost -p #{ssh_port} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
       Password: #{password}
       HMR:      #{if hmr?, do: "enabled", else: "disabled"}
 
     SSH tilde@... opens a private session. SSH shared@... or name@... attaches a named session.
-    Web /tilde/:session_id attaches the same named session.
+    Web /sessions/:session_id attaches the same named session.
     Press Ctrl+C twice to stop.
     """)
 

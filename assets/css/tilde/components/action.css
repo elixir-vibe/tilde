@@ -1,0 +1,26 @@
+.tilde {
+  .link,
+  .action,
+  .choice .option {
+    font: inherit;
+    color: var(--color-link);
+    background: transparent;
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .actions {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: flex-end;
+    align-items: baseline;
+  }
+
+  .action {
+    display: inline-flex;
+    align-items: baseline;
+  }
+}

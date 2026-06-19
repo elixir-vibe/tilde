@@ -35,7 +35,7 @@ defmodule Tilde.Command.Builtin.New do
 
     [
       Tilde.Command.Effect.NewSession.new(id),
-      Help.assistant("New isolated session: /tilde/#{id}")
+      Help.assistant("New isolated session: /sessions/#{id}")
     ]
   end
 end

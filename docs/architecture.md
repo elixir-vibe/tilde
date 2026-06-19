@@ -159,7 +159,7 @@ Pure session effects are applied through `Tilde.Command.apply_effects/2`.
 Named web sessions live at:
 
 ```text
-/tilde/:session_id
+/sessions/:session_id
 ```
 
 A named session is backed by `Tilde.Session.Registry` and a

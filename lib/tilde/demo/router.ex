@@ -36,7 +36,7 @@ defmodule Tilde.Demo.Router do
     pipe_through([:browser, :demo_auth])
 
     live("/", Tilde.Demo.Live, :index, as: :demo)
-    live("/tilde", Tilde.Demo.Live, :index, as: :demo)
-    live("/tilde/:session_id", Tilde.Demo.Live, :index, as: :demo)
+    live("/sessions/:session_id", Tilde.Demo.Live, :index, as: :session)
+    live("/playground", Tilde.Demo.PlaygroundLive, :index, as: :playground)
   end
 end

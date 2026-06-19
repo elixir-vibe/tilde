@@ -184,7 +184,7 @@ defmodule Tilde.Template.Components do
   def tool_call(assigns) do
     ~H"""
     <div data-tilde-line="true" data-tilde-role="title">
-      <span class="text title">{@name}</span><span :if={@segment} class="text accent"> {@segment}</span><span :if={@suffix} class="text muted"> ({@suffix})</span>
+      <span class="text title">{@name}</span><span :if={@segment} class="text accent"> {@segment}</span><span :if={@tags != []} class="text muted"> [{Enum.join(@tags, ", ")}]</span><span :if={@suffix} class="text muted"> ({@suffix})</span>
     </div>
     """
   end

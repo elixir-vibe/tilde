@@ -17,6 +17,8 @@ defmodule Tilde.Tool.Registry do
   def default_registry do
     %{
       "bash" => Tilde.Tool.Viewer.Bash,
+      "fetch" => Tilde.Tool.Viewer.Fetch,
+      "websearch" => Tilde.Tool.Viewer.WebSearch,
       "utc_now" => Tilde.Tool.Viewer.UtcNow
     }
   end

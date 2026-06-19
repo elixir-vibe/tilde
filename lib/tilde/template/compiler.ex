@@ -440,7 +440,7 @@ defmodule Tilde.Template.Compiler do
     do:
       known_atom(
         value,
-        ~w(normal metadata primary muted error title hint user assistant system),
+        ~w(normal metadata primary muted error title hint blank user assistant system),
         default
       )
 

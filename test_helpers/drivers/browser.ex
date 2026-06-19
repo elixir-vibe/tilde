@@ -27,6 +27,7 @@ defmodule TildeTest.Driver.Browser do
 
     Application.put_env(:tilde, :demo_password, password)
     configure_endpoint(port)
+    cleanup_demo_processes()
 
     {:ok, _playwright} = ensure_playwright(timeout)
     {:ok, demo} = start_demo(web_port: port, ssh_port: ssh_port, password: password)
@@ -50,7 +51,7 @@ defmodule TildeTest.Driver.Browser do
     |> visit("/login")
     |> fill("input[name='password']", password)
     |> click("button[type='submit']")
-    |> visit("/tilde/browser-test")
+    |> visit("/sessions/browser-test")
     |> assert_has("body .phx-connected")
   end
 
@@ -71,7 +72,13 @@ defmodule TildeTest.Driver.Browser do
   @doc "Presses a semantic key in the console textarea."
   @spec press(t(), atom()) :: t()
   def press(%__MODULE__{} = state, key) do
-    unwrap(Frame.press(state.frame_id, selector: @input, key: key_name(key), timeout: @timeout, connection: state.connection))
+    press(state, @input, key)
+  end
+
+  @doc "Presses a semantic key on an arbitrary selector."
+  @spec press(t(), String.t(), atom()) :: t()
+  def press(%__MODULE__{} = state, selector, key) do
+    unwrap(Frame.press(state.frame_id, selector: selector, key: key_name(key), timeout: @timeout, connection: state.connection))
     state
   end
 
@@ -144,12 +151,32 @@ defmodule TildeTest.Driver.Browser do
     wait_until(state, expression, deadline)
   end
 
+  @doc "Asserts the computed CSS length for the first element matching a selector is positive."
+  @spec assert_positive_css_length(t(), String.t(), String.t()) :: t()
+  def assert_positive_css_length(%__MODULE__{} = state, selector, property) do
+    value =
+      evaluate(
+        state,
+        """
+        (() => {
+          const element = document.querySelector(#{Jason.encode!(selector)})
+          if (!element) return null
+          return parseFloat(getComputedStyle(element).getPropertyValue(#{Jason.encode!(property)}))
+        })()
+        """
+      )
+
+    assert is_number(value) and value > 0
+    state
+  end
+
   @doc "Closes browser/demo resources."
   @spec close(t()) :: :ok
   def close(%__MODULE__{} = state) do
     if state.context_id, do: ignore_exit(fn -> BrowserContext.close(state.context_id, timeout: @timeout, connection: state.connection) end)
     if state.browser_id, do: ignore_exit(fn -> Browser.close(state.browser_id, timeout: @timeout, connection: state.connection) end)
     if state.demo, do: ignore_exit(fn -> GenServer.stop(state.demo) end)
+    cleanup_demo_processes()
     :ok
   end
 
@@ -243,6 +270,20 @@ defmodule TildeTest.Driver.Browser do
     end
   end
 
+  defp cleanup_demo_processes do
+    [
+      Tilde.Session.Registry,
+      Tilde.Session.Server,
+      Tilde.Demo.LivePubSub,
+      Tilde.Runtime.RateLimit
+    ]
+    |> Enum.each(fn name ->
+      if pid = Process.whereis(name) do
+        ignore_exit(fn -> GenServer.stop(pid) end)
+      end
+    end)
+  end
+
   defp ignore_exit(fun) do
     fun.()
   catch
@@ -258,7 +299,7 @@ defmodule TildeTest.Driver.Browser do
   defp key_name(:up), do: "ArrowUp"
   defp key_name(:down), do: "ArrowDown"
   defp key_name(:escape), do: "Escape"
-  defp key_name(:ctrl_o), do: "Control+o"
+  defp key_name(:ctrl_o), do: "Control+O"
   defp key_name(key), do: to_string(key)
 
   defp free_port! do

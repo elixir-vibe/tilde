@@ -142,7 +142,8 @@ A self-contained dogfood demo LiveView is included:
 
 ```elixir
 # router.ex
-live "/tilde", Tilde.Demo.Live
+live "/", Tilde.Demo.Live, :index
+live "/sessions/:session_id", Tilde.Demo.Live, :index
 ```
 
 It exercises tool expansion, choice selection, input submission, widgets, and
@@ -228,7 +229,7 @@ Use slash commands to control sessions:
 /new name       create/navigate to a named isolated web session
 ```
 
-After `/attach name`, multiple SSH clients and `/tilde/name` can observe the same
+After `/attach name`, multiple SSH clients and `/sessions/name` can observe the same
 submitted transcript, while each SSH client keeps its own prompt buffer.
 
 The SSH path has been dogfooded with OpenSSH through tmux. Terminal output uses
@@ -245,7 +246,13 @@ mix tilde.demo
 Then open the LiveView DOM renderer:
 
 ```text
-http://localhost:4000/tilde
+http://localhost:4000/
+```
+
+The design playground for semantic web component fixtures is available at:
+
+```text
+http://localhost:4000/playground
 ```
 
 And connect the SSH/TUI renderer:
@@ -259,7 +266,7 @@ ssh tilde@localhost -p 4022 \
 Password: printed by `mix tilde.demo`; override with `--password` or `TILDE_DEMO_PASSWORD`.
 
 By default, each SSH connection starts on the shared index. Open a session from
-the list or run `/attach <session_id>` in SSH/TUI and open `/tilde/<session_id>`
+the list or run `/attach <session_id>` in SSH/TUI and open `/sessions/<session_id>`
 in the browser. Named sessions are stored through `Tilde.Session.Registry`
 without creating dynamic atoms. Use `--web-port`, `--ssh-port`, or `--password`
 to customize the task.
@@ -311,7 +318,7 @@ Tilde.Session.Server.apply_key(:demo, {:text, "h"})
 Tilde.Session.Server.append_event(:demo, Tilde.input_submitted("hello"))
 ```
 
-`Tilde.Demo.Live` uses named sessions for `/tilde/:session_id`.
+`Tilde.Demo.Live` uses named sessions for `/sessions/:session_id`.
 `Tilde.Transport.SSH.Demo` starts on the index, can attach a channel to a named
 session with `/attach <session_id>`, and returns to the index with `/detach`.
 
@@ -349,8 +356,8 @@ Tilde.Session.Server.append_event(:demo, Tilde.input_submitted("hello"))
 Mount the demo LiveView in a Phoenix router:
 
 ```elixir
-live "/tilde", Tilde.Demo.Live, :index
-live "/tilde/:session_id", Tilde.Demo.Live, :index
+live "/", Tilde.Demo.Live, :index
+live "/sessions/:session_id", Tilde.Demo.Live, :index
 ```
 
 Start the SSH demo transport:
