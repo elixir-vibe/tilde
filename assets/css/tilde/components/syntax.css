@@ -1,0 +1,20 @@
+.tilde {
+  .syntax {
+    .lumis {
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      color: var(--color-fg);
+      font: inherit;
+      white-space: pre-wrap;
+    }
+
+    code {
+      font: inherit;
+    }
+
+    .l-line {
+      min-height: var(--leading-base);
+    }
+  }
+}

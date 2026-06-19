@@ -28,6 +28,15 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
     |> Enum.join("\n")
   end
 
+  def render(
+        %Cell{kind: :tool, attrs: %{view: %{name: "read", expanded?: true, lines: [_ | _]}}} =
+          cell,
+        width,
+        opts
+      ) do
+    Tilde.Renderer.TUI.ReadTool.render(cell, width, opts) |> Enum.join("\n")
+  end
+
   def render(%Cell{} = cell, width, opts) do
     cell
     |> render_cell_lines(width, opts)

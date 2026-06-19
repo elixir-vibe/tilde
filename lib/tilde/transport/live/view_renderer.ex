@@ -32,6 +32,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     assigns =
       assigns
       |> assign(:view, assigns.cell.attrs.view)
+      |> assign(:syntax_html, Tilde.Transport.Live.ReadTool.syntax_html(assigns.cell.attrs.view))
       |> assign(:body_lines, tool_body_lines(assigns.cell, assigns.cell.attrs.view))
 
     ~H"""
@@ -47,7 +48,11 @@ defmodule Tilde.Transport.Live.ViewRenderer do
         <span class="call"><.view_line line={List.first(@cell.lines)} /></span>
       </header>
 
-      <div :if={@body_lines != []} class="lines">
+      <div :if={@syntax_html} class="lines syntax">
+        {Phoenix.HTML.raw(@syntax_html)}
+      </div>
+
+      <div :if={!@syntax_html && @body_lines != []} class="lines">
         <div :for={line <- @body_lines} class={["line", line_role(line)]}><.view_line line={line} /></div>
       </div>
 

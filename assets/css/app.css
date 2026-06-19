@@ -9,6 +9,7 @@
 @import "./tilde/components/text.css" layer(components);
 @import "./tilde/components/run.css" layer(components);
 @import "./tilde/components/tool.css" layer(components);
+@import "./tilde/components/syntax.css" layer(components);
 @import "./tilde/components/shortcut.css" layer(components);
 @import "./tilde/components/action.css" layer(components);
 @import "./tilde/components/suggest.css" layer(components);
