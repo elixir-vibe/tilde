@@ -8,6 +8,9 @@ defmodule Tilde.Transport.Live.Footer do
   attr(:session, :any, default: nil)
   attr(:left, :string, default: "")
   attr(:right, :string, default: "")
+  attr(:devtools?, :boolean, default: false)
+  attr(:dev_grid?, :boolean, default: false)
+  attr(:dev_raw, :string, default: "")
 
   def footer(assigns) do
     assigns =
@@ -24,8 +27,32 @@ defmodule Tilde.Transport.Live.Footer do
         <span :if={(@left != "" or @session_text != "") and @status_text != ""}> · </span>
         <span :if={@status_text != ""}>{@status_text}</span>
       </span>
-      <span class="right">{@right}</span>
+      <span class="right">
+        <span :if={@right != ""}>{@right}</span>
+        <.devtools enabled?={@devtools?} grid?={@dev_grid?} raw={@dev_raw} />
+      </span>
     </footer>
+    """
+  end
+
+  attr(:enabled?, :boolean, required: true)
+  attr(:grid?, :boolean, required: true)
+  attr(:raw, :string, default: "")
+
+  defp devtools(assigns) do
+    ~H"""
+    <nav :if={@enabled?} id="tilde-devtools" class="dev" aria-label="development tools" phx-hook="TildeDevtools">
+      <button
+        class="button"
+        type="button"
+        phx-click="tilde:dev_toggle_grid"
+        aria-pressed={@grid?}
+        aria-describedby="tilde-dev-tooltip"
+      >
+        [dev]
+      </button>
+      <pre id="tilde-dev-tooltip" class="tooltip" role="tooltip" data-raw={@raw}></pre>
+    </nav>
     """
   end
 

@@ -1,12 +1,13 @@
 defmodule Tilde.Runtime.LLM do
   @moduledoc """
-  Facade for optional model runtimes.
+  Facade for model runtimes.
 
-  The default implementation uses Jido.AI over ReqLLM/OpenRouter, but callers
+  The default implementation uses Jido.AI over ReqLLM/OpenRouter, and callers
   depend only on this small boundary.
   """
 
   alias Tilde.Core.{Block, Session}
+  alias Tilde.Session.AgentLoop.ResumeCandidate
 
   @default_model "openrouter:~anthropic/claude-haiku-latest"
 
@@ -22,37 +23,36 @@ defmodule Tilde.Runtime.LLM do
   @spec enabled?() :: boolean()
   def enabled?, do: Application.get_env(:tilde, :llm_enabled, false)
 
-  @doc "Generates an assistant response from the session via the configured backend."
-  @spec respond(Session.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
-  def respond(%Session{} = session, opts \\ []) do
-    backend = Keyword.get(opts, :backend, backend())
-
-    if backend_function?(backend, :respond) do
-      backend.respond(session, opts)
-    else
-      {:error, {:llm_backend_unavailable, backend}}
-    end
-  end
-
   @doc "Streams assistant response events from the configured backend."
   @spec stream(Session.t(), keyword()) ::
           Enumerable.t(Tilde.Runtime.LLM.Provider.stream_event())
   def stream(%Session{} = session, opts \\ []) do
     backend = Keyword.get(opts, :backend, backend())
+    backend.stream(session, opts)
+  rescue
+    exception in UndefinedFunctionError ->
+      [Tilde.Runtime.LLM.Event.failed({:llm_backend_unavailable, exception.module})]
+  end
 
-    cond do
-      backend_function?(backend, :stream) ->
-        backend.stream(session, opts)
+  @doc "Resumes assistant response events from a checkpoint through the configured backend."
+  @spec resume_checkpoint(Session.t(), ResumeCandidate.t(), keyword()) ::
+          Enumerable.t(Tilde.Runtime.LLM.Provider.stream_event())
+  def resume_checkpoint(%Session{} = session, %ResumeCandidate{} = candidate, opts \\ []) do
+    backend = Keyword.get(opts, :backend, backend())
+    backend.resume_checkpoint(session, candidate, opts)
+  rescue
+    exception in UndefinedFunctionError ->
+      [Tilde.Runtime.LLM.Event.failed({:llm_backend_unavailable, exception.module})]
+  end
 
-      backend_function?(backend, :respond) ->
-        Stream.map([respond(session, opts)], fn
-          {:ok, text} -> {:done, text}
-          {:error, reason} -> {:error, reason}
-        end)
-
-      true ->
-        [{:error, {:llm_backend_unavailable, backend}}]
-    end
+  @doc "Cancels a checkpointed ReAct run through the configured backend."
+  @spec cancel_checkpoint(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
+  def cancel_checkpoint(token, opts \\ []) when is_binary(token) do
+    backend = Keyword.get(opts, :backend, backend())
+    backend.cancel_checkpoint(token, opts)
+  rescue
+    exception in UndefinedFunctionError ->
+      {:error, {:llm_backend_unavailable, exception.module}}
   end
 
   @doc "Returns the latest submitted user text, if present."
@@ -90,10 +90,6 @@ defmodule Tilde.Runtime.LLM do
        do: true
 
   defp message_block?(_block), do: false
-
-  defp backend_function?(backend, name) do
-    Code.ensure_loaded?(backend) and function_exported?(backend, name, 2)
-  end
 
   defp message_label(:user), do: "User message:"
   defp message_label(:assistant), do: "Previous reply:"

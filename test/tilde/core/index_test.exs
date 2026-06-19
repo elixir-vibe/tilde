@@ -93,4 +93,20 @@ defmodule Tilde.Core.IndexTest do
     |> assert_interaction_cont()
     |> assert_outcome(:open_session, submit: "/help")
   end
+
+  test "index enter submits typed input even when session suggestions exist" do
+    id = "existing-#{System.unique_integer([:positive])}"
+    assert {:ok, _registry} = Tilde.Session.Registry.ensure_started()
+    name = Tilde.Session.Registry.via(id)
+    assert {:ok, pid} = Tilde.Session.Server.ensure_started(name, session: Tilde.session(id: id))
+
+    index = Index.new() |> Index.input_changed("hi")
+    result = Index.apply_interaction(index, Interaction.new(:suggest_submit))
+
+    result
+    |> assert_interaction_cont()
+    |> assert_outcome(:open_session, submit: "hi")
+
+    GenServer.stop(pid)
+  end
 end

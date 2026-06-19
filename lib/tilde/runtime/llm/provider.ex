@@ -1,20 +1,15 @@
 defmodule Tilde.Runtime.LLM.Provider do
   @moduledoc """
-  Behaviour for model runtimes that can answer from a Tilde session.
+  Behaviour for model runtimes that stream assistant loop events from a Tilde session.
   """
 
   alias Tilde.Core.Session
+  alias Tilde.Session.AgentLoop.ResumeCandidate
 
-  @type stream_event ::
-          {:delta, String.t()}
-          | {:done, String.t()}
-          | {:error, term()}
-          | {:tool_preparing, String.t(), String.t(), map()}
-          | {:tool_started, String.t(), String.t(), map()}
-          | {:tool_done, String.t(), atom(), term()}
+  @type stream_event :: Jido.AI.Runtime.Event.t()
 
-  @callback respond(Session.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   @callback stream(Session.t(), keyword()) :: Enumerable.t(stream_event())
-
-  @optional_callbacks stream: 2
+  @callback resume_checkpoint(Session.t(), ResumeCandidate.t(), keyword()) ::
+              Enumerable.t(stream_event())
+  @callback cancel_checkpoint(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
 end

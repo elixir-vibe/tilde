@@ -1,4 +1,4 @@
-defmodule Tilde.SessionCommandServerTest do
+defmodule Tilde.Session.Server.CommandTest do
   use TildeTest.Case
 
   test "command suggestions complete on tab and submit executable commands on enter" do
@@ -435,6 +435,30 @@ defmodule Tilde.SessionCommandServerTest do
     end)
   end
 
+  test "session server maps runtime cancellation events to cancelled assistant turns" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.CancelledLLMBackend, fn ->
+        name =
+          :"tilde_session_server_llm_runtime_cancel_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_runtime_cancel")
+                 )
+
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+
+        assert_receive_phase("llm_runtime_cancel", :waiting)
+
+        assert_receive_phase("llm_runtime_cancel", :cancelled)
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
   test "session server recovers when LLM streams raise" do
     with_application_env(:llm_enabled, true, fn ->
       with_application_env(:llm_backend, TildeTest.CrashingLLMBackend, fn ->
@@ -462,6 +486,156 @@ defmodule Tilde.SessionCommandServerTest do
     end)
   end
 
+  test "session server projects Jido terminal metadata onto terminal assistant events" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.BlockingMetadataLLMBackend, fn ->
+        with_application_env(:metadata_llm_test_pid, self(), fn ->
+          name = :"tilde_session_server_llm_metadata_test_#{System.unique_integer([:positive])}"
+
+          assert {:ok, pid} =
+                   Tilde.Session.Server.start_link(
+                     name: name,
+                     session: Tilde.session(id: "llm_metadata")
+                   )
+
+          assert %Session{} = Tilde.Session.Server.subscribe(name)
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("semantic metadata"))
+          assert_receive {:metadata_llm_started, task}
+
+          assert %{agent_loop: %{active?: true, run_id: "test-run", request_id: "test-request"}} =
+                   wait_until_session(name, fn session ->
+                     match?(%{agent_loop: %{run_id: "test-run"}}, session.metadata)
+                   end).metadata
+
+          send(task, :release_metadata_llm)
+
+          session =
+            wait_until_session(name, fn session ->
+              Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
+            end)
+
+          finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
+          refute Map.has_key?(finished.metadata, :model)
+          assert finished.metadata.usage == %{input_tokens: 21, output_tokens: 8}
+          assert finished.metadata.termination_reason == :final_answer
+          assert finished.metadata.thinking_content == "I should answer tersely."
+          assert [%{summary: "reasoned"}] = finished.metadata.reasoning_details
+          assert finished.metadata.checkpoint_token == "checkpoint-semantic"
+
+          assert Session.agent_runtime(session).active? == false
+
+          GenServer.stop(pid)
+        end)
+      end)
+    end)
+  end
+
+  test "session server projects thinking deltas through existing assistant delta lifecycle" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.ThinkingLLMBackend, fn ->
+        with_application_env(:thinking_llm_test_pid, self(), fn ->
+          name = :"tilde_session_server_thinking_test_#{System.unique_integer([:positive])}"
+
+          assert {:ok, pid} =
+                   Tilde.Session.Server.start_link(
+                     name: name,
+                     session: Tilde.session(id: "llm_thinking")
+                   )
+
+          assert %Session{} = Tilde.Session.Server.subscribe(name)
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("think"))
+          assert_receive {:thinking_llm_started, task}
+
+          thinking =
+            wait_until_session(name, fn session ->
+              Enum.any?(session.assistant.chunks, &(&1.type == :thinking))
+            end)
+
+          assert_assistant_phase(thinking, :thinking)
+
+          assert [
+                   %Block{role: :user},
+                   %Block{role: :assistant, source: "", metadata: %{thinking: "thinking"}}
+                 ] =
+                   thinking.transcript.blocks
+
+          send(task, :release_thinking_llm)
+
+          streaming =
+            wait_until_session(name, fn session ->
+              Enum.any?(session.assistant.chunks, &(&1.type == :content))
+            end)
+
+          assert_assistant_phase(streaming, :streaming)
+
+          assert [
+                   %Block{role: :user},
+                   %Block{role: :assistant, source: "answer", metadata: %{thinking: "thinking"}}
+                 ] =
+                   streaming.transcript.blocks
+
+          send(task, :finish_thinking_llm)
+
+          GenServer.stop(pid)
+        end)
+      end)
+    end)
+  end
+
+  test "session server interrupt cancels checkpointed runtime and stream task" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.CancellableLLMBackend, fn ->
+        with_application_env(:cancellable_llm_test_pid, self(), fn ->
+          name = :"tilde_session_server_llm_cancel_test_#{System.unique_integer([:positive])}"
+
+          assert {:ok, pid} =
+                   Tilde.Session.Server.start_link(
+                     name: name,
+                     session: Tilde.session(id: "llm_cancel")
+                   )
+
+          assert %Session{} = Tilde.Session.Server.subscribe(name)
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("stop me"))
+
+          assert_receive {:cancellable_llm_started, task, agent}
+          task_ref = Process.monitor(task)
+          agent_ref = Process.monitor(agent)
+
+          assert_receive {:tilde_session_updated, "llm_cancel",
+                          %Session{transcript: %{blocks: [_, %Block{source: "working"}]}}}
+
+          assert %{
+                   agent_loop: %{
+                     active?: true,
+                     block_id: "msg_assistant_2",
+                     queue_length: 0,
+                     run_id: "test-run",
+                     request_id: "test-request",
+                     checkpoint_token: "checkpoint-123",
+                     iteration: 0
+                   }
+                 } = Tilde.Session.Server.dev_snapshot(name)
+
+          assert {:cont, %Session{} = cancelled, []} =
+                   Tilde.Session.Server.apply_interaction(name, %Tilde.Core.Interaction{
+                     type: :interrupt
+                   })
+
+          assert_assistant_phase(cancelled, :cancelled)
+
+          assert %{agent_loop: %{active?: false, run_id: nil, checkpoint_token: nil}} =
+                   Tilde.Session.Server.dev_snapshot(name)
+
+          assert_receive {:cancellable_llm_cancelled, "checkpoint-123"}
+          assert_receive {:DOWN, ^task_ref, :process, ^task, _reason}
+          assert_receive {:DOWN, ^agent_ref, :process, ^agent, _reason}
+
+          GenServer.stop(pid)
+        end)
+      end)
+    end)
+  end
+
   test "session server answers a queued submission after the active LLM response finishes" do
     with_application_env(:llm_enabled, true, fn ->
       with_application_env(:llm_backend, TildeTest.BlockingLLMBackend, fn ->
@@ -479,23 +653,44 @@ defmodule Tilde.SessionCommandServerTest do
           assert_receive {:blocking_llm_started, first_task, "first"}
 
           Tilde.Session.Server.append_event(name, Tilde.input_submitted("second"))
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("third"))
           send(first_task, :release_blocking_llm)
 
           assert_receive {:blocking_llm_started, second_task, "second"}, 1_000
           send(second_task, :release_blocking_llm)
 
+          assert_receive {:blocking_llm_started, third_task, "third"}, 1_000
+          send(third_task, :release_blocking_llm)
+
           sources = wait_for_sources("llm_queue", &("reply: first" in &1))
           assert "reply: first" in sources
 
-          sources = wait_for_sources("llm_queue", &("reply: second" in &1))
+          sources = wait_for_sources("llm_queue", &("reply: third" in &1))
           assert "first" in sources
           assert "second" in sources
+          assert "third" in sources
           assert "reply: first" in sources
           assert "reply: second" in sources
+          assert "reply: third" in sources
 
           GenServer.stop(pid)
         end)
       end)
     end)
   end
+
+  defp wait_until_session(name, predicate, attempts \\ 20)
+
+  defp wait_until_session(name, predicate, attempts) when attempts > 0 do
+    session = Tilde.Session.Server.get_session(name)
+
+    if predicate.(session) do
+      session
+    else
+      Process.sleep(25)
+      wait_until_session(name, predicate, attempts - 1)
+    end
+  end
+
+  defp wait_until_session(name, _predicate, 0), do: Tilde.Session.Server.get_session(name)
 end

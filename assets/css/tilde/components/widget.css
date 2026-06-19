@@ -2,4 +2,16 @@
   .widgets {
     display: block;
   }
+
+  &.index {
+    .transcript {
+      flex: 0 0 auto;
+      min-height: auto;
+      overflow: visible;
+    }
+
+    .dock {
+      margin-top: auto;
+    }
+  }
 }

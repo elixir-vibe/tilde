@@ -5,8 +5,13 @@ defmodule Tilde.DemoRuntimeTransportTest do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")
 
-    assert Tilde.Runtime.LLM.Provider.Jido.respond(Tilde.session()) ==
-             {:error, :missing_openrouter_api_key}
+    assert [
+             %Jido.AI.Runtime.Event{
+               kind: :request_failed,
+               data: %{error: :missing_openrouter_api_key}
+             }
+           ] =
+             Enum.to_list(Tilde.Runtime.LLM.Provider.Jido.stream(Tilde.session()))
 
     if previous, do: System.put_env("OPENROUTER_API_KEY", previous)
   end

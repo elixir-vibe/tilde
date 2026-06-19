@@ -1,4 +1,4 @@
-defmodule Tilde.SSHKeyTest do
+defmodule Tilde.Transport.SSH.KeysTest do
   use TildeTest.Case
 
   test "ssh keys facade uses configured provider" do

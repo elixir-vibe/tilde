@@ -218,6 +218,44 @@ Tilde.Core.Widget
 LiveView DOM or TUI cells/ANSI
 ```
 
+## Agent runtime
+
+ReqLLM, Jido, and Jido.AI are mandatory dependencies. Tilde should not compile a
+reduced model-free agent/runtime surface behind conditional `Code.ensure_loaded?`
+branches. Missing API keys or provider configuration are runtime errors surfaced
+as assistant events, not alternate compilation modes.
+
+Current state: `Tilde.Session.AgentLoop` owns assistant start, streaming,
+cancellation, tool projection, and queued prompt continuation. Runtime queuing is
+explicit in session-server state through `pending_prompts`; the loop does not scan
+durable history to decide what to run next. It still uses one stream task per
+active loop; the Jido provider uses Jido.AI's ReAct runtime directly and returns
+canonical `Jido.AI.Runtime.Event` structs, so Tilde does not wrap Jido with a
+second agent process.
+
+Migration plan to a normal agent loop:
+
+1. Introduce a session-owned agent runtime state alongside `prompt_task` and
+   `prompt_ref` (`active_agent`, stream owner/ref, current tool context, and last
+   submitted prompt).
+2. Move prompt submission into a single lifecycle entry point that records the
+   user event, starts/continues the agent loop, and wires ReqLLM/Jido callbacks for
+   deltas, thinking, tool preparing/started/finished, usage, completion, and
+   errors.
+3. Keep the loop alive for tool/assistant iterations until the provider reports a
+   terminal result, rather than treating every model call as a standalone response.
+4. Project every loop transition back into `Tilde.Core.Event` only:
+   assistant lifecycle events, assistant deltas, tool events, status/usage events,
+   and final assistant messages.
+5. Make cancellation stop both the active agent and prompt task, emit a
+   cancellation event, and clear runtime state without losing durable transcript
+   events.
+6. Preserve index/session transport neutrality: Live, SSH, and TUI continue to
+   submit `Tilde.Core.Interaction` values and receive semantic session updates;
+   none of them own agent-loop behavior.
+7. Add regression tests for multi-step tool loops, multiple queued user prompts,
+   cancellation, provider errors, and resume/listing behavior.
+
 ## Test support
 
 Transport drivers cover user-observable parity across LiveView, TUI, browser,

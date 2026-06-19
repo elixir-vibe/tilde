@@ -107,6 +107,7 @@ defmodule Tilde.Storage.QuackDB do
   def save_state(%Tilde.Core.Session{} = session) do
     now = now()
     suggest = Tilde.Core.Session.command_suggestions(session)
+    metadata = stringify_keys(session.metadata)
 
     Repo.insert_all(
       SessionState,
@@ -116,7 +117,7 @@ defmodule Tilde.Storage.QuackDB do
           input_value: session.input.value,
           input_cursor: session.input.cursor,
           selected_suggestion: if(suggest, do: suggest.selected_index),
-          metadata: %{},
+          metadata: metadata,
           updated_at: now
         }
       ],
@@ -125,6 +126,7 @@ defmodule Tilde.Storage.QuackDB do
           input_value: session.input.value,
           input_cursor: session.input.cursor,
           selected_suggestion: if(suggest, do: suggest.selected_index),
+          metadata: metadata,
           updated_at: now
         ]
       ],
@@ -246,14 +248,19 @@ defmodule Tilde.Storage.QuackDB do
     input =
       Input.put_value(session.input, state.input_value || "", cursor: state.input_cursor || 0)
 
-    %{session | input: input}
+    session
+    |> Tilde.Core.Session.restore_metadata(state.metadata)
+    |> then(&%{&1 | input: input})
   end
 
   defp restore_state(%Tilde.Core.Session{} = session, _state), do: session
 
   defp stringify_keys(map) when is_map(map) do
-    Map.new(map, fn {key, value} -> {to_string(key), value} end)
+    Map.new(map, fn {key, value} -> {to_string(key), stringify_keys(value)} end)
   end
+
+  defp stringify_keys(list) when is_list(list), do: Enum.map(list, &stringify_keys/1)
+  defp stringify_keys(value), do: value
 
   defp maybe_to_string(nil), do: nil
   defp maybe_to_string(value), do: to_string(value)

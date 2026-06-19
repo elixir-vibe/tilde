@@ -8,7 +8,18 @@ defmodule Tilde.Core.Session do
   """
 
   alias ReqLLM.StreamChunk
-  alias Tilde.Core.{AssistantTurn, Block, BlockList, Event, Input, Suggest, Transcript, Widget}
+
+  alias Tilde.Core.{
+    AgentRuntime,
+    AssistantTurn,
+    Block,
+    BlockList,
+    Event,
+    Input,
+    Suggest,
+    Transcript,
+    Widget
+  }
 
   @type t :: %__MODULE__{
           id: String.t(),
@@ -96,6 +107,36 @@ defmodule Tilde.Core.Session do
   @spec put_status(t(), String.t(), term()) :: t()
   def put_status(%__MODULE__{} = session, key, value) when is_binary(key) do
     %{session | statuses: Map.put(session.statuses, key, value)}
+  end
+
+  @doc "Returns the typed durable agent runtime metadata."
+  @spec agent_runtime(t()) :: AgentRuntime.t()
+  def agent_runtime(%__MODULE__{metadata: metadata}) do
+    metadata
+    |> agent_runtime_metadata()
+    |> AgentRuntime.load()
+  end
+
+  @doc "Stores typed durable agent runtime metadata."
+  @spec put_agent_runtime(t(), AgentRuntime.t()) :: t()
+  def put_agent_runtime(%__MODULE__{} = session, %AgentRuntime{} = runtime) do
+    put_in(session.metadata[:agent_loop], AgentRuntime.dump(runtime))
+  end
+
+  @doc "Restores external session metadata into Tilde's canonical metadata shape."
+  @spec restore_metadata(t(), map() | nil) :: t()
+  def restore_metadata(%__MODULE__{} = session, nil), do: restore_metadata(session, %{})
+
+  def restore_metadata(%__MODULE__{} = session, metadata) when is_map(metadata) do
+    metadata =
+      metadata
+      |> Map.delete("agent_loop")
+      |> Map.put(
+        :agent_loop,
+        metadata |> agent_runtime_metadata() |> AgentRuntime.load() |> AgentRuntime.dump()
+      )
+
+    %{session | metadata: metadata}
   end
 
   @doc "Keeps only the newest events and rebuilds derived transcript/status state."
@@ -222,7 +263,7 @@ defmodule Tilde.Core.Session do
   end
 
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :assistant_delta} = event) do
-    chunk = StreamChunk.text(event.text || "", event.metadata)
+    chunk = assistant_delta_chunk(event)
     %{session | assistant: AssistantTurn.apply_chunk(session.assistant, chunk)}
   end
 
@@ -253,9 +294,23 @@ defmodule Tilde.Core.Session do
 
   defp apply_session_event(%__MODULE__{} = session, %Event{}), do: session
 
+  defp assistant_delta_chunk(%Event{text: text, metadata: metadata}) do
+    case Map.get(metadata, :chunk_type, Map.get(metadata, "chunk_type", :content)) do
+      chunk_type when chunk_type in [:thinking, "thinking"] ->
+        StreamChunk.thinking(text || "", metadata)
+
+      _chunk_type ->
+        StreamChunk.text(text || "", metadata)
+    end
+  end
+
   defp input_cursor(%Event{metadata: %{cursor: cursor}}) when is_integer(cursor), do: cursor
   defp input_cursor(%Event{text: text}) when is_binary(text), do: String.length(text)
   defp input_cursor(_event), do: 0
+
+  defp agent_runtime_metadata(metadata) when is_map(metadata) do
+    Map.get(metadata, :agent_loop, Map.get(metadata, "agent_loop"))
+  end
 
   defp update_status(%__MODULE__{} = session, key, nil),
     do: %{session | statuses: Map.delete(session.statuses, key)}

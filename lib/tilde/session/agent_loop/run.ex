@@ -1,0 +1,58 @@
+defmodule Tilde.Session.AgentLoop.Run do
+  @moduledoc "Runtime identity for the active Jido ReAct loop."
+
+  alias Jido.AI.Runtime.Event
+  alias Tilde.Session.AgentLoop.ResumeCandidate
+
+  @enforce_keys [:run_id, :request_id]
+  defstruct [:run_id, :request_id, :checkpoint_token, :iteration]
+
+  @type t :: %__MODULE__{
+          run_id: String.t(),
+          request_id: String.t(),
+          checkpoint_token: String.t() | nil,
+          iteration: non_neg_integer() | nil
+        }
+
+  @spec from_event(Event.t()) :: t()
+  def from_event(%Event{} = event) do
+    %__MODULE__{
+      run_id: event.run_id,
+      request_id: event.request_id,
+      iteration: event.iteration
+    }
+  end
+
+  @spec from_resume_candidate(ResumeCandidate.t()) :: t()
+  def from_resume_candidate(%ResumeCandidate{} = candidate) do
+    %__MODULE__{
+      run_id: candidate.run_id,
+      request_id: candidate.request_id,
+      checkpoint_token: candidate.checkpoint_token,
+      iteration: candidate.iteration
+    }
+  end
+
+  @spec put_checkpoint(t() | nil, Event.t()) :: t() | nil
+  def put_checkpoint(nil, %Event{} = event), do: event |> from_event() |> put_checkpoint(event)
+
+  def put_checkpoint(%__MODULE__{} = run, %Event{data: data, iteration: iteration}) do
+    %{run | checkpoint_token: field(data, :token), iteration: iteration}
+  end
+
+  @spec snapshot(t() | nil) :: map() | nil
+  def snapshot(nil), do: nil
+
+  def snapshot(%__MODULE__{} = run) do
+    %{
+      run_id: run.run_id,
+      request_id: run.request_id,
+      checkpoint_token: run.checkpoint_token,
+      iteration: run.iteration
+    }
+  end
+
+  defp field(data, key) when is_atom(key) and is_map(data) do
+    Map.get(data, key, Map.get(data, Atom.to_string(key)))
+  end
+end

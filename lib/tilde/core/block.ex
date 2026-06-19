@@ -60,10 +60,17 @@ defmodule Tilde.Core.Block do
     }
   end
 
-  @doc "Appends text to a message block."
+  @doc "Appends answer text to a message block."
   @spec append_text(t(), String.t()) :: t()
   def append_text(%__MODULE__{kind: :message} = block, text) when is_binary(text) do
     %{block | source: block.source <> text}
+  end
+
+  @doc "Appends thinking/reasoning text without mixing it into answer source."
+  @spec append_thinking(t(), String.t()) :: t()
+  def append_thinking(%__MODULE__{kind: :message} = block, text) when is_binary(text) do
+    metadata = Map.update(block.metadata, :thinking, text, &(&1 <> text))
+    %{block | metadata: metadata}
   end
 
   @doc "Creates a choice block."

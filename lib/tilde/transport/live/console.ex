@@ -22,6 +22,9 @@ defmodule Tilde.Transport.Live.Console do
   attr(:running?, :boolean, default: false)
   attr(:class, :any, default: nil)
   attr(:footer_right, :string, default: "")
+  attr(:devtools?, :boolean, default: false)
+  attr(:dev_grid?, :boolean, default: false)
+  attr(:dev_raw, :string, default: "")
 
   def console(assigns) do
     assigns =
@@ -52,7 +55,13 @@ defmodule Tilde.Transport.Live.Console do
           <.widget :for={widget <- @below_widgets} widget={widget} />
         </section>
 
-        <.footer session={@session} right={@footer_right} />
+        <.footer
+          session={@session}
+          right={@footer_right}
+          devtools?={@devtools?}
+          dev_grid?={@dev_grid?}
+          dev_raw={@dev_raw}
+        />
       </section>
     </main>
     """

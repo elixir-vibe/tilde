@@ -183,6 +183,9 @@ defmodule Tilde.Core.Index do
       command_suggestions(index) ->
         submit_command_suggestion(index)
 
+      index.input.value != "" ->
+        submit_input(index, index.input.value)
+
       session_id = selected_session_id(index) ->
         continue(index, [Outcome.open_session(session_id)])
 

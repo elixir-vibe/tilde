@@ -54,6 +54,23 @@ defmodule TildeBrowserDriverTest do
     end
   end
 
+  test "real browser index submits typed text into the newly opened session", %{browser: browser} do
+    if browser do
+      prompt = "hi from index #{System.unique_integer([:positive])}"
+
+      browser
+      |> Browser.visit("/tilde")
+      |> Browser.assert_has("body .phx-connected")
+      |> Browser.type(prompt)
+      |> Browser.assert_input(prompt)
+      |> Browser.press(:enter)
+      |> Browser.wait_until("location.pathname !== '/tilde'")
+      |> Browser.assert_text(prompt)
+    else
+      skip_browser()
+    end
+  end
+
   test "real browser index lists sessions", %{browser: browser} do
     if browser do
       browser

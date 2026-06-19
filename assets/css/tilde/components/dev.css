@@ -1,29 +1,14 @@
 .tilde {
   &.devshell {
-    gap: var(--space-sm);
-
-    &.inspecting {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(32ch, 56ch);
-      grid-template-rows: auto minmax(0, 1fr);
-      column-gap: var(--space-md);
-
-      .dev {
-        grid-column: 1 / -1;
-      }
-
-      > .main {
-        min-width: 0;
-        min-height: 0;
-        overflow: hidden;
-      }
-    }
-
     > .main {
       flex: 1 1 auto;
       min-height: 0;
       display: flex;
       flex-direction: column;
+    }
+
+    > .main > .tilde {
+      width: 100%;
     }
 
     .tilde.embedded {
@@ -34,16 +19,17 @@
     }
   }
 
-  &[data-dev-grid="true"] {
+  &.grid,
+  &[data-dev-grid] {
     background-image:
       linear-gradient(
         to right,
-        color-mix(in srgb, var(--color-fg) 9%, transparent) 1px,
+        color-mix(in srgb, var(--color-fg) 16%, transparent) 1px,
         transparent 1px
       ),
       linear-gradient(
         to bottom,
-        color-mix(in srgb, var(--color-fg) 7%, transparent) 1px,
+        color-mix(in srgb, var(--color-fg) 13%, transparent) 1px,
         transparent 1px
       );
     background-size: 1ch calc(var(--text-base) * var(--leading-base));
@@ -51,82 +37,64 @@
   }
 
   .dev {
-    flex: 0 0 auto;
-    display: flex;
-    gap: 1ch;
-    align-items: center;
+    position: relative;
+    display: inline-flex;
+    align-items: baseline;
+    margin-left: 1ch;
     color: var(--color-muted);
-    border-bottom: 1px solid var(--color-border);
-    padding-bottom: var(--space-xs);
+    font: inherit;
+    vertical-align: baseline;
 
-    .label {
-      color: var(--color-fg);
-    }
-
-    .label::before {
-      content: "[";
-      color: var(--color-muted);
-    }
-
-    .label::after {
-      content: "]";
-      color: var(--color-muted);
-    }
-
-    .toggle {
+    .button {
       appearance: none;
-      border: 0;
+      border: 1px solid var(--color-border);
       border-radius: 0;
       background: transparent;
       color: inherit;
       font: inherit;
-      padding: 0;
+      line-height: inherit;
+      padding: 0 0.35em;
       cursor: pointer;
     }
 
-    .toggle:hover,
-    .toggle:focus-visible {
+    .button:hover,
+    .button:focus-visible,
+    .button[aria-pressed="true"] {
       color: var(--color-link);
-      text-decoration: underline;
       outline: none;
     }
-  }
 
-  .inspect {
-    min-width: 0;
-    min-height: 0;
-    overflow: hidden;
-    border-left: 1px solid var(--color-border);
-    padding-left: var(--space-md);
-    display: flex;
-    flex-direction: column;
-    color: var(--color-fg);
-    background: color-mix(in srgb, var(--color-bg) 94%, var(--color-fg));
-
-    .header {
-      flex: 0 0 auto;
-      color: var(--color-muted);
-      border-bottom: 1px solid var(--color-border);
-      padding-bottom: var(--space-xs);
-      margin-bottom: var(--space-xs);
-    }
-
-    .header::before {
-      content: "┌ ";
-    }
-
-    .header::after {
-      content: " ─";
-    }
-
-    .body {
-      flex: 1 1 auto;
-      min-height: 0;
+    .tooltip {
+      position: absolute;
+      right: 0;
+      bottom: calc(100% + var(--space-xs));
+      z-index: 60;
+      width: min(56ch, calc(100vw - 2 * var(--space-page)));
+      max-height: 14rem;
       overflow: auto;
+      visibility: hidden;
       margin: 0;
-      white-space: pre;
-      font: inherit;
+      border: 1px solid var(--color-border);
+      padding: var(--space-xs) 1ch;
+      background: var(--color-bg);
       color: var(--color-fg);
+      font: inherit;
+      white-space: pre;
+      pointer-events: none;
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-bg) 70%, transparent);
+    }
+
+    .tooltip::before {
+      content: attr(data-raw);
+    }
+
+    &:hover .tooltip,
+    .tooltip[data-open="true"] {
+      visibility: visible;
+    }
+
+    .tooltip[data-open="true"]::before {
+      content: "";
     }
   }
 }

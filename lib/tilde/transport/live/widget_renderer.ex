@@ -11,21 +11,39 @@ defmodule Tilde.Transport.Live.WidgetRenderer do
   alias Tilde.Core.{Input, Widget}
 
   attr(:widgets, :list, required: true)
+  attr(:devtools?, :boolean, default: false)
+  attr(:dev_grid?, :boolean, default: false)
+  attr(:dev_raw, :string, default: "")
 
   def widgets(assigns) do
     ~H"""
-    <.widget :for={widget <- @widgets} widget={widget} />
+    <.widget
+      :for={widget <- @widgets}
+      widget={widget}
+      devtools?={@devtools?}
+      dev_grid?={@dev_grid?}
+      dev_raw={@dev_raw}
+    />
     """
   end
 
   attr(:widget, Widget, required: true)
+  attr(:devtools?, :boolean, default: false)
+  attr(:dev_grid?, :boolean, default: false)
+  attr(:dev_raw, :string, default: "")
 
   def widget(%{widget: %Widget{kind: :screen}} = assigns) do
     assigns = assign(assigns, :class, assigns.widget.metadata[:class])
 
     ~H"""
     <main id={@widget.id} class={["tilde", @class]} phx-hook="TildeConsole">
-      <.widget :for={child <- @widget.children} widget={child} />
+      <.widget
+        :for={child <- @widget.children}
+        widget={child}
+        devtools?={@devtools?}
+        dev_grid?={@dev_grid?}
+        dev_raw={@dev_raw}
+      />
     </main>
     """
   end
@@ -33,7 +51,13 @@ defmodule Tilde.Transport.Live.WidgetRenderer do
   def widget(%{widget: %Widget{kind: :section}} = assigns) do
     ~H"""
     <section id={@widget.id} class="widgets" data-placement={@widget.placement}>
-      <.widget :for={child <- @widget.children} widget={child} />
+      <.widget
+        :for={child <- @widget.children}
+        widget={child}
+        devtools?={@devtools?}
+        dev_grid?={@dev_grid?}
+        dev_raw={@dev_raw}
+      />
     </section>
     """
   end
@@ -78,7 +102,14 @@ defmodule Tilde.Transport.Live.WidgetRenderer do
 
   def widget(%{widget: %Widget{kind: :footer}} = assigns) do
     ~H"""
-    <.footer session={nil} left={@widget.content.left} right={@widget.content.right} />
+    <.footer
+      session={nil}
+      left={@widget.content.left}
+      right={@widget.content.right}
+      devtools?={@devtools?}
+      dev_grid?={@dev_grid?}
+      dev_raw={@dev_raw}
+    />
     """
   end
 

@@ -9,20 +9,22 @@ defmodule Tilde.Session.Server do
 
   use GenServer
 
-  require Logger
-
   alias Tilde.Command
   alias Tilde.Core.{Controller, Event, Session}
-  alias Tilde.Session.PromptLifecycle
-  alias Tilde.Storage
+  alias Tilde.Session.AgentLoop
+  alias Tilde.Session.AgentLoop.ResumeCandidate
+  alias Tilde.Session.AgentLoop.State, as: AgentLoopState
+  alias Tilde.Session.Persistence
 
   defstruct session: nil,
             subscribers: %{},
-            responding?: false,
-            responding_to_input_index: nil,
-            prompt_task: nil,
-            prompt_ref: nil,
-            prompt_block_id: nil
+            agent_loop: AgentLoopState.new()
+
+  @type t :: %__MODULE__{
+          session: Session.t(),
+          subscribers: %{reference() => pid()},
+          agent_loop: AgentLoopState.t()
+        }
 
   @type name :: GenServer.name() | pid()
   @type update_message :: {:tilde_session_updated, String.t(), Session.t()}
@@ -39,14 +41,32 @@ defmodule Tilde.Session.Server do
   @spec ensure_started(name(), keyword()) :: {:ok, pid()} | {:error, term()}
   def ensure_started(name \\ __MODULE__, opts \\ []) do
     case GenServer.whereis(name) do
-      nil -> start_link(Keyword.put(opts, :name, name))
+      nil -> start_unlinked(Keyword.put(opts, :name, name))
       pid -> {:ok, pid}
+    end
+  end
+
+  defp start_unlinked(opts) do
+    case start_link(opts) do
+      {:ok, pid} ->
+        Process.unlink(pid)
+        {:ok, pid}
+
+      {:error, {:already_started, pid}} ->
+        {:ok, pid}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
   @doc "Returns the current session."
   @spec get_session(name()) :: Session.t()
   def get_session(server \\ __MODULE__), do: GenServer.call(server, :get_session)
+
+  @doc "Returns a read-only diagnostics snapshot of the session server."
+  @spec dev_snapshot(name()) :: map()
+  def dev_snapshot(server \\ __MODULE__), do: GenServer.call(server, :dev_snapshot)
 
   @doc "Subscribes the caller to session updates and returns the current session."
   @spec subscribe(name()) :: Session.t()
@@ -93,10 +113,27 @@ defmodule Tilde.Session.Server do
   end
 
   @impl true
-  def init(%Session{} = session), do: {:ok, %__MODULE__{session: session}}
+  def init(%Session{} = session) do
+    state =
+      %__MODULE__{session: session}
+      |> AgentLoop.maybe_resume(&broadcast/1)
+
+    Persistence.persist_if_changed(session, state.session)
+    {:ok, state}
+  end
 
   @impl true
   def handle_call(:get_session, _from, state), do: {:reply, state.session, state}
+
+  def handle_call(:dev_snapshot, _from, state) do
+    snapshot = %{
+      session: state.session,
+      agent_loop: AgentLoopState.snapshot(state.agent_loop),
+      resume_candidate: ResumeCandidate.from_session(state.session)
+    }
+
+    {:reply, snapshot, state}
+  end
 
   def handle_call({:subscribe, pid}, _from, state) when is_pid(pid) do
     ref = Process.monitor(pid)
@@ -112,8 +149,7 @@ defmodule Tilde.Session.Server do
 
   def handle_call({:update_session, fun}, _from, state) do
     previous = state.session
-    state = %{state | session: state.session |> fun.() |> trim_session()}
-    state = handle_post_update(previous, state)
+    state = state |> put_session(fun.(state.session)) |> after_session_update(previous)
     {:reply, state.session, state}
   end
 
@@ -121,65 +157,74 @@ defmodule Tilde.Session.Server do
     case Controller.apply_key(state.session, key) do
       {:cont, session} ->
         previous = state.session
-        state = %{state | session: trim_session(session)}
-        state = handle_post_update(previous, state)
+        state = state |> put_session(session) |> after_session_update(previous)
         {:reply, {:cont, state.session}, state}
 
       {:halt, session} ->
         previous = state.session
-        state = %{state | session: trim_session(session)}
-        state = handle_post_update(previous, state)
+        state = state |> put_session(session) |> after_session_update(previous)
         {:reply, {:halt, state.session}, state}
     end
   end
 
+  def handle_call(
+        {:apply_interaction, %{type: :interrupt}},
+        _from,
+        %{agent_loop: %AgentLoopState{active?: true}} = state
+      ) do
+    previous = state.session
+    state = AgentLoop.cancel(state, &broadcast/1)
+    Persistence.persist(previous, state.session)
+    {:reply, {:cont, state.session, []}, state}
+  end
+
   def handle_call({:apply_interaction, interaction}, _from, state) do
     case Controller.apply_interaction(state.session, interaction) do
-      {:cont, session, effects} ->
+      {:cont, session, outcomes} ->
         previous = state.session
-        state = %{state | session: trim_session(session)}
-        state = handle_post_update(previous, state)
-        {:reply, {:cont, state.session, effects}, state}
+        state = state |> put_session(session) |> after_session_update(previous)
+        {:reply, {:cont, state.session, outcomes}, state}
 
-      {:halt, session, effects} ->
+      {:halt, session, outcomes} ->
         previous = state.session
-        state = %{state | session: trim_session(session)}
-        state = handle_post_update(previous, state)
-        {:reply, {:halt, state.session, effects}, state}
+        state = state |> put_session(session) |> after_session_update(previous)
+        {:reply, {:halt, state.session, outcomes}, state}
     end
   end
 
   @impl true
-  def handle_info({:tilde_prompt_stream, ref, event}, %{prompt_ref: ref} = state) do
-    previous = state.session
-    state = PromptLifecycle.handle_stream_event(state, event, &broadcast/1)
-    persist_update(previous, state.session)
-    {:noreply, state}
+  def handle_info({:tilde_agent_stream, ref, event}, state) do
+    if AgentLoopState.matches_ref?(state.agent_loop, ref) do
+      previous = state.session
+      state = AgentLoop.handle_stream_event(state, event, &broadcast/1)
+      Persistence.persist(previous, state.session)
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
   end
-
-  def handle_info({:tilde_prompt_stream, _stale_ref, _event}, state), do: {:noreply, state}
 
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
     {:noreply, update_in(state.subscribers, &Map.delete(&1, ref))}
   end
 
-  defp handle_post_update(previous, %__MODULE__{} = state) do
+  defp after_session_update(%__MODULE__{} = state, %Session{} = previous) do
     state =
-      case maybe_apply_command(state) do
+      case apply_command_if_submitted(state) do
         {:command, state} ->
           broadcast(state)
           state
 
         :not_command ->
           broadcast(state)
-          PromptLifecycle.maybe_start(state, previous, &broadcast/1)
+          AgentLoop.maybe_start(state, previous, &broadcast/1)
       end
 
-    persist_update(previous, state.session)
+    Persistence.persist(previous, state.session)
     state
   end
 
-  defp maybe_apply_command(%__MODULE__{} = state) do
+  defp apply_command_if_submitted(%__MODULE__{} = state) do
     with %Event{type: :input_submitted, text: text} <- List.last(state.session.events),
          {:ok, command} <- Command.parse(text) do
       effects = Command.run(command, state.session, [])
@@ -191,34 +236,8 @@ defmodule Tilde.Session.Server do
     end
   end
 
-  defp persist_update(%Session{} = previous, %Session{} = current) do
-    previous_ids = MapSet.new(previous.events, & &1.id)
-
-    current.events
-    |> Enum.reject(&MapSet.member?(previous_ids, &1.id))
-    |> Enum.each(&persist_event(current, &1))
-
-    persist_state(current)
-  end
-
-  defp persist_event(%Session{} = session, %Event{} = event) do
-    case Storage.append_event(session, event) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("failed to persist Tilde session event: #{inspect(reason)}")
-    end
-  end
-
-  defp persist_state(%Session{} = session) do
-    case Storage.save_state(session) do
-      :ok ->
-        :ok
-
-      {:error, reason} ->
-        Logger.warning("failed to persist Tilde session state: #{inspect(reason)}")
-    end
+  defp put_session(%__MODULE__{} = state, %Session{} = session) do
+    %{state | session: trim_session(session)}
   end
 
   defp trim_session(%Session{} = session) do

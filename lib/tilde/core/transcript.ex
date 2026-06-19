@@ -89,12 +89,25 @@ defmodule Tilde.Core.Transcript do
 
   defp append_or_update_assistant(%__MODULE__{} = transcript, %Event{} = event) do
     id = event.block_id || last_assistant_id(transcript) || block_id(event)
+    text = event.text || ""
 
-    if has_block?(transcript, id) do
-      update_block(transcript, id, &Block.append_text(&1, event.text || ""))
-    else
-      append_block(transcript, Block.message(id, :assistant, event.text || ""))
+    cond do
+      thinking_delta?(event) and has_block?(transcript, id) ->
+        update_block(transcript, id, &Block.append_thinking(&1, text))
+
+      thinking_delta?(event) ->
+        append_block(transcript, Block.message(id, :assistant, "", metadata: %{thinking: text}))
+
+      has_block?(transcript, id) ->
+        update_block(transcript, id, &Block.append_text(&1, text))
+
+      true ->
+        append_block(transcript, Block.message(id, :assistant, text))
     end
+  end
+
+  defp thinking_delta?(%Event{metadata: metadata}) do
+    Map.get(metadata, :chunk_type, Map.get(metadata, "chunk_type")) in [:thinking, "thinking"]
   end
 
   defp append_block(%__MODULE__{} = transcript, %Block{} = block) do
