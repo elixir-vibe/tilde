@@ -11,6 +11,8 @@ config :tilde, Tilde.Demo.Endpoint,
   code_reloader: true,
   debug_errors: true
 
+config :mdex_native, syntax_highlighter: :lumis
+
 config :volt,
   entry: "assets/js/app.ts",
   outdir: "priv/static/assets",

@@ -51,6 +51,7 @@ defmodule Tilde.MixProject do
       {:phoenix_html, "~> 4.0", optional: true},
       {:bandit, "~> 1.0", optional: true},
       {:mdex, "~> 0.13.0", optional: true},
+      {:lumis, "~> 0.1", optional: true},
       {:igniter, "~> 0.6", only: [:dev, :test]}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
