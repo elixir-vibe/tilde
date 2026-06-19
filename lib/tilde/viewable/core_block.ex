@@ -1,8 +1,7 @@
 defimpl Tilde.Viewable, for: Tilde.Core.Block do
   alias Tilde.Core.{Block, Choice}
-  alias Tilde.Template.Compiler
   alias Tilde.Tool.ViewModel
-  alias Tilde.View.Cell
+  alias Tilde.View.{Cell, Line, Text}
   alias Tilde.View.Helpers, as: H
 
   def to_view(block), do: to_view(block, [])
@@ -60,58 +59,44 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
   defp tool_state(_status), do: :normal
 
   defp tool_template_cell(view) do
-    lines = tool_template_lines(view)
-    assigns = tool_template_assigns(view, lines)
-
-    {:ok, [cell]} =
-      Compiler.to_cells(
-        tool_template_source(lines),
-        [assigns: assigns],
-        __ENV__
-      )
-
-    cell
-  end
-
-  defp tool_template_source(lines) do
-    body =
-      lines
-      |> Enum.with_index()
-      |> Enum.map_join("\n", fn
-        {{:title, _value}, index} ->
-          ~s|  <.line role="title"><.title>{Enum.at(@lines, #{index})}</.title></.line>|
-
-        {{:metadata, _value}, index} ->
-          ~s|  <.line role="metadata"><.meta>{Enum.at(@lines, #{index})}</.meta></.line>|
-
-        {{:primary, _value}, index} ->
-          ~s|  <.line role="primary"><.primary>{Enum.at(@lines, #{index})}</.primary></.line>|
-
-        {{:muted, _value}, index} ->
-          ~s|  <.line role="muted"><.muted>{Enum.at(@lines, #{index})}</.muted></.line>|
-
-        {{:hint, _value}, index} ->
-          ~s|  <.line role="hint"><.muted>{Enum.at(@lines, #{index})}</.muted></.line>|
-      end)
-
-    """
-    <.cell kind="tool" state={@state} padding_x={1} padding_y={1}>
-      <.tool_call name={@name} segment={@segment} tags={@tags} suffix={@suffix} />
-    #{body}
-    </.cell>
-    """
-  end
-
-  defp tool_template_assigns(view, lines) do
-    %{
+    Cell.new(
+      kind: :tool,
       state: tool_state(view.status),
-      name: view.name,
-      segment: tool_segment(view.call_segments),
-      tags: view.call_tags,
-      suffix: view.call_suffix,
-      lines: Enum.map(lines, fn {_role, value} -> value end)
-    }
+      lines: [tool_call_line(view) | tool_template_lines(view)],
+      padding_x: 1,
+      padding_y: 1
+    )
   end
+
+  defp tool_call_line(view) do
+    parts =
+      [Text.new(view.name, :title)] ++
+        call_segment_parts(view.call_segments) ++
+        tag_parts(view.call_tags) ++ suffix_parts(view.call_suffix)
+
+    Line.new(parts, role: :title)
+  end
+
+  defp call_segment_parts(segments) do
+    Enum.flat_map(segments, fn segment ->
+      prefix = if String.starts_with?(segment.text, ":"), do: "", else: " "
+      [Text.new(prefix <> segment.text, segment_style(segment.color))]
+    end)
+  end
+
+  defp tag_parts([]), do: []
+  defp tag_parts(tags), do: [Text.new(" [#{Enum.join(tags, ", ")}]", :muted)]
+
+  defp suffix_parts(nil), do: []
+  defp suffix_parts(suffix), do: [Text.new(" (#{suffix})", :muted)]
+
+  defp segment_style(:accent), do: :accent
+  defp segment_style(:muted), do: :muted
+  defp segment_style(:dim), do: :muted
+  defp segment_style(:success), do: :success
+  defp segment_style(:error), do: :error
+  defp segment_style(:warning), do: :warning
+  defp segment_style(_color), do: :plain
 
   defp tool_template_lines(view) do
     [waiting_entry(view), result_entries(view), stream_entries(view), hidden_entry(view)]
@@ -119,10 +104,7 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
     |> Enum.reject(&is_nil/1)
   end
 
-  defp tool_segment([]), do: nil
-  defp tool_segment(segments), do: Enum.map_join(segments, " ", & &1.text)
-
-  defp waiting_entry(%{waiting?: true}), do: {:muted, "Waiting…"}
+  defp waiting_entry(%{waiting?: true}), do: line(:muted, "Waiting…")
   defp waiting_entry(_view), do: nil
 
   defp result_entries(%{entries: []}), do: []
@@ -132,11 +114,11 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
     |> Enum.with_index()
     |> Enum.flat_map(fn {entry, index} ->
       separator = if index == 0, do: [], else: []
-      body = Enum.map(entry.body, &{:primary, &1})
+      body = Enum.map(entry.body, &line(:primary, &1))
 
       separator ++
-        [{:title, entry.title}] ++
-        if(entry.metadata in [nil, ""], do: [], else: [{:metadata, entry.metadata}]) ++
+        [line(:title, entry.title)] ++
+        if(entry.metadata in [nil, ""], do: [], else: [line(:metadata, entry.metadata)]) ++
         body
     end)
   end
@@ -144,7 +126,7 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
   defp stream_entries(%{entries: [_ | _]}), do: []
 
   defp stream_entries(%{streams: [], lines: lines}),
-    do: Enum.map(lines, &{:primary, "  #{&1}"})
+    do: Enum.map(lines, &output_line/1)
 
   defp stream_entries(%{streams: streams}) do
     visible_streams =
@@ -153,8 +135,8 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
     label? = multiple?(streams)
 
     Enum.flat_map(visible_streams, fn stream ->
-      label = if label?, do: [{:muted, stream.kind}], else: []
-      visible = Enum.map(stream.lines, &{:primary, "  #{&1}"})
+      label = if label?, do: [line(:muted, stream.kind)], else: []
+      visible = Enum.map(stream.lines, &output_line/1)
 
       label ++ visible
     end)
@@ -166,11 +148,24 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
   defp hidden_entry(%{hidden_lines: 0, expanded?: false}), do: nil
 
   defp hidden_entry(%{hidden_lines: 0, expanded?: true}),
-    do: {:hint, "(ctrl+o to collapse)"}
+    do: line(:hint, "(ctrl+o to collapse)")
 
   defp hidden_entry(view) do
-    {:hint, "… #{view.hidden_lines} #{view.hidden_unit || "more lines"} (ctrl+o to expand)"}
+    line(:hint, "… #{view.hidden_lines} #{view.hidden_unit || "more lines"} (ctrl+o to expand)")
   end
+
+  defp output_line("+" <> _rest = text), do: line(:success, "  #{text}")
+  defp output_line("-" <> _rest = text), do: line(:error, "  #{text}")
+  defp output_line("@@" <> _rest = text), do: line(:muted, "  #{text}")
+  defp output_line(text), do: line(:primary, "  #{text}")
+
+  defp line(role, value) do
+    Line.new(Text.new(value, line_style(role)), role: role)
+  end
+
+  defp line_style(:metadata), do: :muted
+  defp line_style(:hint), do: :muted
+  defp line_style(role), do: role
 
   defp choice_lines(choice) do
     [H.line(choice.question, role: :title)] ++

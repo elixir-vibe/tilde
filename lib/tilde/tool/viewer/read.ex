@@ -9,7 +9,7 @@ defmodule Tilde.Tool.Viewer.Read do
   @impl true
   def call(%Block{} = block) do
     Tilde.Tool.View.call("read",
-      segments: [path_segment(block)],
+      segments: [path_segment(block), range_segment(block)] |> Enum.reject(&is_nil/1),
       tags: read_tags(block) |> Enum.reject(&blank?/1)
     )
   end
@@ -32,7 +32,14 @@ defmodule Tilde.Tool.Viewer.Read do
       Viewer.Default.fetch_key(block.args, :file_path) ||
         Viewer.Default.fetch_key(block.args, :path)
 
-    %{text: "#{path || "..."}#{line_range(block)}", color: :accent}
+    %{text: path || "...", color: :accent}
+  end
+
+  defp range_segment(block) do
+    case line_range(block) do
+      "" -> nil
+      range -> %{text: range, color: :warning}
+    end
   end
 
   defp line_range(block) do

@@ -15,8 +15,8 @@ defmodule Tilde.Rendering.LiveMarkdownTuiTest do
     assert html =~ ~s|class="lines"|
     assert html =~ ~s|class="text muted">stdout|
     assert html =~ ~s|class="text muted">stderr|
-    assert html =~ ~s|class="text primary">ok|
-    assert html =~ ~s|class="text primary">warning|
+    assert html =~ ~s|class="text primary">  ok|
+    assert html =~ ~s|class="text primary">  warning|
     refute html =~ "tool-stream-stdout"
     refute html =~ "/tmp/app"
   end
