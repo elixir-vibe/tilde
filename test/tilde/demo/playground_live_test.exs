@@ -56,25 +56,8 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
                "document.querySelector('.tool[data-block-id][data-expandable]').id === 'pg_long'"
              )
 
-      assert Browser.evaluate(
-               browser,
-               """
-               (() => {
-                 const tool = document.querySelector('#pg_search')
-                 tool.scrollIntoView({block: 'center'})
-                 tool.addEventListener('keydown', event => event.stopPropagation(), {once: true})
-                 tool.dispatchEvent(new KeyboardEvent('keydown', {
-                   key: 'o',
-                   ctrlKey: true,
-                   bubbles: true,
-                   cancelable: true
-                 }))
-                 return true
-               })()
-               """
-             )
-
       browser
+      |> Browser.click("#pg_search button")
       |> Browser.wait_until("document.body.innerText.includes('branch isolation')")
       |> Browser.assert_text("branch isolation")
 
