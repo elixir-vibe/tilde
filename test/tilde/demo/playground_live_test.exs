@@ -13,10 +13,14 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
       |> Browser.assert_text("Tool error")
       |> Browser.assert_text("Streaming logs")
       |> Browser.assert_text("Long output")
+      |> Browser.assert_text("Read file")
+      |> Browser.assert_text("Edit file")
       |> Browser.assert_text("Choice picker")
       |> Browser.assert_text("Thinking turn")
       |> Browser.assert_text("Search results")
       |> Browser.assert_text("bg start demo-server → mix phx.server")
+      |> Browser.assert_text("read lib/tilde/transport/live/view_renderer.ex:10-15")
+      |> Browser.assert_text("edit lib/tilde/tool/registry.ex")
       |> Browser.assert_text("web pi tool UI examples")
       |> Browser.assert_text("enter Confirm")
       |> Browser.assert_text("escape Cancel")
@@ -25,6 +29,7 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
       |> Browser.assert_text("Tilde keeps events and blocks semantic")
 
       refute Browser.text(browser) =~ "background-start"
+      refute Browser.text(browser) =~ "def example_6, do: :ok"
       refute Browser.text(browser) =~ "websearch query="
       refute Browser.text(browser) =~ "result row 12: semantic output preview"
       assert Browser.text(browser) =~ "result row 1: semantic output preview"

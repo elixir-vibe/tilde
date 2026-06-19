@@ -21,7 +21,9 @@ defmodule Tilde.Tool.Registry do
       "background-start" => Tilde.Tool.Viewer.Background,
       "background-stop" => Tilde.Tool.Viewer.Background,
       "bash" => Tilde.Tool.Viewer.Bash,
+      "edit" => Tilde.Tool.Viewer.Edit,
       "fetch" => Tilde.Tool.Viewer.Fetch,
+      "read" => Tilde.Tool.Viewer.Read,
       "websearch" => Tilde.Tool.Viewer.WebSearch,
       "utc_now" => Tilde.Tool.Viewer.UtcNow
     }

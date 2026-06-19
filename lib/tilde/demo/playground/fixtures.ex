@@ -17,6 +17,8 @@ defmodule Tilde.Demo.Playground.Fixtures do
       tool_error(),
       streaming_logs(),
       long_output(),
+      read_file(),
+      edit_file(),
       choice_picker(),
       thinking_turn(),
       search_results()
@@ -95,6 +97,47 @@ defmodule Tilde.Demo.Playground.Fixtures do
       |> Session.update_block("pg_long", &Block.update_display(&1, %{compact_limit: {:lines, 4}}))
 
     section("long-output", "Long output", "Compact truncation and expand affordance.", session)
+  end
+
+  defp read_file do
+    text = Enum.map_join(1..6, "\n", &"def example_#{&1}, do: :ok") <> "\n"
+
+    session =
+      session("playground-read-file")
+      |> Session.append_events([
+        Tilde.user_message("Read the renderer module"),
+        Tilde.assistant_done("I'll read the relevant line range."),
+        Tilde.tool_started(
+          "read",
+          %{path: "lib/tilde/transport/live/view_renderer.ex", offset: 10, limit: 6},
+          tool_call_id: "pg_read"
+        ),
+        Tilde.tool_done("pg_read", :success, %{content: [%{type: "text", text: text}]})
+      ])
+
+    section("read-file", "Read file", "Read tool call with compact expansion.", session)
+  end
+
+  defp edit_file do
+    diff = """
+    @@ -1,3 +1,3 @@
+    -old_call(:background_start)
+    +new_call(:bg_start)
+     unchanged()
+    """
+
+    session =
+      session("playground-edit-file")
+      |> Session.append_events([
+        Tilde.user_message("Patch the display label"),
+        Tilde.assistant_done("I'll apply an exact replacement."),
+        Tilde.tool_started("edit", %{path: "lib/tilde/tool/registry.ex"},
+          tool_call_id: "pg_edit"
+        ),
+        Tilde.tool_done("pg_edit", :success, %{diff: diff})
+      ])
+
+    section("edit-file", "Edit file", "Edit tool call with semantic diff output.", session)
   end
 
   defp choice_picker do

@@ -104,4 +104,34 @@ defmodule Tilde.CoreSemanticTest do
     assert view.name == "bg start"
     assert Enum.map(view.call_segments, & &1.text) == ["demo-server", "→ mix phx.server"]
   end
+
+  test "read tool renders path ranges and hides content until expanded" do
+    result = %{content: [%{type: "text", text: "one\ntwo\nthree\n"}]}
+
+    tool =
+      Block.tool("tool_1", "read", %{path: "lib/example.ex", offset: 2, limit: 2})
+      |> Block.finish_tool(:success, result)
+
+    compact = ViewModel.view(tool)
+    expanded = tool |> Block.update_display(%{expanded?: true}) |> ViewModel.view()
+
+    assert compact.name == "read"
+    assert Enum.map(compact.call_segments, & &1.text) == ["lib/example.ex:2-3"]
+    assert compact.lines == []
+    assert compact.hidden_lines == 3
+    assert expanded.lines == ["one", "two", "three"]
+  end
+
+  test "edit tool renders final diff from typed result" do
+    diff = "@@ -1 +1\n-old\n+new\n"
+
+    view =
+      Block.tool("tool_1", "edit", %{path: "lib/example.ex"})
+      |> Block.finish_tool(:success, %{diff: diff})
+      |> ViewModel.view()
+
+    assert view.name == "edit"
+    assert Enum.map(view.call_segments, & &1.text) == ["lib/example.ex"]
+    assert view.lines == ["@@ -1 +1", "-old", "+new"]
+  end
 end
