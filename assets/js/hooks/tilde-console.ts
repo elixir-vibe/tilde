@@ -186,7 +186,8 @@ const TildeConsole: Partial<TildeConsoleHook> = {
         }
       }
 
-      if (!event.ctrlKey || key !== "o") return
+      const globalEvent = event as KeyboardEvent & { tildeHandled?: boolean }
+      if (globalEvent.tildeHandled || !event.ctrlKey || key !== "o") return
 
       const expandableSelector = ".tool[data-block-id][data-expandable]"
       const active = document.activeElement
@@ -198,13 +199,14 @@ const TildeConsole: Partial<TildeConsoleHook> = {
       if (!(block instanceof HTMLElement)) return
 
       event.preventDefault()
+      globalEvent.tildeHandled = true
       this.pushEvent("tilde:toggle_expand", { id: block.dataset.blockId })
     }
 
     this.scroller?.addEventListener("scroll", this.handleScroll, { passive: true })
     this.el.addEventListener("submit", this.handleSubmit)
     this.el.addEventListener("input", this.handleInput)
-    document.addEventListener("keydown", this.handleKeydown)
+    document.addEventListener("keydown", this.handleKeydown, { capture: true })
     this.resizeCurrentInput()
     this.stickToBottom?.()
   },
@@ -218,7 +220,8 @@ const TildeConsole: Partial<TildeConsoleHook> = {
     if (this.handleScroll) this.scroller?.removeEventListener("scroll", this.handleScroll)
     if (this.handleSubmit) this.el.removeEventListener("submit", this.handleSubmit)
     if (this.handleInput) this.el.removeEventListener("input", this.handleInput)
-    if (this.handleKeydown) document.removeEventListener("keydown", this.handleKeydown)
+    if (this.handleKeydown)
+      document.removeEventListener("keydown", this.handleKeydown, { capture: true })
   }
 }
 

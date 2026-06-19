@@ -60,8 +60,10 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
                browser,
                """
                (() => {
-                 document.querySelector('#pg_search').scrollIntoView({block: 'center'})
-                 document.dispatchEvent(new KeyboardEvent('keydown', {
+                 const tool = document.querySelector('#pg_search')
+                 tool.scrollIntoView({block: 'center'})
+                 tool.addEventListener('keydown', event => event.stopPropagation(), {once: true})
+                 tool.dispatchEvent(new KeyboardEvent('keydown', {
                    key: 'o',
                    ctrlKey: true,
                    bubbles: true,
