@@ -16,6 +16,7 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
       |> Browser.assert_text("Choice picker")
       |> Browser.assert_text("Thinking turn")
       |> Browser.assert_text("Search results")
+      |> Browser.assert_text("bg start demo-server → mix phx.server")
       |> Browser.assert_text("web pi tool UI examples")
       |> Browser.assert_text("enter Confirm")
       |> Browser.assert_text("escape Cancel")
@@ -23,8 +24,10 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
       |> Browser.assert_text("Apply the generated patch?")
       |> Browser.assert_text("Tilde keeps events and blocks semantic")
 
+      refute Browser.text(browser) =~ "background-start"
       refute Browser.text(browser) =~ "websearch query="
-      refute Browser.text(browser) =~ "result row 12"
+      refute Browser.text(browser) =~ "result row 12: semantic output preview"
+      assert Browser.text(browser) =~ "result row 1: semantic output preview"
 
       assert Browser.evaluate(
                browser,
@@ -76,8 +79,10 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
 
       browser
       |> Browser.click("#pg_long button")
-      |> Browser.wait_until("document.body.innerText.includes('result row 12')")
-      |> Browser.assert_text("result row 12")
+      |> Browser.wait_until(
+        "document.body.innerText.includes('result row 12: semantic output preview')"
+      )
+      |> Browser.assert_text("result row 12: semantic output preview")
     else
       skip_browser()
     end

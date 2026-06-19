@@ -4,6 +4,7 @@ defmodule Tilde.Tool.Viewer.Fetch do
   @behaviour Tilde.Tool.Viewer
 
   alias Tilde.Core.Block
+  alias Tilde.Tool.View.Stream, as: StreamView
   alias Tilde.Tool.Viewer
 
   @impl true
@@ -19,7 +20,24 @@ defmodule Tilde.Tool.Viewer.Fetch do
   end
 
   @impl true
-  def result(%Block{} = block, opts \\ []), do: Viewer.Default.result(block, opts)
+  def result(%Block{} = block, opts \\ []) do
+    line_limit = Keyword.get(opts, :line_limit, 8)
+    expanded? = Keyword.get(opts, :expanded?, false)
+
+    lines = Viewer.Default.output_lines(block)
+    visible_lines = if expanded?, do: lines, else: Enum.take(lines, line_limit)
+
+    Tilde.Tool.View.result(
+      lines: visible_lines,
+      streams: StreamView.views(block.streams, if(expanded?, do: :all, else: line_limit), :head),
+      hidden_lines: if(expanded?, do: 0, else: max(length(lines) - length(visible_lines), 0)),
+      waiting?: waiting?(block, visible_lines)
+    )
+  end
+
+  defp waiting?(block, visible_lines) do
+    block.status in [:queued, :running, :streaming] and visible_lines == []
+  end
 
   defp tag_unless_default(value, default),
     do: if(to_string(value || "") == default, do: nil, else: value)

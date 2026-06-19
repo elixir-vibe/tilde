@@ -38,8 +38,8 @@ defmodule Tilde.CoreSemanticTest do
     compact = ViewModel.view(tool)
     expanded = tool |> Block.update_display(%{expanded?: true}) |> ViewModel.view()
 
-    assert compact.lines == ["one", "two"]
-    assert [%{kind: :stdout, lines: ["one", "two"], hidden_lines: 1}] = compact.streams
+    assert compact.lines == ["two", "three"]
+    assert [%{kind: :stdout, lines: ["two", "three"], hidden_lines: 1}] = compact.streams
     assert compact.hidden_lines == 1
     refute compact.expanded?
 
@@ -48,6 +48,20 @@ defmodule Tilde.CoreSemanticTest do
     assert expanded.hidden_lines == 0
     assert expanded.expanded?
     assert tool.streams |> hd() |> Stream.text() == "one\ntwo\nthree\n"
+  end
+
+  test "fetch view keeps document-like compact output at the head" do
+    tool =
+      Block.tool("tool_1", "fetch", %{url: "https://example.test/large"},
+        display: %Display{compact_limit: {:lines, 2}}
+      )
+      |> Block.append_stream(:stdout, "one\ntwo\nthree\n")
+
+    compact = ViewModel.view(tool)
+
+    assert compact.lines == ["one", "two"]
+    assert [%{kind: :stdout, lines: ["one", "two"], hidden_lines: 1}] = compact.streams
+    assert compact.hidden_lines == 1
   end
 
   test "runs represent styling without choosing a renderer" do
@@ -78,7 +92,16 @@ defmodule Tilde.CoreSemanticTest do
     assert stdout.lines == ["ok"]
     assert stdout.hidden_lines == 0
     assert stderr.kind == :stderr
-    assert stderr.lines == ["warning"]
+    assert stderr.lines == ["more"]
     assert stderr.hidden_lines == 1
+  end
+
+  test "background tools render pi-style display labels" do
+    view =
+      Block.tool("tool_1", "background-start", %{name: "demo-server", command: "mix phx.server"})
+      |> ViewModel.view()
+
+    assert view.name == "bg start"
+    assert Enum.map(view.call_segments, & &1.text) == ["demo-server", "→ mix phx.server"]
   end
 end

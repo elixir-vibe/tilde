@@ -16,6 +16,10 @@ defmodule Tilde.Tool.Registry do
   @spec default_registry() :: %{String.t() => module()}
   def default_registry do
     %{
+      "background-logs" => Tilde.Tool.Viewer.Background,
+      "background-list" => Tilde.Tool.Viewer.Background,
+      "background-start" => Tilde.Tool.Viewer.Background,
+      "background-stop" => Tilde.Tool.Viewer.Background,
       "bash" => Tilde.Tool.Viewer.Bash,
       "fetch" => Tilde.Tool.Viewer.Fetch,
       "websearch" => Tilde.Tool.Viewer.WebSearch,

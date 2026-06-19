@@ -23,14 +23,14 @@ defmodule Tilde.Tool.Viewer.Default do
     expanded? = Keyword.get(opts, :expanded?, false)
 
     lines = output_lines(block)
-    visible_lines = if expanded?, do: lines, else: Enum.take(lines, line_limit)
-    streams = stream_views(block.streams, if(expanded?, do: :all, else: line_limit))
+    visible_lines = visible_lines(lines, expanded?, line_limit)
+    streams = StreamView.views(block.streams, if(expanded?, do: :all, else: line_limit), :tail)
 
     Tilde.Tool.View.result(
       metadata_rows: metadata_rows(block),
       lines: visible_lines,
       streams: streams,
-      hidden_lines: if(expanded?, do: 0, else: max(length(lines) - length(visible_lines), 0)),
+      hidden_lines: hidden_lines(lines, visible_lines, streams, expanded?),
       waiting?: waiting?(block, visible_lines, streams)
     )
   end
@@ -41,41 +41,21 @@ defmodule Tilde.Tool.Viewer.Default do
     Enum.flat_map(streams, &stream_lines/1)
   end
 
-  defp stream_views(streams, :all) do
-    Enum.map(streams, fn stream ->
-      lines = Stream.lines(stream)
+  defp visible_lines(lines, true, _limit), do: lines
+  defp visible_lines(lines, false, limit), do: take_tail(lines, limit)
 
-      %StreamView{
-        id: stream.id,
-        kind: stream.kind,
-        lines: lines,
-        hidden_lines: 0,
-        byte_count: Stream.byte_count(stream),
-        line_count: length(lines)
-      }
-    end)
+  defp hidden_lines(_lines, _visible_lines, _streams, true), do: 0
+
+  defp hidden_lines(lines, visible_lines, [], false) do
+    max(length(lines) - length(visible_lines), 0)
   end
 
-  defp stream_views(streams, limit) do
-    {views, _remaining} =
-      Enum.map_reduce(streams, limit, fn stream, remaining ->
-        lines = Stream.lines(stream)
-        visible = Enum.take(lines, max(remaining, 0))
-
-        view = %StreamView{
-          id: stream.id,
-          kind: stream.kind,
-          lines: visible,
-          hidden_lines: max(length(lines) - length(visible), 0),
-          byte_count: Stream.byte_count(stream),
-          line_count: length(lines)
-        }
-
-        {view, max(remaining - length(visible), 0)}
-      end)
-
-    views
+  defp hidden_lines(_lines, _visible_lines, streams, false) do
+    Enum.reduce(streams, 0, &(&1.hidden_lines + &2))
   end
+
+  defp take_tail(_lines, limit) when limit <= 0, do: []
+  defp take_tail(lines, limit), do: Enum.take(lines, -limit)
 
   defp stream_lines(%Stream{kind: :stdout} = stream), do: Stream.lines(stream)
 
