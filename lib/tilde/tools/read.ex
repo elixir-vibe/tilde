@@ -46,7 +46,7 @@ defmodule Tilde.Tools.Read do
   end
 
   defp append_continuation_notice(content, result, params, truncation) do
-    start_line = params.offset || 1
+    start_line = params[:offset] || 1
     shown_lines = content_lines(content)
     next_offset = start_line + shown_lines
     user_limited? = is_integer(params[:limit]) and next_offset <= result.total_lines

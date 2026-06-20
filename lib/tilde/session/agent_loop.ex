@@ -351,13 +351,33 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp maybe_append_done(%Session{} = session, block_id, text, metadata) when is_binary(text) do
-    if assistant_block?(session, block_id) or String.trim(text) == "" do
+    if String.trim(text) == "" do
       session
     else
-      Session.append_event(
-        session,
-        Tilde.assistant_done(text, block_id: block_id, metadata: metadata)
-      )
+      append_terminal_text(session, block_id, text, metadata)
+    end
+  end
+
+  defp append_terminal_text(%Session{} = session, block_id, text, metadata) do
+    case assistant_block_source(session, block_id) do
+      nil ->
+        Session.append_event(
+          session,
+          Tilde.assistant_done(text, block_id: block_id, metadata: metadata)
+        )
+
+      source ->
+        if terminal_text_present?(source, text) do
+          session
+        else
+          Session.append_event(
+            session,
+            Tilde.assistant_delta(terminal_text_delta(source, text),
+              block_id: block_id,
+              metadata: Map.put(metadata, :chunk_type, :content)
+            )
+          )
+        end
     end
   end
 
@@ -425,8 +445,23 @@ defmodule Tilde.Session.AgentLoop do
     Map.reject(map, fn {_key, value} -> is_nil(value) end)
   end
 
-  defp assistant_block?(%Session{} = session, block_id) do
-    Enum.any?(session.transcript.blocks, &(&1.id == block_id and &1.role == :assistant))
+  defp assistant_block_source(%Session{} = session, block_id) do
+    session.transcript.blocks
+    |> Enum.find(&(&1.id == block_id and &1.role == :assistant))
+    |> case do
+      %{source: source} when is_binary(source) -> source
+      _block -> nil
+    end
+  end
+
+  defp terminal_text_present?(source, text) do
+    String.trim(source) == String.trim(text) or String.contains?(source, text)
+  end
+
+  defp terminal_text_delta("", text), do: text
+
+  defp terminal_text_delta(source, text) do
+    if String.ends_with?(source, ["\n", " "]), do: text, else: "\n\n#{text}"
   end
 
   defp assistant_block_id(%Session{} = session) do

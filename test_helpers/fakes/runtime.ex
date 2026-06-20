@@ -92,7 +92,9 @@ defmodule TildeTest.RuntimeEvents do
   end
 
   def llm_started(model \\ "openrouter/test-model") do
-    event(:llm_started, %{call_id: "llm-call", model: model, message_count: 2}, llm_call_id: "llm-call")
+    event(:llm_started, %{call_id: "llm-call", model: model, message_count: 2},
+      llm_call_id: "llm-call"
+    )
   end
 
   def llm_completed(usage \\ %{input_tokens: 12, output_tokens: 5}) do
@@ -311,6 +313,26 @@ defmodule TildeTest.ThinkingLLMBackend do
         fn _state -> :ok end
       )
     )
+  end
+end
+
+defmodule TildeTest.MaxIterationsLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def cancel_checkpoint(token, _opts), do: {:ok, token}
+
+  @impl true
+  def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
+
+  @impl true
+  def stream(_session, _opts) do
+    [
+      TildeTest.RuntimeEvents.delta("Let me inspect that:"),
+      TildeTest.RuntimeEvents.completed("Maximum iterations reached without a final answer.", %{
+        termination_reason: :max_iterations
+      })
+    ]
   end
 end
 

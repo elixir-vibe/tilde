@@ -1,6 +1,15 @@
 defmodule Tilde.Tools.ReadTest do
   use TildeTest.Case, async: false
 
+  test "reads text without optional offset" do
+    path = tmp_path("read-no-offset.txt")
+    File.write!(path, "one\ntwo")
+
+    assert {:ok, result} = Tilde.Tools.Read.run(%{"path" => path}, %{})
+
+    assert %{content: [%{type: "text", text: "one\ntwo"}], details: %{truncation: nil}} = result
+  end
+
   test "reads text with offset and limit in Pi-compatible result shape" do
     path = tmp_path("read-example.txt")
     File.write!(path, "one\ntwo\nthree\nfour")

@@ -301,6 +301,41 @@ defmodule Tilde.Session.Server.CommandTest do
     end)
   end
 
+  test "session server appends terminal runtime result when it differs from streamed text" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.MaxIterationsLLMBackend, fn ->
+        name = :"tilde_session_server_terminal_result_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "terminal_result")
+                 )
+
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("inspect"))
+
+        session =
+          wait_until_session(name, fn %Session{transcript: %{blocks: blocks}} ->
+            Enum.any?(blocks, fn
+              %Block{role: :assistant, source: source} ->
+                source =~ "Maximum iterations reached without a final answer."
+
+              _block ->
+                false
+            end)
+          end)
+
+        assert [_, %Block{role: :assistant, source: source}] = session.transcript.blocks
+        assert source =~ "Let me inspect that:"
+        assert source =~ "Maximum iterations reached without a final answer."
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
   test "session server renders streamed LLM tool events as semantic tool blocks" do
     with_application_env(:llm_enabled, true, fn ->
       with_application_env(:llm_backend, TildeTest.ToolStreamingLLMBackend, fn ->
