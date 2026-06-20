@@ -64,20 +64,26 @@ defmodule Tilde.DemoRuntimeTransportTest do
       private_b = Tilde.Session.Registry.via("ssh-private-b-#{stamp}")
       shared = Tilde.Session.Registry.via("ssh-shared-#{stamp}")
 
-      {:ok, _pid} =
+      {:ok, private_a_pid} =
         Tilde.Session.Server.ensure_started(private_a,
           session: Tilde.Demo.Live.demo_session(id: "ssh-private-a-#{stamp}")
         )
 
-      {:ok, _pid} =
+      {:ok, private_b_pid} =
         Tilde.Session.Server.ensure_started(private_b,
           session: Tilde.Demo.Live.demo_session(id: "ssh-private-b-#{stamp}")
         )
 
-      {:ok, _pid} =
+      {:ok, shared_pid} =
         Tilde.Session.Server.ensure_started(shared,
           session: Tilde.Demo.Live.demo_session(id: "ssh-shared-#{stamp}")
         )
+
+      on_exit(fn ->
+        Enum.each([private_a_pid, private_b_pid, shared_pid], fn pid ->
+          if Process.alive?(pid), do: GenServer.stop(pid)
+        end)
+      end)
 
       a_marker = "AAA_PRIVATE_#{stamp}"
       b_marker = "BBB_PRIVATE_#{stamp}"

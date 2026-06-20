@@ -17,7 +17,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   @system_prompt """
   You are Tilde, a concise coding assistant running inside a shared semantic console.
   Respond briefly. Use the available tools when you need to inspect files, edit files, write files, or run shell commands.
-  Use bash for file operations like ls, rg, find, etc. Use read to examine files instead of cat or sed. Use edit for precise exact-text replacements.
+  Use bash for file operations like ls, rg, find, etc. Use read to examine regular files instead of cat or sed; use bash ls/find for directories. Use edit for precise exact-text replacements.
+  After tool use, always finish with a concise answer that summarizes what you found or changed.
   """
 
   @runtime_errors [
@@ -81,7 +82,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
       model: Keyword.get(opts, :model, LLM.model()),
       system_prompt: Keyword.get(opts, :system_prompt, @system_prompt),
       tools: Keyword.get(opts, :tools, Tilde.Tools.coding_tools()),
-      max_iterations: Keyword.get(opts, :max_iterations, 4),
+      max_iterations: Keyword.get(opts, :max_iterations, 10),
       max_tokens: Keyword.get(opts, :max_tokens, 800),
       streaming: true,
       timeout_ms: Keyword.get(opts, :timeout, 30_000),

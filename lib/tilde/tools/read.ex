@@ -12,7 +12,8 @@ defmodule Tilde.Tools.Read do
               optional(:limit) => pos_integer()
             },
             doc: [
-              path: "Path to the file to read, relative or absolute",
+              path:
+                "Path to a regular text file to read, relative or absolute. Do not pass directories; use bash with ls/find to inspect directories.",
               offset: "Line number to start reading from, 1-indexed",
               limit: "Maximum number of lines to read"
             ]
@@ -21,7 +22,7 @@ defmodule Tilde.Tools.Read do
   use Jido.Action,
     name: "read",
     description:
-      "Read the contents of a text file. Output is truncated to 2000 lines or 50KB. Use offset/limit for large files.",
+      "Read the contents of a regular text file. Do not use this for directories; use bash with ls/find to inspect directories. Output is truncated to 2000 lines or 50KB. Use offset/limit for large files.",
     category: "filesystem",
     tags: ["filesystem", "read"],
     schema: @schema
