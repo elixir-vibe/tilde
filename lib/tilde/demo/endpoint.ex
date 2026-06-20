@@ -40,6 +40,7 @@ defmodule Tilde.Demo.Endpoint do
     plug(Phoenix.LiveReloader)
   end
 
+  plug(Tilde.Demo.VoltHMR)
   plug(Volt.DevServer, root: "assets")
 
   plug(Plug.Static,
