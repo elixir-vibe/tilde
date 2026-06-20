@@ -434,8 +434,14 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp new_input_submitted?(%Session{} = previous, %Session{} = session) do
-    length(session.events) > length(previous.events) and
-      last_event_type(session) == :input_submitted
+    case List.last(session.events) do
+      %Event{type: :input_submitted, id: id} -> not event_id?(previous, id)
+      _event -> false
+    end
+  end
+
+  defp event_id?(%Session{} = session, id) do
+    Enum.any?(session.events, &(&1.id == id))
   end
 
   defp latest_input_submission(%Session{} = session) do
@@ -448,11 +454,6 @@ defmodule Tilde.Session.AgentLoop do
       nil -> nil
     end
   end
-
-  defp last_event_type(%Session{events: [%Event{} | _] = events}),
-    do: events |> List.last() |> Map.get(:type)
-
-  defp last_event_type(_session), do: nil
 
   defp trim_session(%Session{} = session) do
     Session.trim_events(session, Application.get_env(:tilde, :session_event_limit, false))
