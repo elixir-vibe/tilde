@@ -41,6 +41,14 @@ defmodule Tilde.Tool.Viewer.Default do
     Enum.flat_map(streams, &stream_lines/1)
   end
 
+  @doc "Returns text lines from a first-party Tilde tool result content payload."
+  @spec result_content_lines(term()) :: [String.t()]
+  def result_content_lines(result) do
+    result
+    |> result_text()
+    |> split_lines()
+  end
+
   defp visible_lines(lines, true, _limit), do: lines
   defp visible_lines(lines, false, limit), do: take_tail(lines, limit)
 
@@ -61,6 +69,27 @@ defmodule Tilde.Tool.Viewer.Default do
 
   defp stream_lines(%Stream{kind: kind} = stream) do
     Enum.map(Stream.lines(stream), &"#{kind}: #{&1}")
+  end
+
+  defp result_text(%{content: content}) when is_list(content), do: content_text(content)
+  defp result_text(%{"content" => content}) when is_list(content), do: content_text(content)
+  defp result_text(%{text: text}) when is_binary(text), do: text
+  defp result_text(%{"text" => text}) when is_binary(text), do: text
+  defp result_text(text) when is_binary(text), do: text
+  defp result_text(_result), do: ""
+
+  defp content_text(content) do
+    content
+    |> Enum.filter(&(fetch_key(&1, :type) == "text"))
+    |> Enum.map_join("\n", &(fetch_key(&1, :text) || ""))
+  end
+
+  defp split_lines(""), do: []
+
+  defp split_lines(text) do
+    text
+    |> String.split("\n")
+    |> then(fn lines -> if List.last(lines) == "", do: Enum.drop(lines, -1), else: lines end)
   end
 
   defp metadata_rows(block) do

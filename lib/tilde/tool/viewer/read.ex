@@ -72,34 +72,10 @@ defmodule Tilde.Tool.Viewer.Read do
 
   defp output_lines(block) do
     case Viewer.Default.output_lines(block) do
-      [] -> block.result |> result_text() |> split_lines()
+      [] -> Viewer.Default.result_content_lines(block.result)
       lines -> lines
     end
   end
-
-  defp result_text(%{content: content}) when is_list(content), do: content_text(content)
-  defp result_text(%{"content" => content}) when is_list(content), do: content_text(content)
-  defp result_text(%{text: text}) when is_binary(text), do: text
-  defp result_text(%{"text" => text}) when is_binary(text), do: text
-  defp result_text(text) when is_binary(text), do: text
-  defp result_text(_result), do: ""
-
-  defp content_text(content) do
-    content
-    |> Enum.filter(&(field(&1, :type) == "text"))
-    |> Enum.map_join("\n", &(field(&1, :text) || ""))
-  end
-
-  defp split_lines(""), do: []
-
-  defp split_lines(text) do
-    text
-    |> String.split("\n")
-    |> then(fn lines -> if List.last(lines) == "", do: Enum.drop(lines, -1), else: lines end)
-  end
-
-  defp field(map, key) when is_map(map), do: Map.get(map, key) || Map.get(map, to_string(key))
-  defp field(_value, _key), do: nil
 
   defp int(value, _default) when is_integer(value), do: value
 
