@@ -19,7 +19,7 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
       |> Browser.assert_text("Thinking turn")
       |> Browser.assert_text("Search results")
       |> Browser.assert_text("bg start demo-server → mix phx.server")
-      |> Browser.assert_text("read lib/tilde/transport/live/view_renderer.ex:10-15")
+      |> Browser.assert_text("read lib/tilde/transport/live/view_renderer.ex:31-45")
       |> Browser.assert_text("edit lib/tilde/tool/registry.ex")
       |> Browser.assert_text("web pi tool UI examples")
       |> Browser.assert_text("enter Confirm")
@@ -29,6 +29,7 @@ defmodule Tilde.Demo.PlaygroundLiveTest do
       |> Browser.assert_text("Tilde keeps events and blocks semantic")
 
       refute Browser.text(browser) =~ "background-start"
+      refute Browser.text(browser) =~ "def cell(%{cell: %Cell{kind: :tool}} = assigns) do"
       refute Browser.text(browser) =~ "def example_6, do: :ok"
       refute Browser.text(browser) =~ "websearch query="
       refute Browser.text(browser) =~ "result row 12: semantic output preview"

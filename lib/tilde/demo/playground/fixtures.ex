@@ -100,16 +100,35 @@ defmodule Tilde.Demo.Playground.Fixtures do
   end
 
   defp read_file do
-    text = Enum.map_join(1..6, "\n", &"def example_#{&1}, do: :ok") <> "\n"
+    text =
+      [
+        "def cell(%{cell: %Cell{kind: :tool}} = assigns) do",
+        "  assigns =",
+        "    assigns",
+        "    |> assign(:view, assigns.cell.attrs.view)",
+        "    |> assign(:syntax_html, Tilde.Transport.Live.ReadTool.syntax_html(assigns.cell.attrs.view))",
+        "    |> assign(:body_lines, tool_body_lines(assigns.cell, assigns.cell.attrs.view))",
+        "",
+        "  ~H\"\"\"",
+        "  <article id={@cell.id} class={[\"block\", \"tool\", @view.status]}>",
+        "    <header class=\"header\">",
+        "      <span class=\"call\"><.view_line line={List.first(@cell.lines)} /></span>",
+        "    </header>",
+        "  </article>",
+        "  \"\"\"",
+        "end"
+      ]
+      |> Enum.join("\n")
+      |> Kernel.<>("\n")
 
     session =
       session("playground-read-file")
       |> Session.append_events([
         Tilde.user_message("Read the renderer module"),
-        Tilde.assistant_done("I'll read the relevant line range."),
+        Tilde.assistant_done("I'll read the relevant LiveView projection."),
         Tilde.tool_started(
           "read",
-          %{path: "lib/tilde/transport/live/view_renderer.ex", offset: 10, limit: 6},
+          %{path: "lib/tilde/transport/live/view_renderer.ex", offset: 31, limit: 15},
           tool_call_id: "pg_read"
         ),
         Tilde.tool_done("pg_read", :success, %{content: [%{type: "text", text: text}]})
