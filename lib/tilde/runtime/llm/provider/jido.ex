@@ -9,6 +9,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
 
   @behaviour Tilde.Runtime.LLM.Provider
 
+  alias Jido.AI.Runtime.Event, as: RuntimeEvent
   alias Tilde.Core.{Block, Session}
   alias Tilde.Runtime.LLM
   alias Tilde.Session.AgentLoop.ResumeCandidate
@@ -41,6 +42,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
         session
         |> query(opts)
         |> Jido.AI.Reasoning.ReAct.stream(react_config(opts), react_opts(session))
+        |> adapt_react_events()
 
       {:error, reason} ->
         [failed_event(reason)]
@@ -56,7 +58,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
         candidate.checkpoint_token
         |> Jido.AI.Reasoning.ReAct.continue(react_config(opts), react_opts(session))
         |> case do
-          {:ok, %{events: events}} -> events
+          {:ok, %{events: events}} -> events |> adapt_react_events() |> Enum.to_list()
           {:error, reason} -> [failed_event(reason)]
         end
 
@@ -101,6 +103,21 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
       ]
     ]
   end
+
+  # Temporary private bridge for released jido_ai versions where ReAct streams
+  # `Jido.AI.Reasoning.ReAct.Event` instead of canonical runtime events.
+  # Remove after agentjido/jido_ai#314 lands and Tilde bumps to that release.
+  defp adapt_react_events(events) do
+    Stream.flat_map(events, &adapt_react_event/1)
+  end
+
+  defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{kind: :input_injected}), do: []
+
+  defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{} = event) do
+    [event |> Map.from_struct() |> RuntimeEvent.new()]
+  end
+
+  defp adapt_react_event(%RuntimeEvent{} = event), do: [event]
 
   defp history_messages(%Session{} = session) do
     session.transcript.blocks
