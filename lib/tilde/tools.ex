@@ -9,6 +9,7 @@ defmodule Tilde.Tools do
   @spec coding_tools() :: [module()]
   def coding_tools do
     [
+      Tilde.Tools.List,
       Tilde.Tools.Read,
       Tilde.Tools.Edit,
       Tilde.Tools.Write,
