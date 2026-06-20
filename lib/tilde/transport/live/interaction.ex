@@ -34,6 +34,8 @@ defmodule Tilde.Transport.Live.Interaction do
   def session("tilde:toggle_expand", %{"id" => id}),
     do: Interaction.new(:toggle_expand, %{id: id})
 
+  def session("tilde:toggle_expand", _params), do: Interaction.new(:toggle_expand)
+
   def session("tilde:select_choice", %{"block-id" => block_id, "option-id" => option_id}) do
     Interaction.new(:select_choice, %{block_id: block_id, option_id: option_id})
   end

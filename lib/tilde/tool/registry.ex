@@ -25,7 +25,8 @@ defmodule Tilde.Tool.Registry do
       "fetch" => Tilde.Tool.Viewer.Fetch,
       "read" => Tilde.Tool.Viewer.Read,
       "websearch" => Tilde.Tool.Viewer.WebSearch,
-      "utc_now" => Tilde.Tool.Viewer.UtcNow
+      "utc_now" => Tilde.Tool.Viewer.UtcNow,
+      "write" => Tilde.Tool.Viewer.Edit
     }
   end
 end

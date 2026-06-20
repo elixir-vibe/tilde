@@ -27,6 +27,23 @@ defmodule Tilde.Core.SessionTest do
     assert session.statuses["model"] == "sonnet"
   end
 
+  test "toggles tool expansion as one semantic group" do
+    session =
+      Tilde.session()
+      |> Session.append_event(Tilde.tool_started("bash", %{}, tool_call_id: "tool_1"))
+      |> Session.append_event(Tilde.tool_started("read", %{}, tool_call_id: "tool_2"))
+      |> Session.toggle_expand("tool_1")
+      |> Session.toggle_tool_expansion()
+
+    assert [%Block{display: %{expanded?: true}}, %Block{display: %{expanded?: true}}] =
+             session.transcript.blocks
+
+    session = Session.toggle_tool_expansion(session)
+
+    assert [%Block{display: %{expanded?: false}}, %Block{display: %{expanded?: false}}] =
+             session.transcript.blocks
+  end
+
   test "updates blocks for LiveView event handlers" do
     choice = Tilde.choice("Pick one", [{"a", "A"}, {"b", "B"}])
 

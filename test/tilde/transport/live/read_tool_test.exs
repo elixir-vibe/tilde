@@ -14,7 +14,9 @@ defmodule Tilde.Transport.Live.ReadToolTest do
     assert html =~ ~s|class="lumis"|
     assert html =~ ~s|class="language-elixir"|
     assert html =~ "var(--color-link)"
-    assert html =~ "var(--color-success)"
+    assert html =~ "var(--color-muted)"
+    assert html =~ "var(--color-warning)"
+    refute html =~ "var(--color-success)"
     refute html =~ "github_light"
   end
 end

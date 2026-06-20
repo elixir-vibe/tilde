@@ -7,7 +7,7 @@ defmodule Tilde.Core.Controller do
   """
 
   alias Tilde.Command
-  alias Tilde.Core.{Block, Input, Interaction, Keys, Session, Suggest}
+  alias Tilde.Core.{Input, Interaction, Keys, Session, Suggest}
   alias Tilde.Core.Interaction.Outcome
 
   @type result :: {:cont, Session.t()} | {:halt, Session.t()}
@@ -107,10 +107,7 @@ defmodule Tilde.Core.Controller do
   @doc "Applies a decoded key to a session."
   @spec apply_key(Session.t(), Keys.key()) :: result()
   def apply_key(%Session{} = session, :toggle_expand) do
-    case first_tool_id(session) do
-      nil -> {:cont, session}
-      id -> {:cont, Session.toggle_expand(session, id)}
-    end
+    {:cont, Session.toggle_tool_expansion(session)}
   end
 
   def apply_key(%Session{input: %Input{value: ""}} = session, :quit), do: {:halt, session}
@@ -183,13 +180,6 @@ defmodule Tilde.Core.Controller do
   defp change_input(%Session{} = session, %Input{} = input) do
     event = Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})
     {:cont, Session.append_event(session, event)}
-  end
-
-  defp first_tool_id(%Session{} = session) do
-    Enum.find_value(session.transcript.blocks, fn
-      %Block{kind: :tool, id: id} -> id
-      _block -> nil
-    end)
   end
 
   defp selected_suggestion_completion(%Session{} = session) do

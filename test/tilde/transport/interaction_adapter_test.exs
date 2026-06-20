@@ -19,6 +19,9 @@ defmodule Tilde.Transport.InteractionAdapterTest do
     assert %Interaction{type: :toggle_expand, payload: %{id: "tool_1"}} =
              LiveInteraction.session("tilde:toggle_expand", %{"id" => "tool_1"})
 
+    assert %Interaction{type: :toggle_expand, payload: %{}} =
+             LiveInteraction.session("tilde:toggle_expand", %{})
+
     assert %Interaction{type: :select_choice, payload: %{block_id: "choice", option_id: "yes"}} =
              LiveInteraction.session("tilde:select_choice", %{
                "block-id" => "choice",

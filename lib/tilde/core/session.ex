@@ -184,6 +184,24 @@ defmodule Tilde.Core.Session do
     update_block(session, block_id, &Block.toggle_expand/1)
   end
 
+  @doc "Toggles all tool blocks as one semantic expansion group."
+  @spec toggle_tool_expansion(t()) :: t()
+  def toggle_tool_expansion(%__MODULE__{} = session) do
+    tool_blocks = Enum.filter(session.transcript.blocks, &(&1.kind == :tool))
+    expand? = Enum.any?(tool_blocks, &(not &1.display.expanded?))
+
+    transcript = %{
+      session.transcript
+      | blocks:
+          Enum.map(session.transcript.blocks, fn
+            %Block{kind: :tool} = block -> Block.update_display(block, %{expanded?: expand?})
+            %Block{} = block -> block
+          end)
+    }
+
+    %{session | transcript: transcript}
+  end
+
   @doc "Selects an option in a choice block."
   @spec select_choice(t(), String.t(), String.t()) :: t()
   def select_choice(%__MODULE__{} = session, block_id, option_id)

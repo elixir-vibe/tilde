@@ -81,6 +81,13 @@ defmodule Tilde.Demo.PlaygroundLive do
      )}
   end
 
+  defp apply_interaction(socket, %Interaction{type: :toggle_expand}) do
+    {:noreply,
+     update(socket, :sections, fn sections ->
+       Enum.map(sections, &%{&1 | session: Session.toggle_tool_expansion(&1.session)})
+     end)}
+  end
+
   defp apply_interaction(socket, %Interaction{
          type: :select_choice,
          payload: %{block_id: block_id, option_id: option_id}

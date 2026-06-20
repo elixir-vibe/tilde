@@ -53,4 +53,22 @@ defmodule Tilde.Core.ControllerInteractionTest do
     assert %{display: %{expanded?: true}} =
              Enum.find(session.transcript.blocks, &(&1.id == "tool_1"))
   end
+
+  test "global toggle expansion is semantic and applies to all tools" do
+    session =
+      Tilde.session()
+      |> Session.append_event(Tilde.tool_started("bash", %{}, tool_call_id: "tool_1"))
+      |> Session.append_event(Tilde.tool_started("read", %{}, tool_call_id: "tool_2"))
+      |> Session.toggle_expand("tool_1")
+
+    assert {:cont, expanded, []} =
+             Controller.apply_interaction(session, Interaction.new(:toggle_expand))
+
+    assert Enum.map(expanded.transcript.blocks, & &1.display.expanded?) == [true, true]
+
+    assert {:cont, collapsed, []} =
+             Controller.apply_interaction(expanded, Interaction.new(:toggle_expand))
+
+    assert Enum.map(collapsed.transcript.blocks, & &1.display.expanded?) == [false, false]
+  end
 end

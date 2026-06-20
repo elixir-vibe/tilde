@@ -18,37 +18,6 @@ type TildeConsoleHook = ViewHook & {
 
 const inputSelector = "textarea[name='input']"
 
-const nearestVisibleBlock = (
-  root: HTMLElement,
-  scroller: HTMLElement,
-  selector: string
-): HTMLElement | null => {
-  const blocks = Array.from(root.querySelectorAll(selector)).filter(
-    (block): block is HTMLElement => block instanceof HTMLElement
-  )
-
-  if (blocks.length === 0) return null
-  if (scroller.scrollTop <= 0) return blocks[0]
-
-  const containerRect = scroller.getBoundingClientRect()
-  const containerCenter = containerRect.top + containerRect.height / 2
-  const visible = blocks.filter((block) => {
-    const rect = block.getBoundingClientRect()
-    return rect.bottom > containerRect.top && rect.top < containerRect.bottom
-  })
-
-  const candidates = visible.length > 0 ? visible : blocks
-
-  return candidates.reduce((closest, block) => {
-    const closestRect = closest.getBoundingClientRect()
-    const blockRect = block.getBoundingClientRect()
-    const closestDistance = Math.abs(closestRect.top + closestRect.height / 2 - containerCenter)
-    const blockDistance = Math.abs(blockRect.top + blockRect.height / 2 - containerCenter)
-
-    return blockDistance < closestDistance ? block : closest
-  })
-}
-
 const TildeConsole: Partial<TildeConsoleHook> = {
   mounted() {
     this.shouldStickToBottom = true
@@ -189,18 +158,9 @@ const TildeConsole: Partial<TildeConsoleHook> = {
       const globalEvent = event as KeyboardEvent & { tildeHandled?: boolean }
       if (globalEvent.tildeHandled || !event.ctrlKey || key !== "o") return
 
-      const expandableSelector = ".tool[data-block-id][data-expandable]"
-      const active = document.activeElement
-      const focusedBlock = active instanceof Element ? active.closest(expandableSelector) : null
-      const block = this.el.contains(focusedBlock)
-        ? focusedBlock
-        : nearestVisibleBlock(this.el, this.scroller || this.el, expandableSelector)
-
-      if (!(block instanceof HTMLElement)) return
-
       event.preventDefault()
       globalEvent.tildeHandled = true
-      this.pushEvent("tilde:toggle_expand", { id: block.dataset.blockId })
+      this.pushEvent("tilde:toggle_expand", {})
     }
 
     this.scroller?.addEventListener("scroll", this.handleScroll, { passive: true })

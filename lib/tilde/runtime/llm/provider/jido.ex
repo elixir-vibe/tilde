@@ -14,8 +14,9 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   alias Tilde.Session.AgentLoop.ResumeCandidate
 
   @system_prompt """
-  You are Tilde, a concise assistant running inside a shared semantic console.
-  Respond briefly. Do not claim to run tools unless a tool is actually available.
+  You are Tilde, a concise coding assistant running inside a shared semantic console.
+  Respond briefly. Use the available tools when you need to inspect files, edit files, write files, or run shell commands.
+  Use bash for file operations like ls, rg, find, etc. Use read to examine files instead of cat or sed. Use edit for precise exact-text replacements.
   """
 
   @runtime_errors [
@@ -77,7 +78,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     [
       model: Keyword.get(opts, :model, LLM.model()),
       system_prompt: Keyword.get(opts, :system_prompt, @system_prompt),
-      tools: Keyword.get(opts, :tools, [Tilde.Tools.UtcNow]),
+      tools: Keyword.get(opts, :tools, Tilde.Tools.coding_tools()),
       max_iterations: Keyword.get(opts, :max_iterations, 4),
       max_tokens: Keyword.get(opts, :max_tokens, 800),
       streaming: true,
