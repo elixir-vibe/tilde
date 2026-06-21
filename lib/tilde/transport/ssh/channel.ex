@@ -79,12 +79,7 @@ defmodule Tilde.Transport.SSH.Channel do
     session = LocalPrompt.preserve(session, old_session)
     state = %{state | session: session}
 
-    state =
-      cond do
-        stale_session?(old_session, session) -> state
-        session == old_session -> state
-        true -> render_change(state, old_session)
-      end
+    state = if session == old_session, do: state, else: render_change(state, old_session)
 
     {:ok, state}
   end
@@ -382,12 +377,6 @@ defmodule Tilde.Transport.SSH.Channel do
       do: state,
       else: %{state | streaming?: false}
   end
-
-  defp stale_session?(%Session{} = current, %Session{} = incoming) do
-    length(incoming.events) < length(current.events)
-  end
-
-  defp stale_session?(_current, _incoming), do: false
 
   defp assistant_stream_finished?(%Session{} = old, %Session{} = new, %__MODULE__{
          streaming?: true

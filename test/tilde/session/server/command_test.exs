@@ -2,9 +2,9 @@ defmodule Tilde.Session.Server.CommandTest do
   use TildeTest.Case
 
   test "command suggestions complete on tab and submit executable commands on enter" do
-    assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
-    assert Enum.map(items, & &1.label) == ["/compact"]
-    assert Tilde.Command.completion("/co") == "/compact"
+    assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/cl")
+    assert Enum.map(items, & &1.label) == ["/clear"]
+    assert Tilde.Command.completion("/cl") == "/clear"
 
     session = Session.append_event(Tilde.session(), Tilde.input_changed("/"))
     assert [suggest_widget] = Session.widgets(session, :above_input)
@@ -12,7 +12,7 @@ defmodule Tilde.Session.Server.CommandTest do
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
     assert html =~ "suggest"
-    assert html =~ "/compact"
+    assert html =~ "/clear"
     assert html =~ "selected"
     assert html =~ "phx-click=\"tilde:complete_input\""
 

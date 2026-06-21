@@ -9,7 +9,6 @@ defmodule Tilde.Command.Registry do
     Tilde.Command.Builtin.Detach,
     Tilde.Command.Builtin.Session,
     Tilde.Command.Builtin.Clear,
-    Tilde.Command.Builtin.Compact,
     Tilde.Command.Builtin.Quit
   ]
 

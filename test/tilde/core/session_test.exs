@@ -1,18 +1,6 @@
 defmodule Tilde.Core.SessionTest do
   use TildeTest.Case
 
-  test "can trim event log without hiding rendered transcript" do
-    session =
-      Tilde.session()
-      |> Session.append_event(Tilde.input_submitted("one"))
-      |> Session.append_event(Tilde.assistant_done("two"))
-      |> Session.append_event(Tilde.input_submitted("three"))
-      |> Session.trim_events(2)
-
-    assert Enum.map(session.events, & &1.text) == ["two", "three"]
-    assert Enum.map(session.transcript.blocks, & &1.source) == ["one", "two", "three"]
-  end
-
   test "keeps event log, transcript, widgets, and statuses" do
     session =
       Tilde.session(id: "session_1")

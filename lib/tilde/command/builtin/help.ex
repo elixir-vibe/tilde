@@ -13,7 +13,6 @@ defmodule Tilde.Command.Builtin.Help do
   - `/detach` — Detach SSH/TUI to a new private session
   - `/session` — Show current session details
   - `/clear` — Clear this session
-  - `/compact` — Trim older session history
   - `/quit` — Quit in SSH/TUI; not applicable on web
   """
 

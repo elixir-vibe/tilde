@@ -139,19 +139,6 @@ defmodule Tilde.Core.Session do
     %{session | metadata: metadata}
   end
 
-  @doc "Keeps only the newest raw events without changing the rendered session state."
-  @spec trim_events(t(), pos_integer() | nil | false) :: t()
-  def trim_events(%__MODULE__{} = session, limit)
-      when limit in [nil, false] or (is_integer(limit) and limit > 0) do
-    case limit do
-      value when is_integer(value) and length(session.events) > value ->
-        %{session | events: Enum.take(session.events, -value)}
-
-      _other ->
-        session
-    end
-  end
-
   @doc "Updates a transcript block by id."
   @spec update_block(t(), String.t(), (Block.t() -> Block.t())) :: t()
   def update_block(%__MODULE__{} = session, block_id, fun)
