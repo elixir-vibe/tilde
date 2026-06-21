@@ -2,9 +2,9 @@ defmodule Tilde.Session.Server.CommandTest do
   use TildeTest.Case
 
   test "command suggestions complete on tab and submit executable commands on enter" do
-    assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/cl")
-    assert Enum.map(items, & &1.label) == ["/clear"]
-    assert Tilde.Command.completion("/cl") == "/clear"
+    assert %Tilde.Core.Suggest{title: "commands", items: items} = Tilde.Command.suggestions("/co")
+    assert Enum.map(items, & &1.label) == ["/compact"]
+    assert Tilde.Command.completion("/co") == "/compact"
 
     session = Session.append_event(Tilde.session(), Tilde.input_changed("/"))
     assert [suggest_widget] = Session.widgets(session, :above_input)
@@ -12,7 +12,7 @@ defmodule Tilde.Session.Server.CommandTest do
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
     assert html =~ "suggest"
-    assert html =~ "/clear"
+    assert html =~ "/compact"
     assert html =~ "selected"
     assert html =~ "phx-click=\"tilde:complete_input\""
 
@@ -29,6 +29,34 @@ defmodule Tilde.Session.Server.CommandTest do
     assert submitted.input.value == ""
     assert [%Block{source: submitted_command}] = submitted.transcript.blocks
     assert submitted_command == Tilde.Command.completion(Session.command_suggestions(selected))
+  end
+
+  test "compact command appends visible summary without deleting raw history" do
+    session =
+      Tilde.session(id: "compact_command")
+      |> Session.append_event(Tilde.input_submitted("one"))
+      |> Session.append_event(Tilde.assistant_done("two"))
+      |> Session.append_event(Tilde.input_submitted("three"))
+      |> Session.append_event(Tilde.assistant_done("four"))
+      |> Session.append_event(Tilde.input_submitted("five"))
+      |> Session.append_event(Tilde.assistant_done("six"))
+      |> Session.append_event(Tilde.input_submitted("seven"))
+      |> Session.append_event(Tilde.assistant_done("eight"))
+      |> Session.append_event(Tilde.input_submitted("nine"))
+      |> Session.append_event(Tilde.assistant_done("ten"))
+
+    assert {:ok, command} = Tilde.Command.parse("/compact focus on decisions")
+    compacted = Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
+
+    assert length(compacted.events) == length(session.events) + 1
+
+    assert %Tilde.Core.Event{type: :context_compacted, metadata: metadata} =
+             List.last(compacted.events)
+
+    assert metadata.custom_instructions == "focus on decisions"
+    assert metadata.first_kept_block_id
+    assert List.last(compacted.transcript.blocks).role == :system
+    assert List.last(compacted.transcript.blocks).source =~ "## Context Compaction"
   end
 
   test "command suggestions complete argument-taking commands instead of executing them" do

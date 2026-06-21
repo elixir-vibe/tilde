@@ -8,6 +8,7 @@ defmodule Tilde.Runtime.LLM do
 
   alias Tilde.Core.{Block, Session}
   alias Tilde.Session.AgentLoop.ResumeCandidate
+  alias Tilde.Session.Compaction
 
   @default_model "openrouter:~anthropic/claude-haiku-latest"
 
@@ -70,7 +71,8 @@ defmodule Tilde.Runtime.LLM do
   @spec prompt(Session.t()) :: String.t()
   def prompt(%Session{} = session) do
     history =
-      session.transcript.blocks
+      session
+      |> Compaction.model_context_blocks()
       |> Enum.filter(&message_block?/1)
       |> Enum.map_join("\n\n", fn %Block{role: role, source: source} ->
         "#{message_label(role)} #{String.trim(source)}"
@@ -86,11 +88,12 @@ defmodule Tilde.Runtime.LLM do
   end
 
   defp message_block?(%Block{kind: :message, role: role, source: source})
-       when role in [:user, :assistant] and is_binary(source),
+       when role in [:user, :assistant, :system] and is_binary(source),
        do: true
 
   defp message_block?(_block), do: false
 
   defp message_label(:user), do: "User message:"
   defp message_label(:assistant), do: "Previous reply:"
+  defp message_label(:system), do: "Compacted context:"
 end

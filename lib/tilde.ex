@@ -46,6 +46,12 @@ defmodule Tilde do
     Event.new(:status_changed, opts |> Keyword.put(:name, name) |> Keyword.put(:text, value))
   end
 
+  @doc "Creates a visible context-compaction summary event."
+  @spec context_compacted(String.t(), keyword()) :: Event.t()
+  def context_compacted(summary, opts \\ []) when is_binary(summary) do
+    Event.new(:context_compacted, Keyword.put(opts, :text, summary))
+  end
+
   @doc "Creates an event marking the assistant turn as waiting for first output."
   @spec assistant_turn_started(keyword()) :: Event.t()
   def assistant_turn_started(opts \\ []), do: Event.new(:assistant_turn_started, opts)

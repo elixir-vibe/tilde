@@ -13,6 +13,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   alias Tilde.Core.{Block, Session}
   alias Tilde.Runtime.LLM
   alias Tilde.Session.AgentLoop.ResumeCandidate
+  alias Tilde.Session.Compaction
 
   @system_prompt """
   You are Tilde, a concise coding assistant running inside a shared semantic console.
@@ -121,7 +122,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   defp adapt_react_event(%RuntimeEvent{} = event), do: [event]
 
   defp history_messages(%Session{} = session) do
-    session.transcript.blocks
+    session
+    |> Compaction.model_context_blocks()
     |> drop_latest_user_message()
     |> Enum.flat_map(&message_block/1)
   end
@@ -132,6 +134,10 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   defp message_block(%Block{kind: :message, role: :assistant, source: source})
        when is_binary(source),
        do: [%{role: :assistant, content: source}]
+
+  defp message_block(%Block{kind: :message, role: :system, source: source})
+       when is_binary(source),
+       do: [%{role: :user, content: "Compacted prior context:\n\n#{source}"}]
 
   defp message_block(_block), do: []
 

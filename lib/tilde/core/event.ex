@@ -21,6 +21,7 @@ defmodule Tilde.Core.Event do
           | :input_changed
           | :input_submitted
           | :status_changed
+          | :context_compacted
 
   @type t :: %__MODULE__{
           id: String.t(),
