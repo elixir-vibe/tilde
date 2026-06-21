@@ -45,18 +45,50 @@ defmodule Tilde.Session.Server.CommandTest do
       |> Session.append_event(Tilde.input_submitted("nine"))
       |> Session.append_event(Tilde.assistant_done("ten"))
 
-    assert {:ok, command} = Tilde.Command.parse("/compact focus on decisions")
-    compacted = Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
+    with_application_env(:llm_backend, TildeTest.LLMBackend, fn ->
+      assert {:ok, command} = Tilde.Command.parse("/compact focus on decisions")
+      compacted = Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
 
-    assert length(compacted.events) == length(session.events) + 1
+      assert length(compacted.events) == length(session.events) + 1
 
-    assert %Tilde.Core.Event{type: :context_compacted, metadata: metadata} =
-             List.last(compacted.events)
+      assert %Tilde.Core.Event{type: :context_compacted, metadata: metadata} =
+               List.last(compacted.events)
 
-    assert metadata.custom_instructions == "focus on decisions"
-    assert metadata.first_kept_block_id
-    assert List.last(compacted.transcript.blocks).role == :system
-    assert List.last(compacted.transcript.blocks).source =~ "## Context Compaction"
+      assert metadata.custom_instructions == "focus on decisions"
+      assert metadata.first_kept_block_id
+      assert List.last(compacted.transcript.blocks).role == :system
+      assert List.last(compacted.transcript.blocks).source =~ "## Context Compaction"
+    end)
+  end
+
+  test "compact command prefers configured LLM summary" do
+    session = compactable_session()
+
+    with_application_env(:llm_backend, TildeTest.CompactionSummaryLLMBackend, fn ->
+      with_application_env(:compaction_summary_test_pid, self(), fn ->
+        assert {:ok, command} = Tilde.Command.parse("/compact preserve blockers")
+        compacted = Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
+
+        assert_receive {:summarize_compaction, summarized_sources, opts}
+        assert "one" in summarized_sources
+        assert opts[:instructions] == "preserve blockers"
+
+        assert List.last(compacted.transcript.blocks).source ==
+                 "## Context Compaction\n\nLLM summary"
+      end)
+    end)
+  end
+
+  test "compact command falls back when configured LLM summary is blank" do
+    session = compactable_session()
+
+    with_application_env(:llm_backend, TildeTest.EmptyCompactionSummaryLLMBackend, fn ->
+      assert {:ok, command} = Tilde.Command.parse("/compact")
+      compacted = Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
+
+      assert List.last(compacted.transcript.blocks).source =~ "Earlier conversation was compacted"
+      assert List.last(compacted.transcript.blocks).source =~ "User: one"
+    end)
   end
 
   test "command suggestions complete argument-taking commands instead of executing them" do
@@ -771,6 +803,20 @@ defmodule Tilde.Session.Server.CommandTest do
         end)
       end)
     end)
+  end
+
+  defp compactable_session do
+    Tilde.session(id: "compactable")
+    |> Session.append_event(Tilde.input_submitted("one"))
+    |> Session.append_event(Tilde.assistant_done("two"))
+    |> Session.append_event(Tilde.input_submitted("three"))
+    |> Session.append_event(Tilde.assistant_done("four"))
+    |> Session.append_event(Tilde.input_submitted("five"))
+    |> Session.append_event(Tilde.assistant_done("six"))
+    |> Session.append_event(Tilde.input_submitted("seven"))
+    |> Session.append_event(Tilde.assistant_done("eight"))
+    |> Session.append_event(Tilde.input_submitted("nine"))
+    |> Session.append_event(Tilde.assistant_done("ten"))
   end
 
   defp wait_until_session(name, predicate, attempts \\ 20)

@@ -5,13 +5,14 @@ defmodule Tilde.Command.Builtin.Compact do
 
   alias Tilde.Command
   alias Tilde.Core.Session
+  alias Tilde.Runtime.LLM
   alias Tilde.Session.Compaction
 
   def spec,
     do: Command.Spec.new("/compact", "/compact", "Summarize older context")
 
   def run(%Command{args: args}, %Session{} = session, _opts) do
-    case Compaction.prepare(session) do
+    case Compaction.prepare(session, summarizer: &summarize_with_model(&1, args)) do
       {:ok, result} ->
         metadata = %{
           first_kept_block_id: result.first_kept_block_id,
@@ -29,6 +30,10 @@ defmodule Tilde.Command.Builtin.Compact do
       {:error, :nothing_to_compact} ->
         [Command.Effect.AppendEvent.new(Tilde.assistant_done("Nothing to compact yet."))]
     end
+  end
+
+  defp summarize_with_model(blocks, instructions) do
+    LLM.summarize_compaction(blocks, instructions: blank_to_nil(instructions))
   end
 
   defp blank_to_nil(value) when is_binary(value) do

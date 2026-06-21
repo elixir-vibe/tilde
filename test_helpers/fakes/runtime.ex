@@ -162,6 +162,40 @@ defmodule TildeTest.LLMBackend do
   end
 end
 
+defmodule TildeTest.CompactionSummaryLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def cancel_checkpoint(token, _opts), do: {:ok, token}
+
+  @impl true
+  def resume_checkpoint(_session, _candidate, _opts), do: []
+
+  @impl true
+  def stream(_session, _opts), do: []
+
+  def summarize_compaction(blocks, opts) do
+    test_pid = Application.get_env(:tilde, :compaction_summary_test_pid)
+    if test_pid, do: send(test_pid, {:summarize_compaction, Enum.map(blocks, & &1.source), opts})
+    {:ok, "## Context Compaction\n\nLLM summary"}
+  end
+end
+
+defmodule TildeTest.EmptyCompactionSummaryLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def cancel_checkpoint(token, _opts), do: {:ok, token}
+
+  @impl true
+  def resume_checkpoint(_session, _candidate, _opts), do: []
+
+  @impl true
+  def stream(_session, _opts), do: []
+
+  def summarize_compaction(_blocks, _opts), do: {:ok, ""}
+end
+
 defmodule TildeTest.FailingLLMBackend do
   @behaviour Tilde.Runtime.LLM.Provider
 

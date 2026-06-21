@@ -22,6 +22,19 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   After tool use, always finish with a concise answer that summarizes what you found or changed.
   """
 
+  @compaction_system_prompt """
+  You are compacting a coding-agent conversation for future model context.
+  Preserve decisions, user preferences, constraints, completed work, current state, file paths, commands, validation status, blockers, and concrete next steps.
+  Do not delete important caveats. Do not invent facts.
+  Return concise markdown with these sections when relevant:
+  - Goal
+  - Constraints and preferences
+  - Completed work
+  - Current state
+  - Important files or commands
+  - Next steps
+  """
+
   @runtime_errors [
     RuntimeError,
     ArgumentError,
@@ -71,11 +84,83 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     exception in @runtime_errors -> [failed_event(exception)]
   end
 
+  def summarize_compaction(blocks, opts \\ []) when is_list(blocks) do
+    case ensure_openrouter_key() do
+      :ok ->
+        blocks
+        |> compaction_messages(opts)
+        |> generate_compaction_summary(opts)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  rescue
+    exception in @runtime_errors -> {:error, exception}
+  end
+
   @impl true
   def cancel_checkpoint(token, opts \\ []) when is_binary(token) do
     Jido.AI.Reasoning.ReAct.cancel(token, react_config(opts), :user_aborted)
   rescue
     exception in @runtime_errors -> {:error, exception}
+  end
+
+  defp generate_compaction_summary(messages, opts) do
+    with {:ok, response} <-
+           ReqLLM.generate_text(
+             Keyword.get(opts, :model, LLM.model()),
+             messages,
+             compaction_llm_opts(opts)
+           ),
+         text when is_binary(text) <- ReqLLM.Response.text(response),
+         summary when summary != "" <- String.trim(text) do
+      {:ok, summary}
+    else
+      {:error, reason} -> {:error, reason}
+      _other -> {:error, :empty_compaction_summary}
+    end
+  end
+
+  defp compaction_llm_opts(opts) do
+    [
+      max_tokens: Keyword.get(opts, :max_tokens, 1_200),
+      temperature: Keyword.get(opts, :temperature, 0.1),
+      provider_options: [
+        app_referer: Keyword.get(opts, :app_referer, "https://tilde.elixir.toys"),
+        app_title: Keyword.get(opts, :app_title, "Tilde")
+      ]
+    ]
+  end
+
+  defp compaction_messages(blocks, opts) do
+    instructions = Keyword.get(opts, :instructions)
+
+    [
+      %{role: :system, content: @compaction_system_prompt},
+      %{role: :user, content: compaction_user_prompt(blocks, instructions)}
+    ]
+  end
+
+  defp compaction_user_prompt(blocks, instructions) do
+    [
+      custom_instructions_text(instructions),
+      "Conversation to compact:",
+      "",
+      Enum.map_join(blocks, "\n\n", &compaction_block_text/1)
+    ]
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("\n")
+  end
+
+  defp custom_instructions_text(nil), do: ""
+
+  defp custom_instructions_text(instructions) when is_binary(instructions) do
+    instructions = String.trim(instructions)
+    if instructions == "", do: "", else: "User compaction instructions: #{instructions}\n"
+  end
+
+  defp compaction_block_text(%Block{role: role, source: source}) do
+    "#{role |> Atom.to_string() |> String.upcase()}: #{String.trim(source || "")}"
   end
 
   defp react_config(opts) do

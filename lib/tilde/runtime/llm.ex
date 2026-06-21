@@ -11,6 +11,14 @@ defmodule Tilde.Runtime.LLM do
   alias Tilde.Session.Compaction
 
   @default_model "openrouter:~anthropic/claude-haiku-latest"
+  @summary_errors [
+    RuntimeError,
+    ArgumentError,
+    FunctionClauseError,
+    MatchError,
+    KeyError,
+    Protocol.UndefinedError
+  ]
 
   @doc "Returns the configured LLM backend."
   @spec backend() :: module()
@@ -44,6 +52,24 @@ defmodule Tilde.Runtime.LLM do
   rescue
     exception in UndefinedFunctionError ->
       [Tilde.Runtime.LLM.Event.failed({:llm_backend_unavailable, exception.module})]
+  end
+
+  @doc "Generates a semantic compaction summary through the configured backend."
+  @spec summarize_compaction([Block.t()], keyword()) :: {:ok, String.t()} | {:error, term()}
+  def summarize_compaction(blocks, opts \\ []) when is_list(blocks) do
+    backend = Keyword.get(opts, :backend, backend())
+
+    if function_exported?(backend, :summarize_compaction, 2) do
+      backend.summarize_compaction(blocks, opts)
+    else
+      {:error, :unsupported_compaction_summary}
+    end
+  rescue
+    exception in UndefinedFunctionError ->
+      {:error, {:llm_backend_unavailable, exception.module}}
+
+    exception in @summary_errors ->
+      {:error, exception}
   end
 
   @doc "Cancels a checkpointed ReAct run through the configured backend."

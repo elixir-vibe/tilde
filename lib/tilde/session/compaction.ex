@@ -5,6 +5,15 @@ defmodule Tilde.Session.Compaction do
 
   @default_keep_recent_messages 8
   @summary_heading "## Context Compaction"
+  @summarizer_errors [
+    RuntimeError,
+    ArgumentError,
+    FunctionClauseError,
+    MatchError,
+    KeyError,
+    Protocol.UndefinedError,
+    UndefinedFunctionError
+  ]
 
   @type result :: %{
           summary: String.t(),
@@ -35,7 +44,7 @@ defmodule Tilde.Session.Compaction do
           [%Block{id: first_kept_id} | _rest] ->
             {:ok,
              %{
-               summary: summarize(to_summarize),
+               summary: summarize(to_summarize, opts),
                first_kept_block_id: first_kept_id,
                tokens_before: estimate_tokens(messages),
                compacted_blocks: length(to_summarize)
@@ -96,12 +105,35 @@ defmodule Tilde.Session.Compaction do
     )
   end
 
-  defp summarize(blocks) do
+  @doc "Returns the deterministic extractive summary used when no model summary is available."
+  @spec extractive_summary([Block.t()]) :: String.t()
+  def extractive_summary(blocks) when is_list(blocks) do
     ([@summary_heading, "", "Earlier conversation was compacted into this checkpoint:", ""] ++
        (blocks
         |> Enum.map(&summary_line/1)
         |> reject_blank_lines()))
     |> Enum.join("\n")
+  end
+
+  defp summarize(blocks, opts) do
+    case Keyword.get(opts, :summarizer) do
+      summarizer when is_function(summarizer, 1) ->
+        case summarizer.(blocks) do
+          {:ok, summary} when is_binary(summary) -> blank_fallback(summary, blocks)
+          summary when is_binary(summary) -> blank_fallback(summary, blocks)
+          _other -> extractive_summary(blocks)
+        end
+
+      _other ->
+        extractive_summary(blocks)
+    end
+  rescue
+    _exception in @summarizer_errors -> extractive_summary(blocks)
+  end
+
+  defp blank_fallback(summary, blocks) do
+    summary = String.trim(summary)
+    if summary == "", do: extractive_summary(blocks), else: summary
   end
 
   defp summary_line(%Block{role: :user, source: source}) do
