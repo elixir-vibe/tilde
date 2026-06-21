@@ -139,27 +139,13 @@ defmodule Tilde.Core.Session do
     %{session | metadata: metadata}
   end
 
-  @doc "Keeps only the newest events and rebuilds derived transcript/status state."
+  @doc "Keeps only the newest raw events without changing the rendered session state."
   @spec trim_events(t(), pos_integer() | nil | false) :: t()
   def trim_events(%__MODULE__{} = session, limit)
       when limit in [nil, false] or (is_integer(limit) and limit > 0) do
     case limit do
       value when is_integer(value) and length(session.events) > value ->
-        events = Enum.take(session.events, -value)
-
-        replay =
-          append_events(
-            %{
-              session
-              | events: [],
-                transcript: %Transcript{},
-                statuses: %{},
-                assistant: %AssistantTurn{}
-            },
-            events
-          )
-
-        %{replay | input: session.input, widgets: session.widgets, metadata: session.metadata}
+        %{session | events: Enum.take(session.events, -value)}
 
       _other ->
         session

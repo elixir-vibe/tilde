@@ -38,7 +38,8 @@ defmodule Tilde.Session.Server.EventTrimmingTest do
             receive do
               {:tilde_session_updated, "trimmed_llm_start",
                %Session{transcript: %{blocks: blocks}}} ->
-                Enum.any?(blocks, &(&1.role == :assistant and &1.source == "hello"))
+                Enum.any?(blocks, &(&1.source == "old one")) and
+                  Enum.any?(blocks, &(&1.role == :assistant and &1.source == "hello"))
             after
               10 ->
                 false
@@ -51,7 +52,7 @@ defmodule Tilde.Session.Server.EventTrimmingTest do
     end)
   end
 
-  test "applies configured event trimming" do
+  test "applies configured event trimming without hiding rendered blocks" do
     with_application_env(:llm_enabled, false, fn ->
       with_application_env(:session_event_limit, 2, fn ->
         name = :"tilde_session_server_trim_test_#{System.unique_integer([:positive])}"
@@ -67,7 +68,7 @@ defmodule Tilde.Session.Server.EventTrimmingTest do
         updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("three"))
 
         assert Enum.map(updated.events, & &1.text) == ["two", "three"]
-        assert Enum.map(updated.transcript.blocks, & &1.source) == ["two", "three"]
+        assert Enum.map(updated.transcript.blocks, & &1.source) == ["one", "two", "three"]
 
         GenServer.stop(pid)
       end)
