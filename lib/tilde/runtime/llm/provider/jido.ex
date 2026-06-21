@@ -28,11 +28,13 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   Critical rules:
   - Summarize only facts explicitly present in the transcript.
   - Do not answer the user's request, continue the task, or invent actions taken.
+  - If the transcript contains `/showcase`, treat the following showcase content as demo/sample fixture content, not as the user's actual task.
   - If the transcript is demo/sample content, say that it is demo/sample content.
   - Preserve decisions, preferences, constraints, completed work, current state, files, commands, validation status, blockers, and next steps when present.
   - Return only markdown.
   - Start with exactly: ## Context Compaction
   - Prefer these sections when relevant: Goal, Constraints and preferences, Completed work, Current state, Important files or commands, Next steps.
+  - If no real next step is explicit in the transcript, write "Not specified" rather than inventing one.
   """
 
   @runtime_errors [
