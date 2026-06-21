@@ -28,6 +28,29 @@ defmodule Tilde.CoreSemanticTest do
     assert tool.result == %{exit_code: 0}
   end
 
+  test "keeps assistant text after tools after the tool block" do
+    events = [
+      Tilde.user_message("Inspect", id: "evt_user"),
+      Tilde.assistant_delta("I'll inspect first.",
+        id: "evt_assistant_1",
+        block_id: "msg_assistant"
+      ),
+      Tilde.tool_started("list", %{path: "."}, id: "evt_tool", tool_call_id: "tool_1"),
+      Tilde.tool_done("tool_1", :success, %{content: [%{type: "text", text: "README.md"}]}),
+      Tilde.assistant_delta("Found README.md.", id: "evt_assistant_2", block_id: "msg_assistant")
+    ]
+
+    transcript = Tilde.transcript(events)
+
+    assert [user, before_tool, tool, after_tool] = transcript.blocks
+    assert user.role == :user
+    assert before_tool.role == :assistant
+    assert before_tool.source == "I'll inspect first."
+    assert tool.kind == :tool
+    assert after_tool.role == :assistant
+    assert after_tool.source == "Found README.md."
+  end
+
   test "runs represent styling without choosing a renderer" do
     run = Run.new("underlined", [:bold, :underline], %{href: "https://example.test"})
 

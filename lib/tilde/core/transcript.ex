@@ -88,7 +88,8 @@ defmodule Tilde.Core.Transcript do
   end
 
   defp append_or_update_assistant(%__MODULE__{} = transcript, %Event{} = event) do
-    id = event.block_id || last_assistant_id(transcript) || block_id(event)
+    root_id = event.block_id || last_assistant_id(transcript) || block_id(event)
+    id = assistant_target_id(transcript, root_id)
     text = event.text || ""
 
     cond do
@@ -96,19 +97,58 @@ defmodule Tilde.Core.Transcript do
         update_block(transcript, id, &Block.append_thinking(&1, text))
 
       thinking_delta?(event) ->
-        append_block(transcript, Block.message(id, :assistant, "", metadata: %{thinking: text}))
+        append_block(
+          transcript,
+          Block.message(id, :assistant, "",
+            metadata: assistant_metadata(id, root_id, %{thinking: text})
+          )
+        )
 
       has_block?(transcript, id) ->
         update_block(transcript, id, &Block.append_text(&1, text))
 
       true ->
-        append_block(transcript, Block.message(id, :assistant, text))
+        append_block(
+          transcript,
+          Block.message(id, :assistant, text, metadata: assistant_metadata(id, root_id))
+        )
     end
   end
 
   defp thinking_delta?(%Event{metadata: metadata}) do
     Map.get(metadata, :chunk_type, Map.get(metadata, "chunk_type")) in [:thinking, "thinking"]
   end
+
+  defp assistant_target_id(%__MODULE__{} = transcript, root_id) do
+    case List.last(transcript.blocks) do
+      %Block{kind: :message, role: :assistant, id: id, metadata: metadata} ->
+        if id == root_id or Map.get(metadata, :root_block_id) == root_id do
+          id
+        else
+          next_assistant_id(transcript, root_id)
+        end
+
+      _block ->
+        next_assistant_id(transcript, root_id)
+    end
+  end
+
+  defp next_assistant_id(%__MODULE__{} = transcript, root_id) do
+    if has_block?(transcript, root_id),
+      do: "#{root_id}:#{assistant_continuation_count(transcript, root_id) + 1}",
+      else: root_id
+  end
+
+  defp assistant_continuation_count(%__MODULE__{} = transcript, root_id) do
+    Enum.count(transcript.blocks, fn
+      %Block{kind: :message, role: :assistant, metadata: %{root_block_id: ^root_id}} -> true
+      _block -> false
+    end)
+  end
+
+  defp assistant_metadata(id, root_id, metadata \\ %{})
+  defp assistant_metadata(root_id, root_id, metadata), do: metadata
+  defp assistant_metadata(_id, root_id, metadata), do: Map.put(metadata, :root_block_id, root_id)
 
   defp append_block(%__MODULE__{} = transcript, %Block{} = block) do
     %{transcript | blocks: transcript.blocks ++ [block]}
