@@ -342,7 +342,7 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp update_session(state, fun) when is_function(fun, 1) do
-    %{state | session: state.session |> fun.() |> trim_session()}
+    %{state | session: fun.(state.session)}
   end
 
   defp emit_then(state, emit) do
@@ -499,10 +499,6 @@ defmodule Tilde.Session.AgentLoop do
       {%Event{} = event, index} -> {index, event}
       nil -> nil
     end
-  end
-
-  defp trim_session(%Session{} = session) do
-    Session.trim_events(session, Application.get_env(:tilde, :session_event_limit, false))
   end
 
   defp rate_limit_message(retry_after) do

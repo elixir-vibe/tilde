@@ -229,19 +229,14 @@ defmodule Tilde.Session.Server do
          {:ok, command} <- Command.parse(text) do
       effects = Command.run(command, state.session, [])
 
-      {:command,
-       %{state | session: state.session |> Command.apply_effects(effects) |> trim_session()}}
+      {:command, %{state | session: Command.apply_effects(state.session, effects)}}
     else
       _other -> :not_command
     end
   end
 
   defp put_session(%__MODULE__{} = state, %Session{} = session) do
-    %{state | session: trim_session(session)}
-  end
-
-  defp trim_session(%Session{} = session) do
-    Session.trim_events(session, Application.get_env(:tilde, :session_event_limit, false))
+    %{state | session: session}
   end
 
   defp broadcast(%__MODULE__{} = state) do
