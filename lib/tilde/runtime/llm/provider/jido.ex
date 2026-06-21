@@ -23,16 +23,16 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   """
 
   @compaction_system_prompt """
-  You are compacting a coding-agent conversation for future model context.
-  Preserve decisions, user preferences, constraints, completed work, current state, file paths, commands, validation status, blockers, and concrete next steps.
-  Do not delete important caveats. Do not invent facts.
-  Return concise markdown with these sections when relevant:
-  - Goal
-  - Constraints and preferences
-  - Completed work
-  - Current state
-  - Important files or commands
-  - Next steps
+  You write handoff summaries for a coding-agent conversation.
+
+  Critical rules:
+  - Summarize only facts explicitly present in the transcript.
+  - Do not answer the user's request, continue the task, or invent actions taken.
+  - If the transcript is demo/sample content, say that it is demo/sample content.
+  - Preserve decisions, preferences, constraints, completed work, current state, files, commands, validation status, blockers, and next steps when present.
+  - Return only markdown.
+  - Start with exactly: ## Context Compaction
+  - Prefer these sections when relevant: Goal, Constraints and preferences, Completed work, Current state, Important files or commands, Next steps.
   """
 
   @runtime_errors [
@@ -113,7 +113,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
              compaction_llm_opts(opts)
            ),
          text when is_binary(text) <- ReqLLM.Response.text(response),
-         summary when summary != "" <- String.trim(text) do
+         summary when summary != "" <- normalize_compaction_summary(text) do
       {:ok, summary}
     else
       {:error, reason} -> {:error, reason}
@@ -136,17 +136,19 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     instructions = Keyword.get(opts, :instructions)
 
     [
-      %{role: :system, content: @compaction_system_prompt},
-      %{role: :user, content: compaction_user_prompt(blocks, instructions)}
+      %{role: "system", content: @compaction_system_prompt},
+      %{role: "user", content: compaction_user_prompt(blocks, instructions)}
     ]
   end
 
   defp compaction_user_prompt(blocks, instructions) do
     [
       custom_instructions_text(instructions),
-      "Conversation to compact:",
+      "Summarize the transcript between <conversation> tags. Do not continue it.",
       "",
-      Enum.map_join(blocks, "\n\n", &compaction_block_text/1)
+      "<conversation>",
+      Enum.map_join(blocks, "\n\n", &compaction_block_text/1),
+      "</conversation>"
     ]
     |> Enum.reject(&(&1 == ""))
     |> Enum.join("\n")
@@ -160,7 +162,22 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   end
 
   defp compaction_block_text(%Block{role: role, source: source}) do
-    "#{role |> Atom.to_string() |> String.upcase()}: #{String.trim(source || "")}"
+    "<message role=#{inspect(to_string(role))}>\n#{String.trim(source || "")}\n</message>"
+  end
+
+  defp normalize_compaction_summary(text) do
+    summary = String.trim(text)
+
+    cond do
+      summary == "" ->
+        ""
+
+      String.starts_with?(summary, "## Context Compaction") ->
+        summary
+
+      true ->
+        "## Context Compaction\n\n#{summary}"
+    end
   end
 
   defp react_config(opts) do
