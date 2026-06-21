@@ -447,12 +447,23 @@ defmodule Tilde.Session.AgentLoop do
 
   defp assistant_block_source(%Session{} = session, block_id) do
     session.transcript.blocks
-    |> Enum.find(&(&1.id == block_id and &1.role == :assistant))
+    |> Enum.reverse()
+    |> Enum.find(&assistant_block_segment?(&1, block_id))
     |> case do
       %{source: source} when is_binary(source) -> source
       _block -> nil
     end
   end
+
+  defp assistant_block_segment?(%{id: id, role: :assistant}, block_id) when id == block_id,
+    do: true
+
+  defp assistant_block_segment?(%{role: :assistant, metadata: metadata}, block_id)
+       when is_map(metadata) do
+    Map.get(metadata, :root_block_id) == block_id
+  end
+
+  defp assistant_block_segment?(_block, _block_id), do: false
 
   defp terminal_text_present?(source, text) do
     String.trim(source) == String.trim(text) or String.contains?(source, text)

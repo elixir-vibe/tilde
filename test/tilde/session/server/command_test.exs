@@ -301,6 +301,37 @@ defmodule Tilde.Session.Server.CommandTest do
     end)
   end
 
+  test "session server keeps post-tool assistant text after tool without duplicating terminal result" do
+    with_application_env(:llm_enabled, true, fn ->
+      with_application_env(:llm_backend, TildeTest.PostToolTerminalLLMBackend, fn ->
+        name =
+          :"tilde_session_server_post_tool_terminal_test_#{System.unique_integer([:positive])}"
+
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "post_tool_terminal")
+                 )
+
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("inspect"))
+
+        session =
+          wait_until_session(name, fn %Session{transcript: %{blocks: blocks}} ->
+            Enum.map(blocks, & &1.kind) == [:message, :message, :tool, :message]
+          end)
+
+        assert [_, before_tool, tool, after_tool] = session.transcript.blocks
+        assert %Block{role: :assistant, source: "Before."} = before_tool
+        assert %Block{kind: :tool, name: "list"} = tool
+        assert %Block{role: :assistant, source: "After."} = after_tool
+
+        GenServer.stop(pid)
+      end)
+    end)
+  end
+
   test "session server appends terminal runtime result when it differs from streamed text" do
     with_application_env(:llm_enabled, true, fn ->
       with_application_env(:llm_backend, TildeTest.MaxIterationsLLMBackend, fn ->

@@ -316,6 +316,29 @@ defmodule TildeTest.ThinkingLLMBackend do
   end
 end
 
+defmodule TildeTest.PostToolTerminalLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def cancel_checkpoint(token, _opts), do: {:ok, token}
+
+  @impl true
+  def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
+
+  @impl true
+  def stream(_session, _opts) do
+    [
+      TildeTest.RuntimeEvents.delta("Before."),
+      TildeTest.RuntimeEvents.tool_started("tool_list", "list", %{path: "."}),
+      TildeTest.RuntimeEvents.tool_completed("tool_list", "list", %{
+        content: [%{type: "text", text: "README.md"}]
+      }),
+      TildeTest.RuntimeEvents.delta("After."),
+      TildeTest.RuntimeEvents.completed("After.")
+    ]
+  end
+end
+
 defmodule TildeTest.MaxIterationsLLMBackend do
   @behaviour Tilde.Runtime.LLM.Provider
 
