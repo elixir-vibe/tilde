@@ -22,6 +22,7 @@ defmodule Tilde.Transport.Live.Console do
   attr(:running?, :boolean, default: false)
   attr(:class, :any, default: nil)
   attr(:footer_right, :string, default: "")
+  attr(:footer_commands, :list, default: [])
   attr(:devtools?, :boolean, default: false)
   attr(:dev_grid?, :boolean, default: false)
   attr(:dev_raw, :string, default: "")
@@ -58,6 +59,7 @@ defmodule Tilde.Transport.Live.Console do
         <.footer
           session={@session}
           right={@footer_right}
+          commands={@footer_commands}
           devtools?={@devtools?}
           dev_grid?={@dev_grid?}
           dev_raw={@dev_raw}

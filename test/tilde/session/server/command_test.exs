@@ -392,7 +392,7 @@ defmodule Tilde.Session.Server.CommandTest do
     end)
   end
 
-  test "session server appends terminal runtime result when it differs from streamed text" do
+  test "session server does not render max-iteration runtime fallback as assistant prose" do
     with_application_env(:llm_enabled, true, fn ->
       with_application_env(:llm_backend, TildeTest.MaxIterationsLLMBackend, fn ->
         name = :"tilde_session_server_terminal_result_test_#{System.unique_integer([:positive])}"
@@ -409,18 +409,15 @@ defmodule Tilde.Session.Server.CommandTest do
 
         session =
           wait_until_session(name, fn %Session{transcript: %{blocks: blocks}} ->
-            Enum.any?(blocks, fn
-              %Block{role: :assistant, source: source} ->
-                source =~ "Maximum iterations reached without a final answer."
-
-              _block ->
-                false
-            end)
+            Enum.any?(
+              blocks,
+              &match?(%Block{role: :assistant, source: "Let me inspect that:"}, &1)
+            )
           end)
 
         assert [_, %Block{role: :assistant, source: source}] = session.transcript.blocks
-        assert source =~ "Let me inspect that:"
-        assert source =~ "Maximum iterations reached without a final answer."
+        assert source == "Let me inspect that:"
+        refute source =~ "Maximum iterations reached without a final answer."
 
         GenServer.stop(pid)
       end)

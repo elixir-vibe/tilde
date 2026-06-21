@@ -37,6 +37,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   - If no real next step is explicit in the transcript, write "Not specified" rather than inventing one.
   """
 
+  @default_max_iterations 1_000_000
+
   @runtime_errors [
     RuntimeError,
     ArgumentError,
@@ -187,7 +189,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
       model: Keyword.get(opts, :model, LLM.model()),
       system_prompt: Keyword.get(opts, :system_prompt, @system_prompt),
       tools: Keyword.get(opts, :tools, Tilde.Tools.coding_tools()),
-      max_iterations: Keyword.get(opts, :max_iterations, 10),
+      max_iterations: max_iterations(opts),
       max_tokens: Keyword.get(opts, :max_tokens, 800),
       streaming: true,
       timeout_ms: Keyword.get(opts, :timeout, 30_000),
@@ -199,6 +201,12 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     [
       context: %{session_id: session.id, messages: history_messages(session)}
     ]
+  end
+
+  defp max_iterations(opts) do
+    Keyword.get_lazy(opts, :max_iterations, fn ->
+      Application.get_env(:tilde, :llm_max_iterations, @default_max_iterations)
+    end)
   end
 
   defp llm_opts(opts) do

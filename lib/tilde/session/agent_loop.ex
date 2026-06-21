@@ -351,11 +351,20 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp maybe_append_done(%Session{} = session, block_id, text, metadata) when is_binary(text) do
-    if String.trim(text) == "" do
-      session
-    else
-      append_terminal_text(session, block_id, text, metadata)
+    cond do
+      String.trim(text) == "" ->
+        session
+
+      max_iterations_terminal?(text, metadata) ->
+        session
+
+      true ->
+        append_terminal_text(session, block_id, text, metadata)
     end
+  end
+
+  defp max_iterations_terminal?(_text, metadata) when is_map(metadata) do
+    Map.get(metadata, :termination_reason) == :max_iterations
   end
 
   defp append_terminal_text(%Session{} = session, block_id, text, metadata) do

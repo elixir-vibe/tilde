@@ -47,6 +47,27 @@ defmodule Tilde.Transport.Live.ConsoleTest do
     assert html =~ "hello"
   end
 
+  test "renders footer commands as shared complete-input actions" do
+    commands = [
+      Tilde.Command.Builtin.Help.spec(),
+      Tilde.Command.Builtin.Showcase.spec(),
+      Tilde.Command.Builtin.New.spec()
+    ]
+
+    html =
+      render_component(&Tilde.Transport.Live.Console.console/1,
+        session: Tilde.session(id: "session_1"),
+        footer_commands: commands
+      )
+
+    assert html =~ ~s|aria-label="commands"|
+    assert html =~ ~s|class="action normal"|
+    assert html =~ ~s|phx-click="tilde:complete_input"|
+    assert html =~ ~s|phx-value-insert="/help"|
+    assert html =~ ~s|phx-value-insert="/showcase"|
+    assert html =~ ~s|phx-value-insert="/new "|
+  end
+
   test "renders transcript, widgets, input, and footer" do
     session =
       Tilde.session(id: "session_1")

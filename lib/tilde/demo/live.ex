@@ -89,7 +89,7 @@ defmodule Tilde.Demo.Live do
           session={@session}
           input={@session.input.value}
           running?={@running?}
-          footer_right="/help · /showcase · /new"
+          footer_commands={footer_commands()}
           class="embedded"
           devtools?={@devtools?}
           dev_grid?={@dev_grid?}
@@ -204,6 +204,13 @@ defmodule Tilde.Demo.Live do
   end
 
   defp toggle_dev(socket, _key), do: socket
+
+  defp footer_commands do
+    labels = ["/help", "/showcase", "/new"]
+    specs_by_label = Map.new(Tilde.Command.Registry.specs(), &{&1.label, &1})
+
+    Enum.map(labels, &Map.fetch!(specs_by_label, &1))
+  end
 
   defp apply_outcomes(socket, outcomes) do
     LiveOutcome.apply(socket, outcomes, session_path: &session_path/1)

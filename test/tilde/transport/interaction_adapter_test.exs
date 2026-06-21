@@ -27,6 +27,9 @@ defmodule Tilde.Transport.InteractionAdapterTest do
                "block-id" => "choice",
                "option-id" => "yes"
              })
+
+    assert %Interaction{type: :complete_input, payload: %{insert: "/new "}} =
+             LiveInteraction.session("tilde:complete_input", %{"insert" => "/new "})
   end
 
   test "SSH index keys translate to shared interactions" do

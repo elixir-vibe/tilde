@@ -5,9 +5,12 @@ defmodule Tilde.Transport.Live.Footer do
 
   use Phoenix.Component
 
+  import Tilde.Transport.Live.Controls
+
   attr(:session, :any, default: nil)
   attr(:left, :string, default: "")
   attr(:right, :string, default: "")
+  attr(:commands, :list, default: [])
   attr(:devtools?, :boolean, default: false)
   attr(:dev_grid?, :boolean, default: false)
   attr(:dev_raw, :string, default: "")
@@ -29,6 +32,14 @@ defmodule Tilde.Transport.Live.Footer do
       </span>
       <span class="right">
         <span :if={@right != ""}>{@right}</span>
+        <nav :if={@commands != []} class="actions" aria-label="commands">
+          <.action
+            :for={command <- @commands}
+            event="tilde:complete_input"
+            label={command.label}
+            values={%{"phx-value-insert" => command.insert}}
+          />
+        </nav>
         <.devtools enabled?={@devtools?} grid?={@dev_grid?} raw={@dev_raw} />
       </span>
     </footer>
