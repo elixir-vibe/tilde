@@ -28,6 +28,47 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     """
   end
 
+  def cell(%{cell: %Cell{kind: :compaction}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:block, assigns.cell.attrs.block)
+      |> assign(:tokens_before, compaction_tokens(assigns.cell.attrs.block))
+      |> assign(:expanded?, assigns.cell.attrs.block.display.expanded?)
+
+    ~H"""
+    <article
+      id={@cell.id}
+      class="block compaction"
+      data-block-id={@cell.id}
+      data-expandable="true"
+      data-expand-key="ctrl+o"
+      tabindex="0"
+    >
+      <header class="header">
+        <span class="label">[compaction]</span>
+      </header>
+
+      <div :if={!@expanded?} class="body muted">
+        Compacted from {@tokens_before} tokens (<span class="key">ctrl+o</span> to expand)
+      </div>
+
+      <div :if={@expanded?} class="body">
+        <div class="muted">Compacted from {@tokens_before} tokens</div>
+        <.markdown source={@cell.source} />
+      </div>
+
+      <footer class="footer actions">
+        <.action
+          event="tilde:toggle_expand"
+          label={if @expanded?, do: "collapse", else: "expand"}
+          key={if @expanded?, do: nil, else: "ctrl+o"}
+          values={%{"phx-value-id" => @cell.id}}
+        />
+      </footer>
+    </article>
+    """
+  end
+
   def cell(%{cell: %Cell{kind: :tool}} = assigns) do
     assigns =
       assigns
@@ -176,6 +217,15 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     ~H"""
     <span class={["text", @part.style]}>{@part.text}</span>
     """
+  end
+
+  defp compaction_tokens(%{metadata: metadata}) do
+    metadata
+    |> Map.get(:tokens_before, 0)
+    |> case do
+      value when is_integer(value) -> Integer.to_string(value)
+      value -> to_string(value)
+    end
   end
 
   defp tool_body_lines(%Cell{lines: [_header | body]}, view) do

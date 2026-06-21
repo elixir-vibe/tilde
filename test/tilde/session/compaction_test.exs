@@ -33,6 +33,8 @@ defmodule Tilde.Session.CompactionTest do
     assert hd(blocks).source =~ "## Context Compaction"
     assert Enum.map(tl(blocks), & &1.source) == ["five", "six"]
 
+    assert List.last(compacted.transcript.blocks).kind == :compaction
+
     assert Enum.map(compacted.transcript.blocks, & &1.source) == [
              "one",
              "two",

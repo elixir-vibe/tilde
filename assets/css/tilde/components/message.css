@@ -19,6 +19,21 @@
     }
   }
 
+  .compaction {
+    padding: var(--space-sm) var(--space-md);
+    background: var(--surface-tool);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+
+    .header {
+      margin-bottom: var(--space-xs);
+    }
+
+    .body {
+      white-space: normal;
+    }
+  }
+
   .plain {
     white-space: pre-wrap;
   }

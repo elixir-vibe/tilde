@@ -352,7 +352,7 @@ defmodule Tilde.Session.Server.CommandTest do
 
         assert [_, before_tool, tool, after_tool] = session.transcript.blocks
         assert %Block{role: :assistant, source: "Before."} = before_tool
-        assert %Block{kind: :tool, name: "list"} = tool
+        assert %Block{kind: :tool, name: "bash"} = tool
         assert %Block{role: :assistant, source: "After."} = after_tool
 
         GenServer.stop(pid)

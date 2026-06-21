@@ -35,7 +35,7 @@ defmodule Tilde.CoreSemanticTest do
         id: "evt_assistant_1",
         block_id: "msg_assistant"
       ),
-      Tilde.tool_started("list", %{path: "."}, id: "evt_tool", tool_call_id: "tool_1"),
+      Tilde.tool_started("bash", %{command: "ls"}, id: "evt_tool", tool_call_id: "tool_1"),
       Tilde.tool_done("tool_1", :success, %{content: [%{type: "text", text: "README.md"}]}),
       Tilde.assistant_delta("Found README.md.", id: "evt_assistant_2", block_id: "msg_assistant")
     ]

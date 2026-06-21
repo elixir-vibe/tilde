@@ -8,35 +8,6 @@ defmodule Tilde.Tool.File do
     {:ok, Path.expand(path, File.cwd!())}
   end
 
-  @spec list_directory(String.t(), keyword()) :: {:ok, map()} | {:error, String.t()}
-  def list_directory(path, opts \\ []) when is_binary(path) do
-    with {:ok, absolute} <- resolve(path),
-         {:ok, stat} <- File.stat(absolute),
-         :ok <- ensure_directory(stat),
-         {:ok, names} <- File.ls(absolute) do
-      include_hidden? = Keyword.get(opts, :all, false)
-      limit = Keyword.get(opts, :limit)
-
-      entries =
-        names
-        |> maybe_drop_hidden(include_hidden?)
-        |> Enum.sort()
-        |> Enum.map(&directory_entry(path, absolute, &1))
-
-      shown = if is_integer(limit), do: Enum.take(entries, limit), else: entries
-
-      {:ok,
-       %{
-         path: path,
-         entries: shown,
-         total_entries: length(entries),
-         selected_entries: length(shown)
-       }}
-    end
-  rescue
-    error in [File.Error, MatchError, ArgumentError] -> {:error, Exception.message(error)}
-  end
-
   @spec read_text(String.t(), keyword()) :: {:ok, map()} | {:error, String.t()}
   def read_text(path, opts \\ []) when is_binary(path) do
     with {:ok, absolute} <- resolve(path),
@@ -104,27 +75,8 @@ defmodule Tilde.Tool.File do
     error in [File.Error, MatchError, ArgumentError] -> {:error, Exception.message(error)}
   end
 
-  defp ensure_directory(%File.Stat{type: :directory}), do: :ok
-  defp ensure_directory(%File.Stat{type: type}), do: {:error, "not a directory: #{type}"}
-
   defp ensure_regular(%File.Stat{type: :regular}), do: :ok
   defp ensure_regular(%File.Stat{type: type}), do: {:error, "not a regular file: #{type}"}
-
-  defp maybe_drop_hidden(names, true), do: names
-  defp maybe_drop_hidden(names, _all?), do: Enum.reject(names, &String.starts_with?(&1, "."))
-
-  defp directory_entry(path, absolute, name) do
-    full_path = Path.join(absolute, name)
-    display_path = Path.join(path, name)
-
-    case File.stat(full_path) do
-      {:ok, %File.Stat{type: type, size: size}} ->
-        %{name: name, path: display_path, type: type, size: size}
-
-      {:error, reason} ->
-        %{name: name, path: display_path, type: :unknown, error: inspect(reason)}
-    end
-  end
 
   defp select_lines(lines, start_index, nil), do: Enum.drop(lines, start_index)
 

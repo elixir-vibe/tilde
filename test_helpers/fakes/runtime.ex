@@ -329,8 +329,8 @@ defmodule TildeTest.PostToolTerminalLLMBackend do
   def stream(_session, _opts) do
     [
       TildeTest.RuntimeEvents.delta("Before."),
-      TildeTest.RuntimeEvents.tool_started("tool_list", "list", %{path: "."}),
-      TildeTest.RuntimeEvents.tool_completed("tool_list", "list", %{
+      TildeTest.RuntimeEvents.tool_started("tool_bash", "bash", %{command: "ls"}),
+      TildeTest.RuntimeEvents.tool_completed("tool_bash", "bash", %{
         content: [%{type: "text", text: "README.md"}]
       }),
       TildeTest.RuntimeEvents.delta("After."),

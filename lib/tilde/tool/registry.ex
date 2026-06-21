@@ -23,7 +23,6 @@ defmodule Tilde.Tool.Registry do
       "bash" => Tilde.Tool.Viewer.Bash,
       "edit" => Tilde.Tool.Viewer.Edit,
       "fetch" => Tilde.Tool.Viewer.Fetch,
-      "list" => Tilde.Tool.Viewer.List,
       "read" => Tilde.Tool.Viewer.Read,
       "websearch" => Tilde.Tool.Viewer.WebSearch,
       "utc_now" => Tilde.Tool.Viewer.UtcNow,

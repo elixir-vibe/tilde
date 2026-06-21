@@ -78,7 +78,7 @@ defmodule Tilde.Core.Transcript do
   def apply_event(%Event{type: :context_compacted} = event, %__MODULE__{} = transcript) do
     append_block(
       transcript,
-      Block.message(block_id(event), :system, event.text || "",
+      Block.compaction(block_id(event), event.text || "",
         metadata: Map.put(event.metadata, :type, :context_compaction)
       )
     )

@@ -32,6 +32,19 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
     })
   end
 
+  def to_view(%Block{kind: :compaction} = block, _opts) do
+    Cell.new(
+      id: block.id,
+      kind: :compaction,
+      format: block.format,
+      source: block.source,
+      actions: block.actions,
+      attrs: %{block: block},
+      padding_x: 1,
+      padding_y: 1
+    )
+  end
+
   def to_view(%Block{kind: :choice, choice: %Choice{} = choice} = block, _opts) do
     Cell.new(
       id: block.id,

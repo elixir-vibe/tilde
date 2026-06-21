@@ -8,7 +8,7 @@ defmodule Tilde.Core.Block do
 
   alias Tilde.Core.{Action, Choice, Display, Run, Stream}
 
-  @type kind :: :message | :tool | :status | :error | :choice
+  @type kind :: :message | :tool | :status | :error | :choice | :compaction
   @type role :: :user | :assistant | :system | :tool
   @type status :: :queued | :running | :streaming | :done | :success | :error | :cancelled
 
@@ -71,6 +71,21 @@ defmodule Tilde.Core.Block do
   def append_thinking(%__MODULE__{kind: :message} = block, text) when is_binary(text) do
     metadata = Map.update(block.metadata, :thinking, text, &(&1 <> text))
     %{block | metadata: metadata}
+  end
+
+  @doc "Creates a compaction summary block."
+  @spec compaction(String.t(), String.t(), keyword()) :: t()
+  def compaction(id, source, opts \\ []) when is_binary(source) do
+    %__MODULE__{
+      id: id,
+      kind: :compaction,
+      role: :system,
+      format: :markdown,
+      source: source,
+      display: Keyword.get(opts, :display, %Display{}),
+      actions: Keyword.get(opts, :actions, [Action.new(:toggle_expand, "Expand", key: "ctrl+o")]),
+      metadata: Keyword.get(opts, :metadata, %{})
+    }
   end
 
   @doc "Creates a choice block."
