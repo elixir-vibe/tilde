@@ -32,14 +32,14 @@ defmodule Tilde.Transport.Live.Footer do
       </span>
       <span class="right">
         <span :if={@right != ""}>{@right}</span>
-        <nav :if={@commands != []} class="actions" aria-label="commands">
+        <span :if={@commands != []} class="actions" role="navigation" aria-label="commands">
           <.action
             :for={command <- @commands}
             event="tilde:complete_input"
             label={command.label}
             values={%{"phx-value-insert" => command.insert}}
           />
-        </nav>
+        </span>
         <.devtools enabled?={@devtools?} grid?={@dev_grid?} raw={@dev_raw} />
       </span>
     </footer>

@@ -60,6 +60,7 @@ defmodule Tilde.Transport.Live.ConsoleTest do
         footer_commands: commands
       )
 
+    assert html =~ ~s|role="navigation"|
     assert html =~ ~s|aria-label="commands"|
     assert html =~ ~s|class="action normal"|
     assert html =~ ~s|phx-click="tilde:complete_input"|

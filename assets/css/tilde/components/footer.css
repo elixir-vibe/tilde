@@ -6,5 +6,12 @@
     align-items: baseline;
     color: var(--color-muted);
     font-size: 0.9rem;
+
+    .right {
+      display: inline-flex;
+      gap: var(--space-md);
+      align-items: baseline;
+      white-space: nowrap;
+    }
   }
 }
