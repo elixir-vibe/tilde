@@ -193,7 +193,13 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
       max_tokens: Keyword.get(opts, :max_tokens, 800),
       streaming: true,
       timeout_ms: Keyword.get(opts, :timeout, 30_000),
-      llm_opts: llm_opts(opts)
+      llm_opts: llm_opts(opts),
+      request_transformer:
+        Keyword.get(
+          opts,
+          :request_transformer,
+          Tilde.Runtime.LLM.Provider.Jido.HistoryRequestTransformer
+        )
     ]
   end
 
