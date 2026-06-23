@@ -1,8 +1,22 @@
 defimpl Tilde.Viewable, for: Tilde.Core.Widget do
-  alias Tilde.Core.{Suggest, Widget}
+  alias Tilde.Core.{Dialog, Suggest, Widget}
   alias Tilde.View.Cell
 
   def to_view(widget), do: to_view(widget, [])
+
+  def to_view(%Widget{kind: :dialog, content: %Dialog{} = dialog} = widget, _opts) do
+    Cell.new(
+      id: widget.id,
+      kind: :dialog,
+      state: :normal,
+      source: dialog.body,
+      lines: dialog_lines(dialog),
+      actions: widget.actions,
+      attrs: %{widget: widget, dialog: dialog},
+      padding_x: 1,
+      padding_y: 0
+    )
+  end
 
   def to_view(%Widget{content: %Suggest{} = suggest} = widget, _opts) do
     lines =
@@ -42,6 +56,10 @@ defimpl Tilde.Viewable, for: Tilde.Core.Widget do
       lines: [inspect(widget.content)],
       attrs: %{widget: widget}
     )
+  end
+
+  defp dialog_lines(%Dialog{} = dialog) do
+    [dialog.title, ""] ++ String.split(dialog.body, "\n", trim: true)
   end
 
   defp selected_detail_lines(%Suggest{} = suggest) do

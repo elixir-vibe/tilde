@@ -21,6 +21,10 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
     |> Enum.join("\n")
   end
 
+  def render(%Cell{kind: :dialog} = cell, width, opts) do
+    render_dialog(cell, width, opts)
+  end
+
   def render(%Cell{kind: :choice} = cell, width, opts) do
     cell
     |> render_cell_lines(width, opts)
@@ -77,6 +81,24 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
     end)
   end
 
+  defp render_dialog(%Cell{} = cell, width, opts) do
+    inner_width = max(min(width - 4, 72), 12)
+    title = dialog_title(cell)
+    body_lines = dialog_body_lines(cell, inner_width)
+    action_line = dialog_action_line(cell.actions)
+
+    content_lines =
+      body_lines
+      |> append_dialog_actions(action_line)
+      |> Enum.map(&pad(&1, inner_width))
+
+    top = dialog_top(title, inner_width)
+    bottom = "╰" <> String.duplicate("─", inner_width + 2) <> "╯"
+
+    ([top] ++ Enum.map(content_lines, &("│ " <> &1 <> " │")) ++ [bottom])
+    |> Enum.map_join("\n", &Theme.cell(&1, opts))
+  end
+
   defp append_action_footer(lines, %Cell{actions: []}, _width, _opts), do: lines
 
   defp append_action_footer(lines, %Cell{} = cell, width, opts) do
@@ -98,6 +120,72 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
 
       lines ++ [state(padded, cell.state, opts)]
     end
+  end
+
+  defp dialog_title(%Cell{attrs: %{dialog: %{title: title}}}) when is_binary(title), do: title
+  defp dialog_title(_cell), do: "dialog"
+
+  defp dialog_body_lines(%Cell{attrs: %{dialog: %{body: body}}}, width) when is_binary(body) do
+    body
+    |> String.split("\n", trim: true)
+    |> Enum.flat_map(&wrap_text(&1, width))
+    |> case do
+      [] -> [""]
+      lines -> lines
+    end
+  end
+
+  defp dialog_body_lines(%Cell{source: source}, width) when is_binary(source) do
+    source
+    |> String.split("\n", trim: true)
+    |> Enum.flat_map(&wrap_text(&1, width))
+  end
+
+  defp dialog_action_line([]), do: ""
+
+  defp dialog_action_line(actions) do
+    actions
+    |> Enum.map(&action_hint/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.join("    ")
+  end
+
+  defp append_dialog_actions(lines, ""), do: lines
+  defp append_dialog_actions(lines, action_line), do: lines ++ ["", action_line]
+
+  defp dialog_top("", inner_width), do: "╭" <> String.duplicate("─", inner_width + 2) <> "╮"
+
+  defp dialog_top(title, inner_width) do
+    label = " " <> title <> " "
+    remaining = max(inner_width + 2 - String.length(label), 0)
+    "╭" <> label <> String.duplicate("─", remaining) <> "╮"
+  end
+
+  defp wrap_text("", _width), do: [""]
+
+  defp wrap_text(text, width) do
+    {lines, current_words, _current_width} =
+      text
+      |> String.split(" ", trim: true)
+      |> Enum.reduce({[], [], 0}, fn word, {lines, current_words, current_width} ->
+        word_width = String.length(word)
+
+        cond do
+          current_words == [] ->
+            {lines, [word], word_width}
+
+          current_width + 1 + word_width <= width ->
+            {lines, [word | current_words], current_width + 1 + word_width}
+
+          true ->
+            {[Enum.reverse(current_words) | lines], [word], word_width}
+        end
+      end)
+
+    [Enum.reverse(current_words) | lines]
+    |> Enum.reject(&(&1 == []))
+    |> Enum.reverse()
+    |> Enum.map(&Enum.join(&1, " "))
   end
 
   defp compaction_tokens(%{metadata: metadata}) do

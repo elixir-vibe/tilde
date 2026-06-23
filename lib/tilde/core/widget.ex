@@ -8,7 +8,7 @@ defmodule Tilde.Core.Widget do
   them.
   """
 
-  alias Tilde.Core.Action
+  alias Tilde.Core.{Action, Dialog}
 
   @type placement :: :above_input | :below_input | :footer | :overlay | :sidecar
 
@@ -95,5 +95,16 @@ defmodule Tilde.Core.Widget do
     }
 
     new(id, Keyword.get(opts, :placement, :footer), content, kind: :footer)
+  end
+
+  @doc "Creates a semantic dialog widget."
+  @spec dialog(String.t(), String.t(), String.t(), keyword()) :: t()
+  def dialog(id, title, body, opts \\ [])
+      when is_binary(id) and is_binary(title) and is_binary(body) do
+    new(id, Keyword.get(opts, :placement, :overlay), Dialog.new(title, body, opts),
+      kind: :dialog,
+      actions: Keyword.get(opts, :actions, []),
+      metadata: Keyword.get(opts, :metadata, %{})
+    )
   end
 end

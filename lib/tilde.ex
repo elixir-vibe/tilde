@@ -8,7 +8,7 @@ defmodule Tilde do
   and future TUI adapters are derived from semantic data.
   """
 
-  alias Tilde.Core.{Block, Choice, Event, Session, Transcript, Widget}
+  alias Tilde.Core.{Action, Block, Choice, Event, Session, Transcript, Widget}
 
   @doc "Creates a user message event."
   @spec user_message(String.t(), keyword()) :: Event.t()
@@ -120,6 +120,14 @@ defmodule Tilde do
   @doc "Creates a widget for a non-transcript UI region."
   @spec widget(String.t(), Widget.placement(), term(), keyword()) :: Widget.t()
   def widget(id, placement, content, opts \\ []), do: Widget.new(id, placement, content, opts)
+
+  @doc "Creates semantic dialog widget state."
+  @spec dialog(String.t(), String.t(), String.t(), keyword()) :: Widget.t()
+  def dialog(id, title, body, opts \\ []), do: Widget.dialog(id, title, body, opts)
+
+  @doc "Creates a semantic action."
+  @spec action(atom() | String.t(), String.t(), keyword()) :: Action.t()
+  def action(id, label, opts \\ []), do: Action.new(id, label, opts)
 
   @doc "Creates choice state."
   @spec choice(String.t(), [Choice.option_input()], keyword()) :: Choice.t()

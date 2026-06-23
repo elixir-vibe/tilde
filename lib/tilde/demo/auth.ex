@@ -81,64 +81,36 @@ defmodule Tilde.Demo.Auth do
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>Tilde demo login</title>
-        <style>
-          :root { color-scheme: dark; }
-          body {
-            margin: 0;
-            min-height: 100dvh;
-            display: grid;
-            place-items: center;
-            background: #080a0f;
-            color: #e8edf2;
-            font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          }
-          main {
-            width: min(38rem, calc(100vw - 2rem));
-            border: 1px solid #283241;
-            background: #10141d;
-            box-shadow: 0 24px 80px rgb(0 0 0 / 0.35);
-            padding: 1.25rem;
-          }
-          h1 { margin: 0 0 0.75rem; font-size: 1rem; color: #ffffff; }
-          p { margin: 0 0 1rem; color: #9ba7b4; }
-          label { display: block; margin-bottom: 0.5rem; color: #cbd5df; }
-          input {
-            box-sizing: border-box;
-            width: 100%;
-            border: 1px solid #344153;
-            background: #080a0f;
-            color: #ffffff;
-            padding: 0.7rem 0.8rem;
-            font: inherit;
-          }
-          button {
-            margin-top: 1rem;
-            border: 1px solid #61708a;
-            background: #e8edf2;
-            color: #080a0f;
-            padding: 0.65rem 0.9rem;
-            font: inherit;
-            cursor: pointer;
-          }
-          .error { color: #ff9b9b; }
-        </style>
+        <link rel="stylesheet" href="#{app_css()}" />
       </head>
       <body>
-        <main>
-          <h1># tilde</h1>
-          <p>Enter the demo password to open the web console.</p>
-          #{if error?, do: ~s(<p class="error">Incorrect password.</p>), else: ""}
-          <form method="post" action="/login">
-            <input type="hidden" name="_csrf_token" value="#{csrf_token()}" />
-            <input type="hidden" name="return_to" value="#{escape(return_to)}" />
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" autofocus autocomplete="current-password" />
-            <button type="submit">Enter</button>
-          </form>
+        <main class="tilde auth">
+          <section id="login-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="login-dialog-title">
+            <div id="login-dialog-title" class="title"># tilde</div>
+            <div class="body">
+              <p>Enter the demo password to open the web console.</p>
+              #{if error?, do: ~s(<p class="error">Incorrect password.</p>), else: ""}
+              <form method="post" action="/login">
+                <input type="hidden" name="_csrf_token" value="#{csrf_token()}" />
+                <input type="hidden" name="return_to" value="#{escape(return_to)}" />
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autofocus autocomplete="current-password" />
+                <div class="actions">
+                  <button type="submit" class="action primary">Enter</button>
+                </div>
+              </form>
+            </div>
+          </section>
         </main>
       </body>
     </html>
     """
+  end
+
+  defp app_css do
+    Volt.static_path(Tilde.Demo.Endpoint, "/assets/css/app.css")
+  rescue
+    RuntimeError -> "/assets/css/app.css"
   end
 
   defp csrf_token, do: Plug.CSRFProtection.get_csrf_token()

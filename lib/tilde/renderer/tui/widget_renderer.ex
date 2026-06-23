@@ -37,6 +37,10 @@ defmodule Tilde.Renderer.TUI.WidgetRenderer do
   def render(%Widget{kind: :muted, content: text}, _width, opts), do: Theme.muted(text, opts)
   def render(%Widget{kind: :text, content: text}, _width, _opts), do: text
 
+  def render(%Widget{kind: :dialog} = widget, width, opts) do
+    widget |> Tilde.Viewable.to_view() |> ViewRenderer.render(width, opts)
+  end
+
   def render(%Widget{kind: :suggest} = widget, width, opts) do
     widget |> Tilde.Viewable.to_view() |> ViewRenderer.render(width, opts)
   end

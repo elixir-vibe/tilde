@@ -47,20 +47,23 @@ defmodule Tilde.TemplateTest do
         """
         <.screen id="home" class="index">
           <.widget_text id="title" text="tilde" kind="heading" />
+          <.dialog id="confirm" title="Confirm" body="Continue?" actions={@actions} />
           <.widget_input id="input" input={@input} />
           <.shortcut_bar id="shortcuts" shortcuts={@shortcuts} />
         </.screen>
         """,
         assigns: %{
           input: %Tilde.Core.Input{value: "/new ", cursor: 5},
-          shortcuts: [%{key: "n", label: "new"}]
+          shortcuts: [%{key: "n", label: "new"}],
+          actions: [Tilde.action(:ok, "OK", key: "enter")]
         }
       )
 
     assert_widget(screen, id: "home", kind: :screen, metadata: %{class: "index"})
     assert_widget_text(screen, "tilde")
     assert_shortcut(screen, key: "n", label: "new")
-    assert Enum.map(screen.children, & &1.kind) == [:heading, :input, :shortcut_bar]
+    assert_widget(screen, id: "confirm", kind: :dialog)
+    assert Enum.map(screen.children, & &1.kind) == [:heading, :dialog, :input, :shortcut_bar]
   end
 
   test "semantic HEEx templates support assigns, message cells, and markdown" do

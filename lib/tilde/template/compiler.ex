@@ -6,7 +6,7 @@ defmodule Tilde.Template.Compiler do
   alias Tilde.View.{Cell, Helpers, Line, Text}
 
   @format_atoms ~w(plain markdown)a
-  @kind_atoms ~w(template block message widget screen section text heading muted suggest input shortcut_bar footer)a
+  @kind_atoms ~w(template block message widget screen section text heading muted suggest input shortcut_bar footer dialog)a
   @role_atoms ~w(normal metadata primary muted error title hint blank user assistant system)a
   @state_atoms ~w(normal pending success error cancelled)a
   @style_atoms ~w(plain title accent muted primary success error warning shortcut)a
@@ -116,50 +116,66 @@ defmodule Tilde.Template.Compiler do
 
   defp nodes_to_widgets(nodes, env), do: Enum.flat_map(nodes, &node_to_widgets(&1, env))
 
-  defp widget_component(name, attrs, children) do
-    case component_name(name) do
-      "screen" ->
-        [
-          Widget.screen(Map.get(attrs, "id", "screen"), children,
-            metadata: %{class: Map.get(attrs, "class")}
-          )
-        ]
+  defp widget_component(name, attrs, children),
+    do: widget_component_named(component_name(name), attrs, children)
 
-      "section" ->
-        [Widget.section(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "title"), children)]
-
-      "widget_text" ->
-        [
-          Widget.text(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "text"),
-            kind: atom_attr(attrs, "kind", :text)
-          )
-        ]
-
-      "widget_suggest" ->
-        [
-          Widget.new(Map.fetch!(attrs, "id"), :above_input, Map.fetch!(attrs, "suggest"),
-            kind: :suggest
-          )
-        ]
-
-      "widget_input" ->
-        [Widget.input(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "input"))]
-
-      "shortcut_bar" ->
-        [Widget.shortcut_bar(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "shortcuts"))]
-
-      "widget_footer" ->
-        [
-          Widget.footer(Map.fetch!(attrs, "id"),
-            right: Map.get(attrs, "right", ""),
-            commands: Map.get(attrs, "commands", [])
-          )
-        ]
-
-      _ ->
-        []
-    end
+  defp widget_component_named("screen", attrs, children) do
+    [
+      Widget.screen(Map.get(attrs, "id", "screen"), children,
+        metadata: %{class: Map.get(attrs, "class")}
+      )
+    ]
   end
+
+  defp widget_component_named("section", attrs, children) do
+    [Widget.section(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "title"), children)]
+  end
+
+  defp widget_component_named("widget_text", attrs, _children) do
+    [
+      Widget.text(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "text"),
+        kind: atom_attr(attrs, "kind", :text)
+      )
+    ]
+  end
+
+  defp widget_component_named("widget_suggest", attrs, _children) do
+    [
+      Widget.new(Map.fetch!(attrs, "id"), :above_input, Map.fetch!(attrs, "suggest"),
+        kind: :suggest
+      )
+    ]
+  end
+
+  defp widget_component_named("widget_input", attrs, _children) do
+    [Widget.input(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "input"))]
+  end
+
+  defp widget_component_named("shortcut_bar", attrs, _children) do
+    [Widget.shortcut_bar(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "shortcuts"))]
+  end
+
+  defp widget_component_named("widget_footer", attrs, _children) do
+    [
+      Widget.footer(Map.fetch!(attrs, "id"),
+        right: Map.get(attrs, "right", ""),
+        commands: Map.get(attrs, "commands", [])
+      )
+    ]
+  end
+
+  defp widget_component_named("dialog", attrs, _children) do
+    [
+      Widget.dialog(
+        Map.fetch!(attrs, "id"),
+        Map.fetch!(attrs, "title"),
+        Map.get(attrs, "body", ""),
+        actions: Map.get(attrs, "actions", [])
+      )
+    ]
+  end
+
+  defp widget_component_named(_name, _attrs, _children), do: []
 
   defp node_to_cells({:block, type, name, attrs, children, _meta, _close_meta}, env)
        when type in [:local_component, :remote_component] do

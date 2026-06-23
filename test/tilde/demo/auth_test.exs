@@ -15,6 +15,23 @@ defmodule Tilde.Demo.AuthTest do
     end)
   end
 
+  test "web demo login uses shared Tilde dialog styling" do
+    with_application_env(:demo_password, "secret", fn ->
+      conn =
+        :get
+        |> conn("/login")
+        |> init_test_session(%{})
+        |> Tilde.Demo.Router.call([])
+
+      assert conn.status == 200
+      assert conn.resp_body =~ ~s|class="tilde auth"|
+      assert conn.resp_body =~ ~s|class="dialog"|
+      assert conn.resp_body =~ ~s|role="dialog"|
+      assert conn.resp_body =~ ~s|/assets/css/app.css|
+      refute conn.resp_body =~ "<style>"
+    end)
+  end
+
   test "web demo login accepts configured password" do
     with_application_env(:demo_password, "secret", fn ->
       conn =
@@ -59,6 +76,8 @@ defmodule Tilde.Demo.AuthTest do
       assert conn.status == 401
       refute Plug.Conn.get_session(conn, :tilde_demo_authenticated)
       assert conn.resp_body =~ "Incorrect password"
+      assert conn.resp_body =~ ~s|class="error"|
+      assert conn.resp_body =~ ~s|class="dialog"|
     end)
   end
 end

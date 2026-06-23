@@ -14,6 +14,7 @@
 @import "./tilde/components/action.css" layer(components);
 @import "./tilde/components/suggest.css" layer(components);
 @import "./tilde/components/choice.css" layer(components);
+@import "./tilde/components/dialog.css" layer(components);
 @import "./tilde/components/widget.css" layer(components);
 @import "./tilde/components/input.css" layer(components);
 @import "./tilde/components/footer.css" layer(components);

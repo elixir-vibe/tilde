@@ -6,6 +6,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
   use Phoenix.Component
 
   import Tilde.Transport.Live.Controls
+  import Tilde.Transport.Live.Dialog
   import Tilde.Transport.Live.Markdown
   import Tilde.Transport.Live.Run
   import Tilde.Transport.Live.SlashCommand
@@ -147,6 +148,17 @@ defmodule Tilde.Transport.Live.ViewRenderer do
         />
       </footer>
     </article>
+    """
+  end
+
+  def cell(%{cell: %Cell{kind: :dialog}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:dialog, assigns.cell.attrs.dialog)
+      |> assign(:widget, assigns.cell.attrs.widget)
+
+    ~H"""
+    <.dialog_widget id={@cell.id} dialog={@dialog} actions={@widget.actions} />
     """
   end
 

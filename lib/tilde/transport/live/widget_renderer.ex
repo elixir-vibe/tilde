@@ -3,12 +3,13 @@ defmodule Tilde.Transport.Live.WidgetRenderer do
 
   use Phoenix.Component
 
+  import Tilde.Transport.Live.Dialog
   import Tilde.Transport.Live.Footer
   import Tilde.Transport.Live.Input
   import Tilde.Transport.Live.Shortcut
   import Tilde.Transport.Live.ViewRenderer
 
-  alias Tilde.Core.{Input, Widget}
+  alias Tilde.Core.{Dialog, Input, Widget}
 
   attr(:widgets, :list, required: true)
   attr(:devtools?, :boolean, default: false)
@@ -68,6 +69,19 @@ defmodule Tilde.Transport.Live.WidgetRenderer do
       <article class={["block", "message", "system"]} data-role="system">
         <div class={["body", @widget.kind == :muted && "muted"]}>{@widget.content}</div>
       </article>
+    </section>
+    """
+  end
+
+  def widget(%{widget: %Widget{kind: :dialog, content: %Dialog{} = dialog}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:dialog, dialog)
+      |> assign(:class, assigns.widget.metadata[:class])
+
+    ~H"""
+    <section class="widgets" data-placement={@widget.placement}>
+      <.dialog_widget id={@widget.id} dialog={@dialog} actions={@widget.actions} class={@class} />
     </section>
     """
   end

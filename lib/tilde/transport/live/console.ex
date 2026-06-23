@@ -33,6 +33,7 @@ defmodule Tilde.Transport.Live.Console do
       |> assign(:transcript, transcript(assigns))
       |> assign(:above_widgets, widgets(assigns.session, :above_input))
       |> assign(:below_widgets, widgets(assigns.session, :below_input))
+      |> assign(:overlay_widgets, widgets(assigns.session, :overlay))
       |> assign(:pending?, pending?(assigns.session))
 
     ~H"""
@@ -47,6 +48,10 @@ defmodule Tilde.Transport.Live.Console do
 
       <section :if={@above_widgets != []} class="widgets" data-placement="above_input">
         <.widget :for={widget <- @above_widgets} widget={widget} />
+      </section>
+
+      <section :if={@overlay_widgets != []} class="widgets" data-placement="overlay">
+        <.widget :for={widget <- @overlay_widgets} widget={widget} />
       </section>
 
       <section class="dock">
