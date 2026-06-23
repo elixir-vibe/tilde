@@ -119,7 +119,12 @@ defmodule Tilde.Template.Compiler do
         [Widget.shortcut_bar(Map.fetch!(attrs, "id"), Map.fetch!(attrs, "shortcuts"))]
 
       "widget_footer" ->
-        [Widget.footer(Map.fetch!(attrs, "id"), right: Map.get(attrs, "right", ""))]
+        [
+          Widget.footer(Map.fetch!(attrs, "id"),
+            right: Map.get(attrs, "right", ""),
+            commands: Map.get(attrs, "commands", [])
+          )
+        ]
 
       _ ->
         []

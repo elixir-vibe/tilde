@@ -19,7 +19,8 @@ defmodule Tilde.Index.View do
         input: index.input,
         shortcuts: @shortcuts,
         suggest: index.command_suggest || index.session_suggest,
-        suggest_id: if(index.command_suggest, do: "command-suggestions", else: "session-index")
+        suggest_id: if(index.command_suggest, do: "command-suggestions", else: "session-index"),
+        footer_commands: footer_commands()
       }
     )
   end
@@ -31,7 +32,7 @@ defmodule Tilde.Index.View do
       <.widget_text id="index-empty" text="no sessions" kind="muted" />
       <.widget_input id="index-input" input={@input} />
       <.shortcut_bar id="index-shortcuts" shortcuts={@shortcuts} />
-      <.widget_footer id="index-footer" right="/new name · /attach name" />
+      <.widget_footer id="index-footer" commands={@footer_commands} />
     </.screen>
     """
   end
@@ -45,8 +46,15 @@ defmodule Tilde.Index.View do
       </.section>
       <.widget_input id="index-input" input={@input} />
       <.shortcut_bar id="index-shortcuts" shortcuts={@shortcuts} />
-      <.widget_footer id="index-footer" right="/new name · /attach name" />
+      <.widget_footer id="index-footer" commands={@footer_commands} />
     </.screen>
     """
+  end
+
+  defp footer_commands do
+    labels = ["/help", "/showcase", "/new"]
+    specs_by_label = Map.new(Tilde.Command.Registry.specs(), &{&1.label, &1})
+
+    Enum.map(labels, &Map.fetch!(specs_by_label, &1))
   end
 end

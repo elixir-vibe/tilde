@@ -3,6 +3,18 @@ defmodule Tilde.Core.IndexTest do
 
   alias Tilde.Core.{Index, Interaction}
 
+  test "index footer uses shared clickable command specs" do
+    footer =
+      Index.new()
+      |> Tilde.Index.View.widgets()
+      |> Enum.flat_map(& &1.children)
+      |> Enum.find(&(&1.kind == :footer))
+
+    assert Enum.map(footer.content.commands, & &1.label) == ["/help", "/showcase", "/new"]
+    assert Enum.map(footer.content.commands, & &1.insert) == ["/help", "/showcase", "/new "]
+    assert footer.content.right == ""
+  end
+
   test "empty index has no session suggestions" do
     assert {:ok, _pid} = Tilde.Session.Registry.ensure_started()
 

@@ -88,7 +88,12 @@ defmodule Tilde.Core.Widget do
   @doc "Creates a semantic footer widget."
   @spec footer(String.t(), keyword()) :: t()
   def footer(id, opts \\ []) when is_binary(id) do
-    content = %{left: Keyword.get(opts, :left, ""), right: Keyword.get(opts, :right, "")}
+    content = %{
+      left: Keyword.get(opts, :left, ""),
+      right: Keyword.get(opts, :right, ""),
+      commands: Keyword.get(opts, :commands, [])
+    }
+
     new(id, Keyword.get(opts, :placement, :footer), content, kind: :footer)
   end
 end

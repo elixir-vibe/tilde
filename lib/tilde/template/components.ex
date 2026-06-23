@@ -55,6 +55,7 @@ defmodule Tilde.Template.Components do
 
   attr(:id, :string, required: true)
   attr(:right, :string, default: "")
+  attr(:commands, :list, default: [])
   def widget_footer(assigns), do: assigns |> assign(:_unused, nil) |> raw_widget()
 
   attr(:kind, :string, default: "template")

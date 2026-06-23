@@ -106,6 +106,7 @@ defmodule Tilde.Transport.Live.WidgetRenderer do
       session={nil}
       left={@widget.content.left}
       right={@widget.content.right}
+      commands={@widget.content.commands}
       devtools?={@devtools?}
       dev_grid?={@dev_grid?}
       dev_raw={@dev_raw}
