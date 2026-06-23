@@ -20,6 +20,7 @@ defmodule Tilde.Demo.Showcase do
       &Block.update_display(&1, %{compact_limit: {:lines, 2}})
     )
     |> append_choice_block("choice_demo", choice)
+    |> Session.put_widget(dialog_demo())
   end
 
   @doc "Returns a new session with showcase content appended."
@@ -59,6 +60,18 @@ defmodule Tilde.Demo.Showcase do
       Tilde.tool_stream("tool_demo_tests", :stdout, "8 tests, 0 failures\n"),
       Tilde.tool_done("tool_demo_tests", :success, %{exit_code: 0})
     ]
+  end
+
+  defp dialog_demo do
+    Tilde.dialog(
+      "dialog_demo",
+      "Dialog primitive",
+      "This semantic dialog is rendered by the shared web component and the TUI box renderer.",
+      actions: [
+        Tilde.action(:confirm, "Confirm", key: "enter"),
+        Tilde.action(:cancel, "Cancel", key: "esc")
+      ]
+    )
   end
 
   defp append_choice_block(%Session{} = session, id, %Choice{} = choice) do

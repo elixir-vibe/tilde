@@ -21,7 +21,14 @@ defmodule Tilde.Demo.ShowcaseTest do
     assert html =~ "ctrl+o"
     assert html =~ "expand"
     assert html =~ "Apply the generated patch?"
+    assert html =~ ~s|id="dialog_demo"|
+    assert html =~ "Dialog primitive"
+    assert html =~ "shared web component and the TUI box renderer"
     refute html =~ "background: no running jobs"
+
+    tui = session |> Tilde.Renderer.TUI.render_to_string(width: 72, ansi: false) |> strip_ansi()
+    assert tui =~ "╭ Dialog primitive"
+    assert tui =~ "enter Confirm    esc Cancel"
 
     effects = Tilde.Command.run(%Tilde.Command{name: "showcase"}, empty_demo, [])
     updated = Tilde.Command.apply_effects(empty_demo, effects)
