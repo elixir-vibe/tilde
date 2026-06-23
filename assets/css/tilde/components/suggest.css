@@ -16,7 +16,7 @@
     .row {
       position: relative;
       display: grid;
-      grid-template-columns: 1ch minmax(10ch, max-content) minmax(0, 1fr);
+      grid-template-columns: 1ch minmax(10ch, 24ch) minmax(0, 1fr);
       align-items: baseline;
       column-gap: 2ch;
       width: 100%;
@@ -49,13 +49,18 @@
       color: var(--color-link);
       border: 0;
       padding: 0;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .description {
       min-width: 0;
       color: var(--color-muted);
-      overflow-wrap: anywhere;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .detail {
