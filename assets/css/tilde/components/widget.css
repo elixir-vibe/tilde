@@ -3,6 +3,16 @@
     display: block;
   }
 
+  .widgets[data-placement="overlay"] {
+    position: absolute;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: var(--space-page);
+    background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  }
+
   &.index {
     .transcript {
       flex: 0 0 auto;

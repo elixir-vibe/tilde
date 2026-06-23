@@ -5,7 +5,7 @@ defmodule Tilde.Transport.Live.Controls do
 
   import Tilde.Transport.Live.Shortcut
 
-  attr(:event, :string, required: true)
+  attr(:event, :string, default: nil)
   attr(:label, :string, required: true)
   attr(:key, :string, default: nil)
   attr(:kind, :atom, default: :normal)

@@ -17,7 +17,8 @@ defmodule Tilde.Transport.Live.DialogTest do
     assert html =~ "Confirm"
     assert html =~ "Continue?"
     assert html =~ ~s|class="actions"|
-    assert html =~ "enter"
+    assert html =~ ~s|class="shortcut |
+    assert html =~ ~s|<kbd class="key">enter</kbd>|
   end
 
   test "renders dialog widgets in the console" do
@@ -31,8 +32,10 @@ defmodule Tilde.Transport.Live.DialogTest do
 
     html = render_component(&Tilde.Transport.Live.Console.console/1, session: session)
 
+    assert html =~ ~s|data-placement="overlay"|
     assert html =~ ~s|id="confirm"|
     assert html =~ ~s|class="dialog"|
+    refute html =~ ~s|<aside id="confirm"|
     assert html =~ "Continue?"
     assert html =~ "OK"
   end

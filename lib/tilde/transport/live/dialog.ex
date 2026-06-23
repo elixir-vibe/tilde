@@ -3,6 +3,8 @@ defmodule Tilde.Transport.Live.Dialog do
 
   use Phoenix.Component
 
+  import Tilde.Transport.Live.Controls
+
   alias Tilde.Core.{Action, Dialog}
 
   attr(:id, :string, required: true)
@@ -62,11 +64,13 @@ defmodule Tilde.Transport.Live.Dialog do
   attr(:action, Action, required: true)
 
   defp dialog_action(assigns) do
+    assigns =
+      assigns
+      |> assign(:event, action_event(assigns.action))
+      |> assign(:values, action_values(assigns.action))
+
     ~H"""
-    <button type="button" class={["action", @action.kind]} {action_attrs(@action)}>
-      <span :if={@action.key} class="key">{@action.key}</span>
-      <span>{@action.label}</span>
-    </button>
+    <.action event={@event} label={@action.label} key={@action.key} kind={@action.kind} values={@values} />
     """
   end
 
@@ -75,17 +79,13 @@ defmodule Tilde.Transport.Live.Dialog do
   defp dialog_classes(class),
     do: ["dialog" | List.wrap(class)] |> Enum.reject(&(&1 in [nil, false, ""]))
 
-  defp action_attrs(%Action{metadata: metadata}) do
-    event = Map.get(metadata, :event)
-    values = Map.get(metadata, :values, %{})
+  defp action_event(%Action{metadata: metadata}), do: Map.get(metadata, :event)
 
-    %{}
-    |> maybe_put("phx-click", event)
-    |> Map.merge(value_attrs(values))
+  defp action_values(%Action{metadata: metadata}) do
+    metadata
+    |> Map.get(:values, %{})
+    |> value_attrs()
   end
-
-  defp maybe_put(attrs, _key, nil), do: attrs
-  defp maybe_put(attrs, key, value), do: Map.put(attrs, key, value)
 
   defp value_attrs(values) when is_map(values) do
     Map.new(values, fn {key, value} -> {"phx-value-#{key}", value} end)

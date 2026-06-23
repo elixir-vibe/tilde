@@ -76,6 +76,12 @@ defmodule Tilde.Transport.Live.Console do
 
   attr(:widget, :any, required: true)
 
+  def widget(%{widget: %{kind: :dialog}} = assigns) do
+    ~H"""
+    <.cell cell={Tilde.Viewable.to_view(@widget)} />
+    """
+  end
+
   def widget(assigns) do
     ~H"""
     <aside id={@widget.id} class="widget" data-placement={@widget.placement}>
