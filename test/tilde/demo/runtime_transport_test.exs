@@ -239,6 +239,27 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert %Session{} = state.session
   end
 
+  test "ssh rendering shows compaction blocks" do
+    session =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.context_compacted("## Context Compaction\n\nSummary",
+          metadata: %{tokens_before: 1234, first_kept_block_id: "msg_1"}
+        )
+      )
+
+    rendered =
+      session
+      |> Tilde.Transport.SSH.Rendering.session(80, 24)
+      |> IO.iodata_to_binary()
+      |> String.replace("\r\n", "\n")
+      |> strip_ansi()
+
+    assert rendered =~ "[compaction]"
+    assert rendered =~ "Compacted from 1234 tokens (ctrl+o to expand)"
+    refute rendered =~ "Summary"
+  end
+
   test "ssh transport command parser handles session routing commands" do
     assert Tilde.Transport.SSH.Command.parse("/attach demo") == {:attach, "demo"}
     assert Tilde.Transport.SSH.Command.parse("/attach Demo Session!") == {:attach, "demo-session"}

@@ -28,6 +28,24 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
     |> Enum.join("\n")
   end
 
+  def render(%Cell{kind: :compaction, attrs: %{block: block}} = cell, width, opts) do
+    expanded? = block.display.expanded?
+    tokens = compaction_tokens(block)
+
+    body =
+      if expanded? do
+        [
+          Theme.muted("Compacted from #{tokens} tokens", opts)
+          | Markdown.render_lines(cell.source, width, opts)
+        ]
+      else
+        [Theme.muted("Compacted from #{tokens} tokens (ctrl+o to expand)", opts)]
+      end
+
+    ([Theme.muted("[compaction]", opts)] ++ body)
+    |> Enum.map_join("\n", &truncate(&1, width))
+  end
+
   def render(
         %Cell{kind: :tool, attrs: %{view: %{name: "read", expanded?: true, lines: [_ | _]}}} =
           cell,
@@ -79,6 +97,15 @@ defmodule Tilde.Renderer.TUI.ViewRenderer do
           indent <> Theme.muted(action_text, opts) <> String.duplicate(" ", cell.padding_x)
 
       lines ++ [state(padded, cell.state, opts)]
+    end
+  end
+
+  defp compaction_tokens(%{metadata: metadata}) do
+    metadata
+    |> Map.get(:tokens_before, 0)
+    |> case do
+      value when is_integer(value) -> Integer.to_string(value)
+      value -> to_string(value)
     end
   end
 
