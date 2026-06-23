@@ -5,8 +5,6 @@ defmodule Tilde.Transport.Live.Footer do
 
   use Phoenix.Component
 
-  import Tilde.Transport.Live.Controls
-
   attr(:session, :any, default: nil)
   attr(:left, :string, default: "")
   attr(:right, :string, default: "")
@@ -23,25 +21,27 @@ defmodule Tilde.Transport.Live.Footer do
 
     ~H"""
     <footer class="footer">
-      <span class="left muted">
+      <div class="left muted">
         <span :if={@left != ""}>{@left}</span>
         <span :if={@left != "" and @session_text != ""}> · </span>
         <span :if={@session_text != ""}>{@session_text}</span>
         <span :if={(@left != "" or @session_text != "") and @status_text != ""}> · </span>
         <span :if={@status_text != ""}>{@status_text}</span>
-      </span>
-      <span class="right">
+      </div>
+      <div class="right">
         <span :if={@right != ""}>{@right}</span>
         <span :if={@commands != []} class="actions" role="navigation" aria-label="commands">
-          <.action
-            :for={command <- @commands}
-            event="tilde:complete_input"
-            label={command.label}
-            values={%{"phx-value-insert" => command.insert}}
-          />
+          <%= for {command, index} <- Enum.with_index(@commands) do %>
+            <a
+              href="#"
+              class="action normal"
+              phx-click="tilde:complete_input"
+              phx-value-insert={command.insert}
+            >{command.label}</a><span :if={index < length(@commands) - 1}> · </span>
+          <% end %>
         </span>
         <.devtools enabled?={@devtools?} grid?={@dev_grid?} raw={@dev_raw} />
-      </span>
+      </div>
     </footer>
     """
   end

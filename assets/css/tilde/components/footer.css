@@ -1,17 +1,29 @@
-.tilde {
-  .footer {
-    display: flex;
-    gap: var(--space-md);
-    justify-content: space-between;
-    align-items: baseline;
-    color: var(--color-muted);
-    font-size: 0.9rem;
+.tilde .footer {
+  display: flex;
+  gap: var(--space-md);
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: nowrap;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
 
-    .right {
-      display: inline-flex;
-      gap: var(--space-md);
-      align-items: baseline;
-      white-space: nowrap;
-    }
-  }
+.tilde .footer .left {
+  min-width: 0;
+}
+
+.tilde .footer .right {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.tilde .footer .right .actions,
+.tilde .footer .right .dev,
+.tilde .footer .right .action,
+.tilde .footer .right .dev .button {
+  display: inline;
+}
+
+.tilde .footer .right .dev {
+  margin-left: var(--space-md);
 }
