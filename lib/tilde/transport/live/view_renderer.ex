@@ -121,7 +121,10 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     ~H"""
     <article id={@cell.id} class="block choice" data-block-id={@cell.id} tabindex="0">
       <header class="header">
-        <span class="question"><.view_line line={@question} /></span>
+        <span class="call">
+          <span class="name">choice</span>
+          <span class="segment accent"><.view_line line={@question} /></span>
+        </span>
       </header>
 
       <div class="options">

@@ -28,27 +28,6 @@
     .footer {
       margin-top: var(--space-md);
     }
-  }
-
-  .tool {
-    &.queued,
-    &.running,
-    &.streaming {
-      background: var(--surface-tool-pending);
-    }
-
-    &.success,
-    &.done {
-      background: var(--surface-tool-success);
-    }
-
-    &.error {
-      background: var(--surface-tool-error);
-    }
-
-    &.cancelled {
-      opacity: 0.82;
-    }
 
     .call {
       min-width: 0;
@@ -75,6 +54,27 @@
       &.success {
         color: var(--color-success);
       }
+    }
+  }
+
+  .tool {
+    &.queued,
+    &.running,
+    &.streaming {
+      background: var(--surface-tool-pending);
+    }
+
+    &.success,
+    &.done {
+      background: var(--surface-tool-success);
+    }
+
+    &.error {
+      background: var(--surface-tool-error);
+    }
+
+    &.cancelled {
+      opacity: 0.82;
     }
 
     .tags,
