@@ -9,6 +9,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
 
   @behaviour Tilde.Runtime.LLM.Provider
 
+  alias Jido.AI.Context, as: AIContext
+  alias Jido.AI.Reasoning.ReAct.State, as: ReActState
   alias Jido.AI.Runtime.Event, as: RuntimeEvent
   alias Tilde.Core.{Block, Session}
   alias Tilde.Runtime.LLM
@@ -58,9 +60,11 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   def stream(%Session{} = session, opts \\ []) do
     case ensure_openrouter_key() do
       :ok ->
-        session
-        |> query(opts)
-        |> Jido.AI.Reasoning.ReAct.stream(react_config(opts), react_opts(session))
+        config = Jido.AI.Reasoning.ReAct.build_config(react_config(opts))
+        query = query(session, opts)
+
+        query
+        |> Jido.AI.Reasoning.ReAct.stream(config, react_opts(session, query, config))
         |> adapt_react_events()
 
       {:error, reason} ->
@@ -75,7 +79,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     case ensure_openrouter_key() do
       :ok ->
         candidate.checkpoint_token
-        |> Jido.AI.Reasoning.ReAct.continue(react_config(opts), react_opts(session))
+        |> Jido.AI.Reasoning.ReAct.continue(react_config(opts), resume_opts(session))
         |> case do
           {:ok, %{events: events}} -> events |> adapt_react_events() |> Enum.to_list()
           {:error, reason} -> [failed_event(reason)]
@@ -194,19 +198,28 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
       streaming: true,
       timeout_ms: Keyword.get(opts, :timeout, 30_000),
       llm_opts: llm_opts(opts),
-      request_transformer:
-        Keyword.get(
-          opts,
-          :request_transformer,
-          Tilde.Runtime.LLM.Provider.Jido.HistoryRequestTransformer
-        )
+      request_transformer: Keyword.get(opts, :request_transformer)
     ]
   end
 
-  defp react_opts(%Session{} = session) do
+  defp resume_opts(%Session{} = session), do: [context: %{session_id: session.id}]
+
+  defp react_opts(%Session{} = session, query, config) do
     [
-      context: %{session_id: session.id, messages: history_messages(session)}
+      context: %{session_id: session.id},
+      state: react_state(session, query, config.system_prompt)
     ]
+  end
+
+  defp react_state(%Session{} = session, query, system_prompt) do
+    state = ReActState.new(query, system_prompt)
+
+    context =
+      AIContext.new(system_prompt: system_prompt)
+      |> AIContext.append_messages(history_messages(session))
+      |> AIContext.append_user(query)
+
+    %{state | context: context}
   end
 
   defp max_iterations(opts) do
