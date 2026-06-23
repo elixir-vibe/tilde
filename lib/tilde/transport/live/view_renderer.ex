@@ -8,6 +8,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
   import Tilde.Transport.Live.Controls
   import Tilde.Transport.Live.Markdown
   import Tilde.Transport.Live.Run
+  import Tilde.Transport.Live.SlashCommand
 
   alias Tilde.View.{Cell, Helpers, Line, Text}
 
@@ -156,12 +157,10 @@ defmodule Tilde.Transport.Live.ViewRenderer do
     <section class="suggest" data-suggest-trigger={@suggest.trigger} data-suggest-query={@suggest.query}>
       <div class="title">{@suggest.title}</div>
       <div class="items">
-        <button
+        <.slash_command_button
           :for={{item, index} <- Enum.with_index(@suggest.items)}
-          type="button"
+          insert={item.insert}
           class={["row", index == @suggest.selected_index && "selected"]}
-          phx-click="tilde:complete_input"
-          phx-value-insert={item.insert}
           aria-describedby={item.detail && "#{@suggest.id}-detail-#{index}"}
         >
           <span class="marker" aria-hidden="true">
@@ -172,7 +171,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
           <span :if={item.detail} id={"#{@suggest.id}-detail-#{index}"} class="detail" role="tooltip">
             {item.detail}
           </span>
-        </button>
+        </.slash_command_button>
       </div>
     </section>
     """

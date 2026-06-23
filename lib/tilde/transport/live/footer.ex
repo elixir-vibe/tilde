@@ -5,6 +5,8 @@ defmodule Tilde.Transport.Live.Footer do
 
   use Phoenix.Component
 
+  import Tilde.Transport.Live.SlashCommand
+
   attr(:session, :any, default: nil)
   attr(:left, :string, default: "")
   attr(:right, :string, default: "")
@@ -30,16 +32,7 @@ defmodule Tilde.Transport.Live.Footer do
       </div>
       <div class="right">
         <span :if={@right != ""}>{@right}</span>
-        <span :if={@commands != []} class="actions" role="navigation" aria-label="commands">
-          <%= for {command, index} <- Enum.with_index(@commands) do %>
-            <a
-              href="#"
-              class="action normal"
-              phx-click="tilde:complete_input"
-              phx-value-insert={command.insert}
-            >{command.label}</a><span :if={index < length(@commands) - 1}> · </span>
-          <% end %>
-        </span>
+        <.slash_commands :if={@commands != []} commands={@commands} />
         <.devtools enabled?={@devtools?} grid?={@dev_grid?} raw={@dev_raw} />
       </div>
     </footer>

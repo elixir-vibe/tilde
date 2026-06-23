@@ -5,8 +5,38 @@ defmodule Tilde.Template.Compiler do
   alias Tilde.Core.Widget
   alias Tilde.View.{Cell, Helpers, Line, Text}
 
-  @title_tags ~w(h1 h2 h3 h4 h5 h6 strong b)
-  @accent_tags ~w(em i code a)
+  @format_atoms ~w(plain markdown)a
+  @kind_atoms ~w(template block message widget screen section text heading muted suggest input shortcut_bar footer)a
+  @role_atoms ~w(normal metadata primary muted error title hint blank user assistant system)a
+  @state_atoms ~w(normal pending success error cancelled)a
+  @style_atoms ~w(plain title accent muted primary success error warning shortcut)a
+
+  @template_atoms Enum.uniq(
+                    @format_atoms ++ @kind_atoms ++ @role_atoms ++ @state_atoms ++ @style_atoms
+                  )
+  @template_atom_by_name Map.new(@template_atoms, &{Atom.to_string(&1), &1})
+
+  @tag_styles [
+                {~w(h1 h2 h3 h4 h5 h6 strong b), :title},
+                {~w(em i code a), :accent}
+              ]
+              |> Enum.flat_map(fn {tags, style} -> Enum.map(tags, &{&1, style}) end)
+              |> Map.new()
+
+  @component_styles [
+                      meta: :muted,
+                      title: :title,
+                      accent: :accent,
+                      primary: :primary,
+                      muted: :muted,
+                      error: :error,
+                      success: :success,
+                      text: :plain,
+                      code: :accent
+                    ]
+                    |> Map.new(fn {component, style} -> {Atom.to_string(component), style} end)
+
+  @style_roles Map.new(~w(title primary muted error)a, &{&1, &1})
 
   @spec to_widgets(String.t(), keyword(), Macro.Env.t()) ::
           {:ok, [Widget.t()]} | {:error, Exception.t()}
@@ -431,56 +461,27 @@ defmodule Tilde.Template.Compiler do
     end
   end
 
-  defp allowed_atom("format", value, default), do: known_atom(value, ~w(plain markdown), default)
-
-  defp allowed_atom("kind", value, default),
-    do:
-      known_atom(
-        value,
-        ~w(template block message widget screen section text heading muted suggest input shortcut_bar footer),
-        default
-      )
-
-  defp allowed_atom("role", value, default),
-    do:
-      known_atom(
-        value,
-        ~w(normal metadata primary muted error title hint blank user assistant system),
-        default
-      )
-
-  defp allowed_atom("state", value, default),
-    do: known_atom(value, ~w(normal pending success error cancelled), default)
-
-  defp allowed_atom("style", value, default),
-    do:
-      known_atom(
-        value,
-        ~w(plain title accent muted primary success error warning shortcut),
-        default
-      )
+  defp allowed_atom("format", value, default), do: known_atom(value, @format_atoms, default)
+  defp allowed_atom("kind", value, default), do: known_atom(value, @kind_atoms, default)
+  defp allowed_atom("role", value, default), do: known_atom(value, @role_atoms, default)
+  defp allowed_atom("state", value, default), do: known_atom(value, @state_atoms, default)
+  defp allowed_atom("style", value, default), do: known_atom(value, @style_atoms, default)
 
   defp allowed_atom(_name, _value, default), do: default
 
   defp known_atom(value, allowed, default) do
     value = value |> to_string() |> String.replace("-", "_")
 
-    if value in allowed do
-      String.to_existing_atom(value)
+    atom = Map.get(@template_atom_by_name, value)
+
+    if atom in allowed do
+      atom
     else
       default
     end
   end
 
-  defp style_atom("meta"), do: :muted
-  defp style_atom("title"), do: :title
-  defp style_atom("accent"), do: :accent
-  defp style_atom("primary"), do: :primary
-  defp style_atom("muted"), do: :muted
-  defp style_atom("error"), do: :error
-  defp style_atom("success"), do: :success
-  defp style_atom("text"), do: :plain
-  defp style_atom("code"), do: :accent
+  defp style_atom(component), do: Map.fetch!(@component_styles, component)
 
   defp int_attr(attrs, name, default) do
     case Map.get(attrs, name) do
@@ -505,15 +506,9 @@ defmodule Tilde.Template.Compiler do
     name |> to_string() |> String.split(".") |> List.last()
   end
 
-  defp tag_style(name) when name in @title_tags, do: :title
-  defp tag_style(name) when name in @accent_tags, do: :accent
-  defp tag_style(_name), do: nil
+  defp tag_style(name), do: Map.get(@tag_styles, name)
 
-  defp role_for_style(:title), do: :title
-  defp role_for_style(:primary), do: :primary
-  defp role_for_style(:muted), do: :muted
-  defp role_for_style(:error), do: :error
-  defp role_for_style(_style), do: :normal
+  defp role_for_style(style), do: Map.get(@style_roles, style, :normal)
 
   defp normalize_text(text) do
     text
