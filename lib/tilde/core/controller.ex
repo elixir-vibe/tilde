@@ -41,6 +41,13 @@ defmodule Tilde.Core.Controller do
   end
 
   def apply_interaction(%Session{} = session, %Interaction{
+        type: :dialog_action,
+        payload: %{widget_id: widget_id}
+      }) do
+    continue(Session.delete_widget(session, widget_id))
+  end
+
+  def apply_interaction(%Session{} = session, %Interaction{
         type: :input_changed,
         payload: %{input: input}
       }) do

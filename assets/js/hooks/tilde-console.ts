@@ -96,6 +96,18 @@ const TildeConsole: Partial<TildeConsoleHook> = {
     this.handleKeydown = (event) => {
       const key = event.key && event.key.toLowerCase()
       const target = event.target
+      const dialog = this.el.querySelector(".widgets[data-placement='overlay'] .dialog")
+
+      if (dialog && (key === "enter" || key === "escape")) {
+        const actionKey = key === "escape" ? "esc" : key
+        const action = dialog.querySelector(`.action[data-key='${actionKey}']`)
+
+        if (action instanceof HTMLButtonElement) {
+          event.preventDefault()
+          action.click()
+          return
+        }
+      }
 
       if (
         target instanceof HTMLTextAreaElement &&

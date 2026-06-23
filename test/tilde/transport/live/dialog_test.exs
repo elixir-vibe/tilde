@@ -17,6 +17,10 @@ defmodule Tilde.Transport.Live.DialogTest do
     assert html =~ "Confirm"
     assert html =~ "Continue?"
     assert html =~ ~s|class="actions"|
+    assert html =~ ~s|phx-click="tilde:dialog_action"|
+    assert html =~ ~s|phx-value-widget-id="confirm"|
+    assert html =~ ~s|phx-value-action-id="confirm"|
+    assert html =~ ~s|data-key="enter"|
     assert html =~ ~s|class="shortcut |
     assert html =~ ~s|<kbd class="key">enter</kbd>|
   end

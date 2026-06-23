@@ -54,6 +54,22 @@ defmodule Tilde.Core.ControllerInteractionTest do
              Enum.find(session.transcript.blocks, &(&1.id == "tool_1"))
   end
 
+  test "dialog actions close semantic dialog widgets" do
+    session =
+      Tilde.session()
+      |> Session.put_widget(Tilde.dialog("dialog", "Confirm", "Continue?"))
+
+    assert [_dialog] = Session.widgets(session, :overlay)
+
+    assert {:cont, session, []} =
+             Controller.apply_interaction(
+               session,
+               Interaction.new(:dialog_action, %{widget_id: "dialog", action_id: "ok"})
+             )
+
+    assert [] = Session.widgets(session, :overlay)
+  end
+
   test "global toggle expansion is semantic and applies to all tools" do
     session =
       Tilde.session()

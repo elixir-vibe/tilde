@@ -36,7 +36,7 @@ defmodule Tilde.Transport.Live.Dialog do
         <% end %>
       </div>
       <div :if={@actions != [] or @action != []} class="actions">
-        <.dialog_action :for={action <- @actions} action={action} />
+        <.dialog_action :for={action <- @actions} action={action} widget_id={@id} />
         {render_slot(@action)}
       </div>
     </section>
@@ -62,12 +62,13 @@ defmodule Tilde.Transport.Live.Dialog do
   end
 
   attr(:action, Action, required: true)
+  attr(:widget_id, :string, required: true)
 
   defp dialog_action(assigns) do
     assigns =
       assigns
       |> assign(:event, action_event(assigns.action))
-      |> assign(:values, action_values(assigns.action))
+      |> assign(:values, action_values(assigns.action, assigns.widget_id))
 
     ~H"""
     <.action event={@event} label={@action.label} key={@action.key} kind={@action.kind} values={@values} />
@@ -79,13 +80,20 @@ defmodule Tilde.Transport.Live.Dialog do
   defp dialog_classes(class),
     do: ["dialog" | List.wrap(class)] |> Enum.reject(&(&1 in [nil, false, ""]))
 
-  defp action_event(%Action{metadata: metadata}), do: Map.get(metadata, :event)
+  defp action_event(%Action{metadata: metadata}),
+    do: Map.get(metadata, :event, "tilde:dialog_action")
 
-  defp action_values(%Action{metadata: metadata}) do
+  defp action_values(%Action{metadata: metadata} = action, widget_id) do
     metadata
     |> Map.get(:values, %{})
     |> value_attrs()
+    |> Map.put_new("phx-value-widget-id", widget_id)
+    |> Map.put_new("phx-value-action-id", to_string(action.id))
+    |> maybe_put_key(action.key)
   end
+
+  defp maybe_put_key(attrs, nil), do: attrs
+  defp maybe_put_key(attrs, key), do: Map.put_new(attrs, "data-key", key)
 
   defp value_attrs(values) when is_map(values) do
     Map.new(values, fn {key, value} -> {"phx-value-#{key}", value} end)

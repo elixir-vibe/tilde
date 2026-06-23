@@ -43,6 +43,10 @@ defmodule Tilde.Transport.Live.Interaction do
   def session("tilde:choice_action", %{"action-id" => action_id}),
     do: Interaction.new(:choice_action, %{action_id: action_id})
 
+  def session("tilde:dialog_action", %{"widget-id" => widget_id, "action-id" => action_id}) do
+    Interaction.new(:dialog_action, %{widget_id: widget_id, action_id: action_id})
+  end
+
   def session("tilde:input_changed", %{"input" => input}), do: Interaction.input_changed(input)
 
   def session("tilde:complete_input", params) do

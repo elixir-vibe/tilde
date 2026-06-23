@@ -24,6 +24,7 @@ defmodule Tilde.Core.Interaction do
           | :toggle_expand
           | :select_choice
           | :choice_action
+          | :dialog_action
 
   @type t :: %__MODULE__{type: type(), payload: map()}
 
