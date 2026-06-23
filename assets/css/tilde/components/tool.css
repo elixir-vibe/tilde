@@ -7,7 +7,8 @@
     padding: var(--space-md);
   }
 
-  .tool {
+  .tool,
+  .choice {
     .header,
     .footer {
       display: flex;
@@ -24,6 +25,12 @@
       justify-content: flex-end;
     }
 
+    .footer {
+      margin-top: var(--space-md);
+    }
+  }
+
+  .tool {
     &.queued,
     &.running,
     &.streaming {
@@ -147,8 +154,5 @@
       }
     }
 
-    .footer {
-      margin-top: var(--space-md);
-    }
   }
 }

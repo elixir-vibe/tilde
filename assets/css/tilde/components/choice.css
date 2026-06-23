@@ -1,19 +1,26 @@
 .tilde {
   .choice {
+    .question {
+      font-weight: 700;
+    }
+
     .options {
       display: grid;
-      gap: 0.35rem;
+      gap: 0.2rem;
       margin-top: var(--space-md);
     }
 
     .option {
       display: grid;
-      grid-template-columns: 3ch minmax(10ch, max-content) minmax(0, 1fr);
+      grid-template-columns: 3ch minmax(16ch, 24ch) minmax(0, 1fr);
       column-gap: var(--space-md);
       align-items: baseline;
       text-align: left;
       text-decoration: none;
       color: var(--color-fg);
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .option.selected,
@@ -25,6 +32,13 @@
     .marker,
     .description {
       color: var(--color-muted);
+    }
+
+    .description {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .option.selected .marker {

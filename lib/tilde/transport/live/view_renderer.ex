@@ -120,7 +120,9 @@ defmodule Tilde.Transport.Live.ViewRenderer do
 
     ~H"""
     <article id={@cell.id} class="block choice" data-block-id={@cell.id} tabindex="0">
-      <div class="question"><.view_line line={@question} /></div>
+      <header class="header">
+        <span class="question"><.view_line line={@question} /></span>
+      </header>
 
       <div class="options">
         <button
@@ -137,7 +139,7 @@ defmodule Tilde.Transport.Live.ViewRenderer do
         </button>
       </div>
 
-      <footer class="actions">
+      <footer class="footer actions">
         <.action
           :for={action <- @choice.actions}
           event="tilde:choice_action"

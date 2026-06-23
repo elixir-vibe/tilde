@@ -21,6 +21,10 @@ defmodule Tilde.Demo.ShowcaseTest do
     assert html =~ "ctrl+o"
     assert html =~ "expand"
     assert html =~ "Apply the generated patch?"
+    assert html =~ ~s|class="header"|
+    assert html =~ ~s|class="question"|
+    assert html =~ ~s|class="footer actions"|
+    assert html =~ ~s|class="option |
     assert html =~ ~s|id="dialog_demo"|
     assert html =~ "Dialog primitive"
     assert html =~ "shared web component and the TUI box renderer"
