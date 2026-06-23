@@ -34,27 +34,6 @@
       overflow-wrap: anywhere;
     }
 
-    .name {
-      font-weight: 700;
-    }
-
-    .segment {
-      margin-left: var(--space-cell);
-
-      &.accent {
-        color: var(--color-link);
-      }
-
-      &.muted,
-      &.dim,
-      &.success {
-        color: var(--color-muted);
-      }
-
-      &.success {
-        color: var(--color-success);
-      }
-    }
   }
 
   .tool {

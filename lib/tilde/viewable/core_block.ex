@@ -1,7 +1,7 @@
 defimpl Tilde.Viewable, for: Tilde.Core.Block do
   alias Tilde.Core.{Block, Choice}
   alias Tilde.Tool.ViewModel
-  alias Tilde.View.{Cell, Line, Text}
+  alias Tilde.View.{Cell, Heading, Line, Text}
   alias Tilde.View.Helpers, as: H
 
   def to_view(block), do: to_view(block, [])
@@ -82,34 +82,12 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
   end
 
   defp tool_call_line(view) do
-    parts =
-      [Text.new(view.name, :title)] ++
-        call_segment_parts(view.call_segments) ++
-        tag_parts(view.call_tags) ++ suffix_parts(view.call_suffix)
-
-    Line.new(parts, role: :title)
+    Heading.line(view.name,
+      segments: view.call_segments,
+      tags: view.call_tags,
+      suffix: view.call_suffix
+    )
   end
-
-  defp call_segment_parts(segments) do
-    Enum.flat_map(segments, fn segment ->
-      prefix = if String.starts_with?(segment.text, ":"), do: "", else: " "
-      [Text.new(prefix <> segment.text, segment_style(segment.color))]
-    end)
-  end
-
-  defp tag_parts([]), do: []
-  defp tag_parts(tags), do: [Text.new(" [#{Enum.join(tags, ", ")}]", :muted)]
-
-  defp suffix_parts(nil), do: []
-  defp suffix_parts(suffix), do: [Text.new(" (#{suffix})", :muted)]
-
-  defp segment_style(:accent), do: :accent
-  defp segment_style(:muted), do: :muted
-  defp segment_style(:dim), do: :muted
-  defp segment_style(:success), do: :success
-  defp segment_style(:error), do: :error
-  defp segment_style(:warning), do: :warning
-  defp segment_style(_color), do: :plain
 
   defp tool_template_lines(view) do
     [waiting_entry(view), result_entries(view), stream_entries(view), hidden_entry(view)]
@@ -181,11 +159,13 @@ defimpl Tilde.Viewable, for: Tilde.Core.Block do
   defp line_style(role), do: role
 
   defp choice_lines(choice) do
-    [H.line(choice.question, role: :title)] ++
+    [choice_call_line(choice)] ++
       Enum.map(choice.options, fn option ->
         marker = if option.id in choice.selected, do: "[x]", else: "[ ]"
         description = if Map.get(option, :description), do: " — #{option.description}", else: ""
         H.line("#{marker} #{option.label}#{description}")
       end)
   end
+
+  defp choice_call_line(%Choice{} = choice), do: Heading.line("choice", detail: choice.question)
 end

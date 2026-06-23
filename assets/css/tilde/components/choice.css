@@ -1,9 +1,5 @@
 .tilde {
   .choice {
-    .question {
-      font-weight: 700;
-    }
-
     .options {
       display: grid;
       gap: 0.2rem;
