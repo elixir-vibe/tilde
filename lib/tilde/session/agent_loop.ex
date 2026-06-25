@@ -257,11 +257,22 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp stream_to_parent(%Session{} = session, parent, ref, prompt) do
-    deliver_stream(parent, ref, fn -> LLM.stream(session, prompt: prompt) end)
+    deliver_stream(parent, ref, fn ->
+      LLM.stream(session, [prompt: prompt] ++ llm_opts(session))
+    end)
   end
 
   defp resume_to_parent(%Session{} = session, parent, ref, %ResumeCandidate{} = candidate) do
-    deliver_stream(parent, ref, fn -> LLM.resume_checkpoint(session, candidate) end)
+    deliver_stream(parent, ref, fn ->
+      LLM.resume_checkpoint(session, candidate, llm_opts(session))
+    end)
+  end
+
+  defp llm_opts(%Session{metadata: metadata}) do
+    case Map.get(metadata, :app_referer) do
+      referer when is_binary(referer) and referer != "" -> [app_referer: referer]
+      _other -> []
+    end
   end
 
   defp deliver_stream(parent, ref, fun) when is_function(fun, 0) do

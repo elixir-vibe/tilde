@@ -133,10 +133,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     [
       max_tokens: Keyword.get(opts, :max_tokens, 1_200),
       temperature: Keyword.get(opts, :temperature, 0.1),
-      provider_options: [
-        app_referer: Keyword.get(opts, :app_referer, "https://tilde.elixir.toys"),
-        app_title: Keyword.get(opts, :app_title, "Tilde")
-      ]
+      provider_options: provider_options(opts)
     ]
   end
 
@@ -229,13 +226,23 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   end
 
   defp llm_opts(opts) do
-    [
-      provider_options: [
-        app_referer: Keyword.get(opts, :app_referer, "https://tilde.elixir.toys"),
-        app_title: Keyword.get(opts, :app_title, "Tilde")
-      ]
-    ]
+    [provider_options: provider_options(opts)]
   end
+
+  defp provider_options(opts) do
+    [app_title: Keyword.get(opts, :app_title, "Tilde")]
+    |> maybe_put_app_referer(app_referer(opts))
+  end
+
+  defp app_referer(opts) do
+    Keyword.get(opts, :app_referer) || Application.get_env(:tilde, :llm_app_referer)
+  end
+
+  defp maybe_put_app_referer(options, nil), do: options
+  defp maybe_put_app_referer(options, ""), do: options
+
+  defp maybe_put_app_referer(options, app_referer),
+    do: Keyword.put(options, :app_referer, app_referer)
 
   # Temporary private bridge for released jido_ai versions where ReAct streams
   # `Jido.AI.Reasoning.ReAct.Event` instead of canonical runtime events.

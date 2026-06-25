@@ -1,6 +1,6 @@
 # Demo deployment
 
-`mix tilde.demo` is intended for supervised demo deployments such as `tilde.elixir.toys`.
+`mix tilde.demo` is intended for supervised local/demo deployments behind a reverse proxy. Temporary development demos should use the `elixir.parts` route helper from `elixir-toys`, not a permanent `elixir.toys` service domain.
 
 ## Environment
 
@@ -33,7 +33,7 @@ Wants=network-online.target
 Type=simple
 User=dannote
 WorkingDirectory=/home/dannote/Development/elixir-vibe/tilde
-ExecStart=/home/dannote/.local/bin/mise exec -- mix tilde.demo --web-port 4100 --ssh-port 4122 --host tilde.elixir.toys --hmr
+ExecStart=/home/dannote/.local/bin/mise exec -- mix tilde.demo --web-port 4100 --ssh-port 4122 --host tilde.elixir.parts --hmr
 Restart=always
 RestartSec=3
 Environment=MIX_ENV=dev
@@ -42,4 +42,10 @@ Environment=MIX_ENV=dev
 WantedBy=multi-user.target
 ```
 
-Use `--no-hmr` for non-development demo runs once LiveReload is not needed.
+Expose the local web port through a temporary private route:
+
+```sh
+sudo toys-route private tilde 4100 --ttl 7d --note "Tilde dev demo"
+```
+
+Use `toys-route preview` only for intentionally public previews. Use `--no-hmr` for non-development demo runs once LiveReload is not needed.

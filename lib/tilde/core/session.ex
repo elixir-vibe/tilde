@@ -130,6 +130,7 @@ defmodule Tilde.Core.Session do
   def restore_metadata(%__MODULE__{} = session, metadata) when is_map(metadata) do
     metadata =
       metadata
+      |> normalize_app_referer_metadata()
       |> Map.delete("agent_loop")
       |> Map.put(
         :agent_loop,
@@ -298,6 +299,14 @@ defmodule Tilde.Core.Session do
   defp input_cursor(%Event{metadata: %{cursor: cursor}}) when is_integer(cursor), do: cursor
   defp input_cursor(%Event{text: text}) when is_binary(text), do: String.length(text)
   defp input_cursor(_event), do: 0
+
+  defp normalize_app_referer_metadata(%{"app_referer" => app_referer} = metadata) do
+    metadata
+    |> Map.delete("app_referer")
+    |> Map.put_new(:app_referer, app_referer)
+  end
+
+  defp normalize_app_referer_metadata(metadata), do: metadata
 
   defp agent_runtime_metadata(metadata) when is_map(metadata) do
     Map.get(metadata, :agent_loop, Map.get(metadata, "agent_loop"))

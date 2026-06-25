@@ -15,7 +15,7 @@ defmodule Tilde.Demo.Endpoint do
   ]
 
   socket("/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
+    websocket: [connect_info: [:uri, :x_headers, session: @session_options]],
     longpoll: false
   )
 

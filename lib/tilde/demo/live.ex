@@ -34,9 +34,12 @@ defmodule Tilde.Demo.Live do
       )
 
     session =
-      if connected?(socket),
-        do: SessionServer.subscribe(server),
-        else: SessionServer.get_session(server)
+      if connected?(socket) do
+        session = SessionServer.subscribe(server)
+        maybe_store_request_origin(server, session, socket)
+      else
+        SessionServer.get_session(server)
+      end
 
     {:ok,
      socket
@@ -136,6 +139,52 @@ defmodule Tilde.Demo.Live do
 
   def handle_info({:tilde_session_updated, _session_id, %Session{}}, socket),
     do: {:noreply, socket}
+
+  defp maybe_store_request_origin(server, %Session{} = session, socket) do
+    case request_origin(socket) do
+      nil ->
+        session
+
+      origin ->
+        SessionServer.update_session(server, fn session ->
+          put_in(session.metadata[:app_referer], origin)
+        end)
+    end
+  end
+
+  defp request_origin(socket) do
+    uri = get_connect_info(socket, :uri)
+    headers = get_connect_info(socket, :x_headers) || []
+
+    host = forwarded_header(headers, "x-forwarded-host") || uri_host(uri)
+    scheme = forwarded_header(headers, "x-forwarded-proto") || uri_scheme(uri)
+
+    if host && scheme, do: "#{scheme}://#{host}"
+  end
+
+  defp forwarded_header(headers, key) do
+    headers
+    |> List.keyfind(key, 0)
+    |> case do
+      {^key, value} -> value |> String.split(",") |> List.first() |> String.trim()
+      nil -> nil
+    end
+  end
+
+  defp uri_host(%URI{host: host, port: nil}) when is_binary(host), do: host
+
+  defp uri_host(%URI{host: host, port: port, scheme: scheme}) when is_binary(host) do
+    if default_port?(scheme, port), do: host, else: "#{host}:#{port}"
+  end
+
+  defp uri_host(_uri), do: nil
+
+  defp uri_scheme(%URI{scheme: scheme}) when is_binary(scheme), do: scheme
+  defp uri_scheme(_uri), do: nil
+
+  defp default_port?("http", 80), do: true
+  defp default_port?("https", 443), do: true
+  defp default_port?(_scheme, _port), do: false
 
   defp session_server(%{"session_id" => session_id}) do
     session_id = SessionRegistry.normalize_id(session_id)

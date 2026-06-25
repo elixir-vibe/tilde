@@ -220,6 +220,15 @@ In the SSH demo, each new connection starts on the index. Opening or attaching
 to a named session shares the submitted transcript while prompt edits remain
 local to each SSH client.
 
+For a temporary remote dev demo, run the server on localhost and expose it with the route helper from `elixir-toys`:
+
+```sh
+mix tilde.demo --web-port 4100 --host tilde.elixir.parts
+sudo toys-route private tilde 4100 --ttl 7d --note "Tilde dev demo"
+```
+
+Use `toys-route preview` only for intentionally public previews.
+
 Use slash commands to control sessions:
 
 ```text
