@@ -9,6 +9,7 @@ type TildeConsoleHook = ViewHook & {
   stickToBottom?: () => void
   resizeInput?: (textarea: HTMLTextAreaElement | null) => void
   resizeCurrentInput?: () => void
+  focusCurrentInput?: () => void
   handleScroll?: () => void
   handleSubmit?: () => void
   handleInput?: (event: Event) => void
@@ -65,6 +66,11 @@ const TildeConsole: Partial<TildeConsoleHook> = {
 
     this.resizeCurrentInput = () => {
       this.resizeInput?.(this.el.querySelector(inputSelector))
+    }
+
+    this.focusCurrentInput = () => {
+      const textarea = this.el.querySelector(inputSelector)
+      if (textarea instanceof HTMLTextAreaElement) textarea.focus()
     }
 
     this.handleScroll = () => {
@@ -180,6 +186,7 @@ const TildeConsole: Partial<TildeConsoleHook> = {
     this.el.addEventListener("input", this.handleInput)
     document.addEventListener("keydown", this.handleKeydown, { capture: true })
     this.resizeCurrentInput()
+    this.focusCurrentInput()
     this.stickToBottom?.()
   },
 

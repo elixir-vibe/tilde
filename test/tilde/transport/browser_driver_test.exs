@@ -66,6 +66,11 @@ defmodule TildeBrowserDriverTest do
       |> Browser.press(:enter)
       |> Browser.wait_until("location.pathname !== '/'")
       |> Browser.assert_text(prompt)
+
+      assert Browser.evaluate(
+               browser,
+               "document.activeElement === document.querySelector(\"textarea[name='input']\")"
+             )
     else
       skip_browser()
     end
