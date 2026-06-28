@@ -368,7 +368,7 @@ defmodule Tilde.Transport.SSH.Channel do
   defp shortcut_key(%{session: %Session{input: %{value: ""}}}, {:text, "k"}), do: "k"
 
   defp shortcut_key(%{session: %Session{input: %{value: ""}}}, {:text, key})
-       when key in ["f", "s", "r"], do: key
+       when key in ["f", "s", "r", "x"], do: key
 
   defp shortcut_key(_state, _key), do: nil
 
@@ -412,6 +412,10 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp apply_shortcut_id("tilde.review.focus", state), do: {:cont, {:cont, focus_review(state)}}
+
+  defp apply_shortcut_id("tilde.review.toggle_current", state) do
+    {:cont, {:cont, toggle_review_comment(state)}}
+  end
 
   defp apply_shortcut_id("tilde.workspace.focus_previous", state) do
     {:cont, {:cont, focus_workspace_file(state, :previous)}}
@@ -489,6 +493,44 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp focus_review(%__MODULE__{} = state), do: state
+
+  defp toggle_review_comment(%__MODULE__{review: %Review{} = review} = state) do
+    case active_or_focused_review_comment_id(review, state.active_review_comment_id) do
+      nil -> toggle_review_comment(state)
+      comment_id -> toggle_review_comment(state, comment_id)
+    end
+  end
+
+  defp toggle_review_comment(%__MODULE__{} = state), do: state
+
+  defp active_or_focused_review_comment_id(%Review{} = review, active_comment_id) do
+    if is_binary(active_comment_id) and Review.find_comment(review, active_comment_id) do
+      active_comment_id
+    else
+      Review.focused_comment_id(review, active_comment_id)
+    end
+  end
+
+  defp toggle_review_comment(%__MODULE__{review: %Review{} = review} = state, comment_id) do
+    case Review.find_comment(review, comment_id) do
+      %{status: :open} ->
+        %{
+          state
+          | review: Review.resolve_comment(review, comment_id),
+            active_review_comment_id: comment_id
+        }
+
+      %{status: :resolved} ->
+        %{
+          state
+          | review: Review.reopen_comment(review, comment_id),
+            active_review_comment_id: comment_id
+        }
+
+      _comment ->
+        state
+    end
+  end
 
   defp jump_review_comment(%__MODULE__{review: %Review{} = review} = state, comment_id) do
     case Review.find_comment(review, comment_id) do

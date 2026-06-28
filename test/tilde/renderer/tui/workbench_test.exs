@@ -1,6 +1,7 @@
 defmodule Tilde.Renderer.TUI.WorkbenchTest do
   use TildeTest.Case, async: true
 
+  alias Tilde.Core.FileBuffer
   alias Tilde.Core.Palette
   alias Tilde.Core.Review
   alias Tilde.Core.Review.Comment
@@ -57,6 +58,56 @@ defmodule Tilde.Renderer.TUI.WorkbenchTest do
     assert rendered =~ "── review ──"
     assert rendered =~ "working tree review"
     assert rendered =~ "open file"
+  end
+
+  test "renders buffer footer actions with dynamic review state" do
+    workspace =
+      Workspace.new(
+        files: [WorkspaceFile.new(path: "lib/demo.ex", git_status: :modified)],
+        selected_path: "lib/demo.ex",
+        focused_path: "lib/demo.ex"
+      )
+
+    review =
+      Review.new(
+        title: "working tree review",
+        files: [
+          ReviewFile.new(
+            path: "lib/demo.ex",
+            comments: [
+              Comment.new(
+                id: "review-1",
+                path: "lib/demo.ex",
+                line: 1,
+                status: :open,
+                body: "Check this change."
+              )
+            ]
+          )
+        ]
+      )
+
+    rendered =
+      %{
+        session: Tilde.session(),
+        workspace: workspace,
+        workspace_mode: :file,
+        workspace_view: :files,
+        open_file: FileBuffer.new(path: "lib/demo.ex", content: "defmodule Demo do\nend"),
+        review: review,
+        active_review_comment_id: "review-1",
+        palette: Palette.new()
+      }
+      |> Workbench.render(100, 40, ansi: false)
+      |> IO.iodata_to_binary()
+      |> strip_ansi()
+
+    assert rendered =~ "ctrl+p palette"
+    assert rendered =~ "f files"
+    assert rendered =~ "s symbols"
+    assert rendered =~ "r review"
+    assert rendered =~ "x resolve"
+    assert rendered =~ "escape chat"
   end
 
   test "uses side-by-side panes on wide terminals" do

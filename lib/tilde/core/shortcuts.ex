@@ -41,6 +41,14 @@ defmodule Tilde.Core.Shortcuts do
       prevent_default?: true
     ),
     Shortcut.new(
+      id: "tilde.review.toggle_current",
+      keys: "x",
+      label: "resolve",
+      description: "Resolve or reopen the active review comment",
+      scopes: [:buffer],
+      prevent_default?: true
+    ),
+    Shortcut.new(
       id: "tilde.workspace.focus_previous",
       keys: ["arrowup", "k"],
       label: "previous",

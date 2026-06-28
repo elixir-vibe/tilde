@@ -8,10 +8,12 @@ defmodule Tilde.Core.ShortcutsTest do
     assert Shortcuts.display_key("tilde.workspace.view_symbols") == "s"
     assert Shortcuts.display_key("tilde.session.chat") == "escape"
     assert Shortcuts.display_key("tilde.review.focus") == "r"
+    assert Shortcuts.display_key("tilde.review.toggle_current") == "x"
     assert Shortcuts.label("tilde.workspace.view_files") == "files"
     assert Shortcuts.label("tilde.workspace.view_symbols") == "symbols"
     assert Shortcuts.label("tilde.session.chat") == "chat"
     assert Shortcuts.label("tilde.review.focus") == "review"
+    assert Shortcuts.label("tilde.review.toggle_current") == "resolve"
     assert Shortcuts.display_key("tilde.workspace.focus_previous") == "arrowup"
     assert Shortcuts.display_key("tilde.workspace.focus_next") == "arrowdown"
     assert Shortcuts.display_key("tilde.workspace.open_focused") == "enter"
@@ -47,6 +49,14 @@ defmodule Tilde.Core.ShortcutsTest do
              "preventDefault" => true,
              "captureInteractive" => false
            } in bindings
+
+    assert %{
+             "id" => "tilde.review.toggle_current",
+             "keys" => ["x"],
+             "scopes" => ["buffer"],
+             "preventDefault" => true,
+             "captureInteractive" => false
+           } in bindings
   end
 
   test "matches keys only in their declared scopes" do
@@ -55,6 +65,7 @@ defmodule Tilde.Core.ShortcutsTest do
     assert Shortcuts.match(:buffer, "S") == "tilde.workspace.view_symbols"
     assert Shortcuts.match(:buffer, "Escape") == "tilde.session.chat"
     assert Shortcuts.match(:buffer, "r") == "tilde.review.focus"
+    assert Shortcuts.match(:buffer, "x") == "tilde.review.toggle_current"
     assert Shortcuts.match(:workspace, "ArrowUp") == "tilde.workspace.focus_previous"
     assert Shortcuts.match(:workspace, "k") == "tilde.workspace.focus_previous"
     assert Shortcuts.match(:workspace, "ArrowDown") == "tilde.workspace.focus_next"
@@ -72,5 +83,6 @@ defmodule Tilde.Core.ShortcutsTest do
     refute Shortcuts.match(:chat, "escape")
     refute Shortcuts.match(:chat, "r")
     refute Shortcuts.match(:workspace, "r")
+    refute Shortcuts.match(:workspace, "x")
   end
 end

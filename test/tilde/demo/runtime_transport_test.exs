@@ -373,11 +373,7 @@ defmodule Tilde.DemoRuntimeTransportTest do
   test "ssh channel review shortcut opens the first review comment file from buffer scope" do
     state = attached_ssh_state("ssh-review-command")
 
-    assert {:ok, state} =
-             Tilde.Transport.SSH.Channel.handle_ssh_msg(
-               {:ssh_cm, nil, {:data, nil, 0, <<16, ?\n>>}},
-               state
-             )
+    assert {:ok, state} = open_first_ssh_file(state)
 
     assert state.workspace_mode == :file
 
@@ -390,6 +386,44 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert state.workspace_mode == :file
     assert state.active_review_comment_id == "review-1"
     assert state.open_file.path != ""
+  end
+
+  test "ssh channel toggles the active review comment resolved and open" do
+    state = attached_ssh_state("ssh-review-toggle-command")
+
+    assert {:ok, state} = open_first_ssh_file(state)
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "r"}},
+               state
+             )
+
+    assert %{status: :open} = Tilde.Core.Review.find_comment(state.review, "review-1")
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "x"}},
+               state
+             )
+
+    assert state.active_review_comment_id == "review-1"
+    assert %{status: :resolved} = Tilde.Core.Review.find_comment(state.review, "review-1")
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "x"}},
+               state
+             )
+
+    assert %{status: :open} = Tilde.Core.Review.find_comment(state.review, "review-1")
+  end
+
+  defp open_first_ssh_file(state) do
+    Tilde.Transport.SSH.Channel.handle_ssh_msg(
+      {:ssh_cm, nil, {:data, nil, 0, <<16, ?\n>>}},
+      state
+    )
   end
 
   defp attached_ssh_state(session_id) do

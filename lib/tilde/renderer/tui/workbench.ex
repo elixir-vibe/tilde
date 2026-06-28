@@ -5,6 +5,7 @@ defmodule Tilde.Renderer.TUI.Workbench do
   alias Tilde.Core.Palette, as: CorePalette
   alias Tilde.Core.Review, as: CoreReview
   alias Tilde.Core.Session
+  alias Tilde.Core.Shortcuts
   alias Tilde.Core.Workspace, as: CoreWorkspace
   alias Tilde.Renderer.TUI
   alias Tilde.Renderer.TUI.Palette, as: PaletteRenderer
@@ -49,8 +50,10 @@ defmodule Tilde.Renderer.TUI.Workbench do
   defp wide_body(state, width, height, opts) do
     {workspace_width, main_width, review_width} = pane_widths(width)
     palette = render_palette(state, width, opts)
+    footer = render_footer(state, width, opts)
     palette_height = line_count(palette)
-    pane_height = max(height - palette_height - 3, 8)
+    footer_height = line_count(footer)
+    pane_height = max(height - palette_height - footer_height - 4, 8)
 
     panes =
       [
@@ -59,7 +62,7 @@ defmodule Tilde.Renderer.TUI.Workbench do
         pane("review", render_review(state, review_width, opts), review_width, opts)
       ]
 
-    [Theme.title("# tilde", opts), columns(panes, pane_height), palette]
+    [Theme.title("# tilde", opts), columns(panes, pane_height), footer, palette]
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join("\n")
     |> maybe_clip(height)
@@ -71,6 +74,7 @@ defmodule Tilde.Renderer.TUI.Workbench do
       section("workspace", render_workspace(state, width, opts), opts),
       section("main", render_main(state, width, height, opts), opts),
       section("review", render_review(state, width, opts), opts),
+      render_footer(state, width, opts),
       render_palette(state, width, opts)
     ]
     |> Enum.reject(&(&1 in [nil, ""]))
@@ -209,6 +213,84 @@ defmodule Tilde.Renderer.TUI.Workbench do
   end
 
   defp render_palette(_state, _width, _opts), do: ""
+
+  defp render_footer(state, width, opts) do
+    state
+    |> footer_actions()
+    |> Enum.map_join(" · ", &footer_action/1)
+    |> TextLayout.truncate(width)
+    |> Theme.muted(opts)
+  end
+
+  defp footer_actions(%{palette: %CorePalette{open?: true}}) do
+    [
+      "tilde.palette.previous",
+      "tilde.palette.next",
+      "tilde.palette.accept",
+      "tilde.palette.close"
+    ]
+  end
+
+  defp footer_actions(%{workspace_mode: :file} = state) do
+    [
+      "tilde.palette.open",
+      "tilde.workspace.view_files",
+      "tilde.workspace.view_symbols",
+      "tilde.review.focus",
+      review_toggle_action(state),
+      "tilde.session.chat"
+    ]
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp footer_actions(%{workspace_mode: :workspace}) do
+    [
+      "tilde.palette.open",
+      "tilde.workspace.focus_previous",
+      "tilde.workspace.focus_next",
+      "tilde.workspace.open_focused",
+      "tilde.workspace.view_files",
+      "tilde.workspace.view_symbols",
+      "tilde.session.chat"
+    ]
+  end
+
+  defp footer_actions(_state) do
+    [
+      "tilde.palette.open",
+      "tilde.workspace.focus_previous",
+      "tilde.workspace.focus_next",
+      "tilde.workspace.open_focused",
+      "tilde.workspace.view_files",
+      "tilde.workspace.view_symbols"
+    ]
+  end
+
+  defp review_toggle_action(state) do
+    case active_review_comment(state) do
+      %{status: :open} -> {"tilde.review.toggle_current", "resolve"}
+      %{status: :resolved} -> {"tilde.review.toggle_current", "reopen"}
+      _comment -> nil
+    end
+  end
+
+  defp active_review_comment(%{review: %CoreReview{} = review, active_review_comment_id: id}) do
+    id = id || CoreReview.focused_comment_id(review, nil)
+
+    if is_binary(id) do
+      CoreReview.find_comment(review, id)
+    end
+  end
+
+  defp active_review_comment(_state), do: nil
+
+  defp footer_action({id, label}), do: footer_key(id) <> " " <> label
+
+  defp footer_action(id) when is_binary(id) do
+    footer_key(id) <> " " <> (Shortcuts.label(id) || id)
+  end
+
+  defp footer_key(id), do: Shortcuts.display_key(id) || ""
 
   defp symbols(%{open_file: %FileBuffer{symbols: symbols}}), do: symbols
   defp symbols(_state), do: []
