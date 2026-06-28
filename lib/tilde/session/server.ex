@@ -261,7 +261,7 @@ defmodule Tilde.Session.Server do
     %{state | session: session}
   end
 
-  defp llm_delta?(%{kind: :llm_delta} = event) do
+  defp llm_delta?(%Jidoka.Event{event: :llm_delta} = event) do
     event
     |> delta_text()
     |> case do
@@ -336,7 +336,7 @@ defmodule Tilde.Session.Server do
     {:cont, [event]}
   end
 
-  defp chunk_delta_event(event, [%{kind: :llm_delta} = previous | _rest] = chunk) do
+  defp chunk_delta_event(event, [%Jidoka.Event{event: :llm_delta} = previous | _rest] = chunk) do
     if delta_chunk_type(event) == delta_chunk_type(previous) do
       {:cont, [event | chunk]}
     else

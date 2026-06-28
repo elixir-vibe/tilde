@@ -1,7 +1,6 @@
 defmodule Tilde.Session.AgentLoop do
   @moduledoc "Session-owned assistant loop: start, stream, cancel, and record semantic events."
 
-  alias Jido.AI.Runtime.Event, as: RuntimeEvent
   alias Tilde.Core.{Event, Session}
   alias Tilde.Runtime.{LLM, RateLimit}
   alias Tilde.Session.AgentLoop.{Prompt, ResumeCandidate, Run, State}
@@ -55,19 +54,25 @@ defmodule Tilde.Session.AgentLoop do
 
   @spec handle_stream_event(server_state(), Tilde.Runtime.LLM.Provider.stream_event(), emit_fun()) ::
           server_state()
-  def handle_stream_event(state, %RuntimeEvent{kind: :request_started} = event, _emit) do
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_started} = event, _emit) do
     state
     |> put_agent_loop(State.put_run(state.agent_loop, Run.from_event(event)))
     |> sync_runtime_metadata()
   end
 
-  def handle_stream_event(state, %RuntimeEvent{kind: :checkpoint} = event, _emit) do
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_hibernated} = event, _emit) do
     state
     |> put_agent_loop(State.put_checkpoint(state.agent_loop, event))
     |> sync_runtime_metadata()
   end
 
-  def handle_stream_event(state, %RuntimeEvent{kind: :request_cancelled}, emit) do
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_failed, data: data}, emit)
+      when data in [
+             %{reason: :cancelled},
+             %{"reason" => "cancelled"},
+             %{error: :cancelled},
+             %{"error" => "cancelled"}
+           ] do
     state
     |> update_session(
       &Session.append_event(
@@ -80,7 +85,7 @@ defmodule Tilde.Session.AgentLoop do
     |> maybe_start_pending(emit)
   end
 
-  def handle_stream_event(state, %RuntimeEvent{kind: :llm_delta, data: data}, emit) do
+  def handle_stream_event(state, %Jidoka.Event{event: :llm_delta, data: data}, emit) do
     chunk_type = event_field(data, :chunk_type, :content)
     text = event_field(data, :delta, "")
 
@@ -96,16 +101,24 @@ defmodule Tilde.Session.AgentLoop do
     end
   end
 
-  def handle_stream_event(state, %RuntimeEvent{kind: :tool_started, data: data} = event, emit) do
-    id = event.tool_call_id || event_field(data, :tool_call_id)
-    name = event.tool_name || event_field(data, :tool_name, "tool")
+  def handle_stream_event(
+        state,
+        %Jidoka.Event{event: :effect_started, effect_kind: :operation, data: data} = event,
+        emit
+      ) do
+    id = event.effect_id || event_field(data, :tool_call_id)
+    name = event.operation || event_field(data, :tool_name, "tool")
     args = event_field(data, :arguments, %{})
     tool_event = ToolEvent.started(id: id, name: name, args: args)
     emit_tool_started(state, tool_event, emit)
   end
 
-  def handle_stream_event(state, %RuntimeEvent{kind: :tool_completed, data: data} = event, emit) do
-    id = event.tool_call_id || event_field(data, :tool_call_id)
+  def handle_stream_event(
+        state,
+        %Jidoka.Event{event: :effect_completed, effect_kind: :operation, data: data} = event,
+        emit
+      ) do
+    id = event.effect_id || event_field(data, :tool_call_id)
     raw_result = event_field(data, :result)
 
     tool_event =
@@ -116,7 +129,7 @@ defmodule Tilde.Session.AgentLoop do
     |> emit_then(emit)
   end
 
-  def handle_stream_event(state, %RuntimeEvent{kind: :request_completed, data: data}, emit) do
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_finished, data: data}, emit) do
     text = data |> event_field(:result, "") |> to_string()
 
     state
@@ -135,7 +148,7 @@ defmodule Tilde.Session.AgentLoop do
     |> maybe_start_pending(emit)
   end
 
-  def handle_stream_event(state, %RuntimeEvent{kind: :request_failed, data: data}, emit) do
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_failed, data: data}, emit) do
     reason = event_field(data, :error, data)
 
     state

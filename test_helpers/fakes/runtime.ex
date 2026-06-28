@@ -80,28 +80,30 @@ end
 
 defmodule TildeTest.RuntimeEvents do
   def started do
-    event(:request_started, %{})
+    event(:turn_started, %{})
   end
 
   def checkpoint(token) do
-    event(:checkpoint, %{token: token})
+    event(:turn_hibernated, %{token: token})
   end
 
   def cancelled do
-    event(:request_cancelled, %{})
+    event(:turn_failed, %{reason: :cancelled})
   end
 
   def llm_started(model \\ "openrouter/test-model") do
-    event(:llm_started, %{call_id: "llm-call", model: model, message_count: 2},
-      llm_call_id: "llm-call"
+    event(:effect_started, %{call_id: "llm-call", model: model, message_count: 2},
+      effect_id: "llm-call",
+      effect_kind: :llm
     )
   end
 
   def llm_completed(usage \\ %{input_tokens: 12, output_tokens: 5}) do
     event(
-      :llm_completed,
+      :effect_completed,
       %{call_id: "llm-call", model: "openrouter/test-model", usage: usage, finish_reason: :stop},
-      llm_call_id: "llm-call"
+      effect_id: "llm-call",
+      effect_kind: :llm
     )
   end
 
@@ -114,33 +116,40 @@ defmodule TildeTest.RuntimeEvents do
   end
 
   def tool_started(id, name, args) do
-    event(:tool_started, %{arguments: args}, tool_call_id: id, tool_name: name)
+    event(:effect_started, %{arguments: args},
+      effect_id: id,
+      effect_kind: :operation,
+      operation: name
+    )
   end
 
   def tool_completed(id, name, result) do
-    event(:tool_completed, %{result: {:ok, result}}, tool_call_id: id, tool_name: name)
+    event(:effect_completed, %{result: {:ok, result}},
+      effect_id: id,
+      effect_kind: :operation,
+      operation: name
+    )
   end
 
   def completed(result, data \\ %{}) when is_map(data) do
-    event(:request_completed, Map.put(data, :result, result))
+    event(:turn_finished, Map.put(data, :result, result))
   end
 
   def failed(reason) do
-    event(:request_failed, %{error: reason})
+    event(:turn_failed, %{error: reason})
   end
 
   defp event(kind, data, opts \\ []) do
-    Jido.AI.Runtime.Event.new(%{
+    Jidoka.Event.build(kind, [],
       seq: System.unique_integer([:positive]),
-      run_id: "test-run",
+      agent_id: "test-run",
       request_id: "test-request",
-      iteration: 0,
-      kind: kind,
-      tool_call_id: Keyword.get(opts, :tool_call_id),
-      llm_call_id: Keyword.get(opts, :llm_call_id),
-      tool_name: Keyword.get(opts, :tool_name),
+      loop_index: 0,
+      effect_id: Keyword.get(opts, :effect_id),
+      effect_kind: Keyword.get(opts, :effect_kind),
+      operation: Keyword.get(opts, :operation),
       data: data
-    })
+    )
   end
 end
 

@@ -9,7 +9,7 @@ defmodule Tilde.Runtime.LLM.ResumeTest do
     session = resume_session("resume-facade", "checkpoint-facade")
     candidate = ResumeCandidate.from_session(session)
 
-    assert [%Jido.AI.Runtime.Event{kind: :request_completed, data: %{result: result}}] =
+    assert [%Jidoka.Event{event: :turn_finished, data: %{result: result}}] =
              session
              |> LLM.resume_checkpoint(candidate, backend: TildeTest.LLMBackend)
              |> Enum.to_list()
@@ -25,8 +25,8 @@ defmodule Tilde.Runtime.LLM.ResumeTest do
     candidate = ResumeCandidate.from_session(session)
 
     assert [
-             %Jido.AI.Runtime.Event{
-               kind: :request_failed,
+             %Jidoka.Event{
+               event: :turn_failed,
                data: %{error: :missing_openrouter_api_key}
              }
            ] =

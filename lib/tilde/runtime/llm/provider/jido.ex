@@ -2,16 +2,17 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   @moduledoc """
   Jido.AI ReAct-backed LLM backend for Tilde.
 
-  This provider returns Jido's canonical `Jido.AI.Runtime.Event` stream directly.
+  This provider currently uses Jido.AI's ReAct runtime internally and emits
+  Jidoka runtime events at the Tilde agent-loop boundary.
   Tilde owns session/event projection; Jido owns model routing, ReAct iteration,
-  tool execution, and runtime event contracts.
+  and tool execution until the internals are fully replaced by Jidoka.
   """
 
   @behaviour Tilde.Runtime.LLM.Provider
 
   alias Jido.AI.Context, as: AIContext
   alias Jido.AI.Reasoning.ReAct.State, as: ReActState
-  alias Jido.AI.Runtime.Event, as: RuntimeEvent
+  alias Jido.AI.Runtime.Event, as: JidoRuntimeEvent
   alias Tilde.Core.{Block, Session}
   alias Tilde.Runtime.LLM
   alias Tilde.Session.AgentLoop.ResumeCandidate
@@ -244,9 +245,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   defp maybe_put_app_referer(options, app_referer),
     do: Keyword.put(options, :app_referer, app_referer)
 
-  # Temporary private bridge for released jido_ai versions where ReAct streams
-  # `Jido.AI.Reasoning.ReAct.Event` instead of canonical runtime events.
-  # Remove after agentjido/jido_ai#314 lands and Tilde bumps to that release.
+  # Temporary private bridge while this provider still runs Jido.AI ReAct
+  # internally. The boundary above this provider is already Jidoka.Event.
   defp adapt_react_events(events) do
     Stream.flat_map(events, &adapt_react_event/1)
   end
@@ -254,10 +254,75 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{kind: :input_injected}), do: []
 
   defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{} = event) do
-    [event |> Map.from_struct() |> RuntimeEvent.new()]
+    [event |> Map.from_struct() |> JidoRuntimeEvent.new() |> jidoka_event()]
   end
 
-  defp adapt_react_event(%RuntimeEvent{} = event), do: [event]
+  defp adapt_react_event(%JidoRuntimeEvent{} = event), do: [jidoka_event(event)]
+  defp adapt_react_event(%Jidoka.Event{} = event), do: [event]
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :request_started} = event) do
+    Jidoka.Event.build(:turn_started, [], jidoka_attrs(event))
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :checkpoint, data: data} = event) do
+    Jidoka.Event.build(:turn_hibernated, [], jidoka_attrs(event, data: data))
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :request_cancelled} = event) do
+    Jidoka.Event.build(:turn_failed, [], jidoka_attrs(event, data: %{reason: :cancelled}))
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :llm_delta, data: data} = event) do
+    Jidoka.Event.build(:llm_delta, [], jidoka_attrs(event, effect_kind: :llm, data: data))
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :tool_started, data: data} = event) do
+    Jidoka.Event.build(
+      :effect_started,
+      [],
+      jidoka_attrs(event,
+        effect_id: event.tool_call_id,
+        effect_kind: :operation,
+        operation: event.tool_name,
+        data: data
+      )
+    )
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :tool_completed, data: data} = event) do
+    Jidoka.Event.build(
+      :effect_completed,
+      [],
+      jidoka_attrs(event,
+        effect_id: event.tool_call_id,
+        effect_kind: :operation,
+        operation: event.tool_name,
+        data: data
+      )
+    )
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :request_completed, data: data} = event) do
+    Jidoka.Event.build(:turn_finished, [], jidoka_attrs(event, data: data))
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{kind: :request_failed, data: data} = event) do
+    Jidoka.Event.build(:turn_failed, [], jidoka_attrs(event, data: data))
+  end
+
+  defp jidoka_event(%JidoRuntimeEvent{} = event) do
+    Jidoka.Event.build(:effect_completed, [], jidoka_attrs(event, data: event.data || %{}))
+  end
+
+  defp jidoka_attrs(event, attrs \\ []) do
+    [
+      seq: event.seq || 0,
+      agent_id: event.run_id || "tilde-jido-provider",
+      request_id: event.request_id || event.run_id || "tilde-jido-provider",
+      loop_index: event.iteration || 0
+    ]
+    |> Keyword.merge(attrs)
+  end
 
   defp history_messages(%Session{} = session) do
     session

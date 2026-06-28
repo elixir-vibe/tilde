@@ -1,7 +1,6 @@
 defmodule Tilde.Session.AgentLoop.Run do
   @moduledoc "Runtime identity for the active Jido ReAct loop."
 
-  alias Jido.AI.Runtime.Event
   alias Tilde.Session.AgentLoop.ResumeCandidate
 
   @enforce_keys [:run_id, :request_id]
@@ -14,12 +13,12 @@ defmodule Tilde.Session.AgentLoop.Run do
           iteration: non_neg_integer() | nil
         }
 
-  @spec from_event(Event.t()) :: t()
-  def from_event(%Event{} = event) do
+  @spec from_event(Jidoka.Event.t()) :: t()
+  def from_event(%Jidoka.Event{} = event) do
     %__MODULE__{
-      run_id: event.run_id,
+      run_id: event.agent_id || event.request_id || event.effect_id,
       request_id: event.request_id,
-      iteration: event.iteration
+      iteration: event.loop_index
     }
   end
 
@@ -33,11 +32,16 @@ defmodule Tilde.Session.AgentLoop.Run do
     }
   end
 
-  @spec put_checkpoint(t() | nil, Event.t()) :: t() | nil
-  def put_checkpoint(nil, %Event{} = event), do: event |> from_event() |> put_checkpoint(event)
+  @spec put_checkpoint(t() | nil, Jidoka.Event.t()) :: t() | nil
+  def put_checkpoint(nil, %Jidoka.Event{} = event),
+    do: event |> from_event() |> put_checkpoint(event)
 
-  def put_checkpoint(%__MODULE__{} = run, %Event{data: data, iteration: iteration}) do
-    %{run | checkpoint_token: field(data, :token), iteration: iteration}
+  def put_checkpoint(%__MODULE__{} = run, %Jidoka.Event{data: data, loop_index: loop_index}) do
+    %{
+      run
+      | checkpoint_token: field(data, :token) || field(data, :snapshot),
+        iteration: loop_index
+    }
   end
 
   @spec snapshot(t() | nil) :: map() | nil
