@@ -67,7 +67,7 @@ defmodule Tilde.Session.AgentLoop.State do
   @spec put_run(t(), Run.t() | nil) :: t()
   def put_run(%__MODULE__{} = state, run), do: %{state | run: run}
 
-  @spec put_checkpoint(t(), Tilde.Runtime.Event.t()) :: t()
+  @spec put_checkpoint(t(), Jido.AI.Runtime.Event.t()) :: t()
   def put_checkpoint(%__MODULE__{} = state, event) do
     %{state | run: Run.put_checkpoint(state.run, event)}
   end

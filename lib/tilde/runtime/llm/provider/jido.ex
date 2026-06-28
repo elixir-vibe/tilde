@@ -2,18 +2,18 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   @moduledoc """
   Jido.AI ReAct-backed LLM backend for Tilde.
 
-  This provider normalizes Jido runtime events into `Tilde.Runtime.Event`.
+  This provider returns Jido's canonical `Jido.AI.Runtime.Event` stream directly.
   Tilde owns session/event projection; Jido owns model routing, ReAct iteration,
-  and tool execution.
+  tool execution, and runtime event contracts.
   """
 
   @behaviour Tilde.Runtime.LLM.Provider
 
   alias Jido.AI.Context, as: AIContext
   alias Jido.AI.Reasoning.ReAct.State, as: ReActState
-  alias Jido.AI.Runtime.Event, as: JidoRuntimeEvent
+  alias Jido.AI.Runtime.Event, as: RuntimeEvent
   alias Tilde.Core.{Block, Session}
-  alias Tilde.Runtime.{Event, LLM}
+  alias Tilde.Runtime.LLM
   alias Tilde.Session.AgentLoop.ResumeCandidate
   alias Tilde.Session.Compaction
 
@@ -254,17 +254,10 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{kind: :input_injected}), do: []
 
   defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{} = event) do
-    [event |> Map.from_struct() |> JidoRuntimeEvent.new() |> normalize_runtime_event()]
+    [event |> Map.from_struct() |> RuntimeEvent.new()]
   end
 
-  defp adapt_react_event(%JidoRuntimeEvent{} = event), do: [normalize_runtime_event(event)]
-  defp adapt_react_event(%Event{} = event), do: [event]
-
-  defp normalize_runtime_event(%JidoRuntimeEvent{} = event) do
-    event
-    |> Map.from_struct()
-    |> Event.new()
-  end
+  defp adapt_react_event(%RuntimeEvent{} = event), do: [event]
 
   defp history_messages(%Session{} = session) do
     session
