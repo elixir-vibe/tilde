@@ -348,6 +348,50 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert %Tilde.Core.Index{} = state.index
   end
 
+  test "ssh channel opens palette and accepts focused workspace file" do
+    state = attached_ssh_state("ssh-workspace-command")
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, <<16>>}},
+               state
+             )
+
+    assert %Tilde.Core.Palette{open?: true, mode: :files} = state.palette
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "\n"}},
+               state
+             )
+
+    assert state.workspace_mode == :file
+    assert state.open_file.path != ""
+    assert state.workspace.selected_path == state.open_file.path
+  end
+
+  test "ssh channel review shortcut opens the first review comment file from buffer scope" do
+    state = attached_ssh_state("ssh-review-command")
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, <<16, ?\n>>}},
+               state
+             )
+
+    assert state.workspace_mode == :file
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "r"}},
+               state
+             )
+
+    assert state.workspace_mode == :file
+    assert state.active_review_comment_id == "review-1"
+    assert state.open_file.path != ""
+  end
+
   defp attached_ssh_state(session_id) do
     {:ok, _pid} = Tilde.Session.Registry.ensure_started()
     server = Tilde.Session.Registry.via(session_id)
@@ -359,11 +403,17 @@ defmodule Tilde.DemoRuntimeTransportTest do
 
     on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
 
+    session = Tilde.Session.Server.subscribe(server)
+    workspace = Tilde.Runtime.WorkspaceFiles.workspace(session)
+
     %Tilde.Transport.SSH.Channel{
       session_server: server,
-      session: Tilde.Session.Server.subscribe(server),
+      session: session,
       session_id: session_id,
-      attached?: true
+      attached?: true,
+      workspace: workspace,
+      review: Tilde.Demo.Live.demo_review(workspace),
+      palette: Tilde.Core.Palette.new()
     }
   end
 

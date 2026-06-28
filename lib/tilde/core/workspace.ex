@@ -44,6 +44,53 @@ defmodule Tilde.Core.Workspace do
     git_status != :clean and session_state == :untouched
   end
 
+  @doc "Preserves selected/focused navigation from a previous workspace projection."
+  @spec preserve_navigation(t(), t() | term()) :: t()
+  def preserve_navigation(%__MODULE__{} = workspace, %__MODULE__{} = previous) do
+    %{workspace | selected_path: previous.selected_path, focused_path: previous.focused_path}
+  end
+
+  def preserve_navigation(%__MODULE__{} = workspace, _previous), do: workspace
+
+  @doc "Returns visible file paths in section/tree order."
+  @spec visible_file_paths(t()) :: [String.t()]
+  def visible_file_paths(%__MODULE__{} = workspace) do
+    workspace
+    |> file_sections()
+    |> Enum.flat_map(&tree_file_paths(&1.tree))
+  end
+
+  @doc "Moves focused_path to the next/previous visible file, wrapping around."
+  @spec focus_file(t(), :previous | :next) :: t()
+  def focus_file(%__MODULE__{} = workspace, direction) when direction in [:previous, :next] do
+    case next_file_path(visible_file_paths(workspace), workspace.focused_path, direction) do
+      nil -> workspace
+      path -> %{workspace | focused_path: path}
+    end
+  end
+
+  defp next_file_path([], _current_path, _direction), do: nil
+  defp next_file_path(paths, nil, :previous), do: List.last(paths)
+  defp next_file_path([path | _paths], nil, :next), do: path
+
+  defp next_file_path(paths, current_path, direction) do
+    current_index = Enum.find_index(paths, &(&1 == current_path)) || default_index(direction)
+    next_index = Integer.mod(current_index + step(direction), length(paths))
+    Enum.at(paths, next_index)
+  end
+
+  defp default_index(:previous), do: 0
+  defp default_index(:next), do: -1
+  defp step(:previous), do: -1
+  defp step(:next), do: 1
+
+  defp tree_file_paths(nodes) do
+    Enum.flat_map(nodes, fn
+      %{kind: :file, file: %{path: path}} -> [path]
+      %{children: children} -> tree_file_paths(children)
+    end)
+  end
+
   @doc "Creates a workspace state."
   @spec new(keyword()) :: t()
   def new(opts \\ []) do

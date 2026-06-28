@@ -349,7 +349,9 @@ defmodule Tilde.Demo.Live do
     )
   end
 
-  defp demo_review(%Workspace{} = workspace) do
+  @doc "Returns the demo review used by mirrored web and SSH/TUI surfaces."
+  @spec demo_review(Workspace.t()) :: Review.t()
+  def demo_review(%Workspace{} = workspace) do
     paths =
       workspace
       |> review_paths()
@@ -435,31 +437,14 @@ defmodule Tilde.Demo.Live do
     workspace =
       session
       |> WorkspaceFiles.workspace()
-      |> preserve_workspace_navigation(socket.assigns[:workspace])
+      |> Workspace.preserve_navigation(socket.assigns[:workspace])
 
     assign(socket,
       session: session,
       workspace: workspace,
-      palette: refresh_palette(socket.assigns[:palette], workspace, socket.assigns[:open_file])
+      palette: Palette.refresh(socket.assigns[:palette], workspace, socket.assigns[:open_file])
     )
   end
-
-  defp preserve_workspace_navigation(%Workspace{} = workspace, %Workspace{} = previous) do
-    %{workspace | selected_path: previous.selected_path, focused_path: previous.focused_path}
-  end
-
-  defp preserve_workspace_navigation(%Workspace{} = workspace, _previous), do: workspace
-
-  defp refresh_palette(
-         %Palette{open?: true, query: query} = palette,
-         %Workspace{} = workspace,
-         open_file
-       ) do
-    %{Palette.query(palette, workspace, open_file, query) | open?: true}
-  end
-
-  defp refresh_palette(%Palette{} = palette, _workspace, _open_file), do: palette
-  defp refresh_palette(_palette, _workspace, _open_file), do: Palette.new()
 
   defp inspectable(%{session: %Session{}, session_server: server}) when not is_nil(server) do
     %{session: session, agent_loop: agent_loop} = SessionServer.dev_snapshot(server)
@@ -616,38 +601,12 @@ defmodule Tilde.Demo.Live do
 
   defp focus_review(socket) do
     socket.assigns.review
-    |> focused_review_comment_id(socket.assigns.active_review_comment_id)
+    |> Review.focused_comment_id(socket.assigns.active_review_comment_id)
     |> case do
       nil -> assign(socket, review_open?: true)
       comment_id -> socket |> assign(review_open?: true) |> jump_review_comment(comment_id)
     end
   end
-
-  defp focused_review_comment_id(%Review{} = review, active_comment_id) do
-    with id when is_binary(id) <- active_comment_id,
-         %{status: :open} <- Review.find_comment(review, id) do
-      id
-    else
-      _other -> first_review_comment_id(review, :open) || first_review_comment_id(review, :any)
-    end
-  end
-
-  defp first_review_comment_id(%Review{} = review, :open) do
-    review
-    |> Review.comments()
-    |> Enum.find(&match?(%{status: :open}, &1))
-    |> comment_id()
-  end
-
-  defp first_review_comment_id(%Review{} = review, :any) do
-    review
-    |> Review.comments()
-    |> List.first()
-    |> comment_id()
-  end
-
-  defp comment_id(%{id: id}), do: id
-  defp comment_id(nil), do: nil
 
   defp update_review_comment(socket, comment_id, :resolved) do
     assign(socket, review: Review.resolve_comment(socket.assigns.review, comment_id))
@@ -673,56 +632,18 @@ defmodule Tilde.Demo.Live do
   end
 
   defp focus_workspace_file(socket, direction) do
-    paths = visible_workspace_file_paths(socket.assigns.workspace)
-
-    case next_workspace_path(paths, socket.assigns.workspace.focused_path, direction) do
-      nil -> socket
-      path -> assign(socket, workspace: %{socket.assigns.workspace | focused_path: path})
-    end
+    assign(socket, workspace: Workspace.focus_file(socket.assigns.workspace, direction))
   end
 
   defp open_focused_workspace_file(socket) do
     focused_path = socket.assigns.workspace.focused_path
 
-    if focused_path in visible_workspace_file_paths(socket.assigns.workspace) do
+    if focused_path in Workspace.visible_file_paths(socket.assigns.workspace) do
       open_workspace_file(socket, focused_path)
     else
       socket
     end
   end
-
-  defp visible_workspace_file_paths(%Workspace{} = workspace) do
-    workspace
-    |> Workspace.file_sections()
-    |> Enum.flat_map(&tree_file_paths(&1.tree))
-  end
-
-  defp tree_file_paths(nodes) do
-    Enum.flat_map(nodes, fn
-      %{kind: :file, file: %{path: path}} -> [path]
-      %{children: children} -> tree_file_paths(children)
-    end)
-  end
-
-  defp next_workspace_path([], _current_path, _direction), do: nil
-  defp next_workspace_path(paths, nil, :previous), do: List.last(paths)
-  defp next_workspace_path([path | _paths], nil, :next), do: path
-
-  defp next_workspace_path(paths, current_path, direction) do
-    current_index =
-      Enum.find_index(paths, &(&1 == current_path)) || default_workspace_index(direction)
-
-    next_index = wrap_workspace_index(current_index + workspace_step(direction), length(paths))
-    Enum.at(paths, next_index)
-  end
-
-  defp default_workspace_index(:previous), do: 0
-  defp default_workspace_index(:next), do: -1
-
-  defp workspace_step(:previous), do: -1
-  defp workspace_step(:next), do: 1
-
-  defp wrap_workspace_index(index, count), do: Integer.mod(index, count)
 
   defp shortcut_scope(%{assigns: assigns}), do: shortcut_scope(assigns)
   defp shortcut_scope(%{palette: %Palette{open?: true}}), do: :palette

@@ -4,7 +4,7 @@ defmodule Tilde.Transport.SSH.Rendering do
   alias Tilde.Core.{Block, Index, Input, Session}
   alias Tilde.Index.View, as: IndexView
   alias Tilde.Renderer.TUI
-  alias Tilde.Renderer.TUI.{ViewRenderer, WidgetRenderer}
+  alias Tilde.Renderer.TUI.{ViewRenderer, WidgetRenderer, Workbench}
 
   @spec index(Index.t(), pos_integer()) :: iodata()
   def index(%Index{} = index, width) do
@@ -16,6 +16,11 @@ defmodule Tilde.Transport.SSH.Rendering do
   @spec session(Session.t(), pos_integer(), pos_integer()) :: iodata()
   def session(%Session{} = session, width, height) do
     TUI.render(session, width: width, height: height, clear?: false)
+  end
+
+  @spec workbench(map(), pos_integer(), pos_integer()) :: iodata()
+  def workbench(state, width, height) when is_map(state) do
+    Workbench.render(state, width, height)
   end
 
   @spec session_snapshot(Session.t(), String.t() | nil, String.t(), pos_integer(), pos_integer()) ::

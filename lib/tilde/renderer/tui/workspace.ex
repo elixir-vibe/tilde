@@ -42,7 +42,16 @@ defmodule Tilde.Renderer.TUI.Workspace do
   end
 
   defp file_line(%File{} = file, name, depth, opts) do
-    indent(depth) <> Theme.muted(File.marks(file), opts) <> " " <> name
+    marker = file_marker(file, opts)
+    indent(depth) <> marker <> Theme.muted(File.marks(file), opts) <> " " <> name
+  end
+
+  defp file_marker(%File{path: path}, opts) do
+    cond do
+      path == Keyword.get(opts, :selected_path) -> Theme.accent("● ", opts)
+      path == Keyword.get(opts, :focused_path) -> Theme.accent("› ", opts)
+      true -> ""
+    end
   end
 
   defp indent(depth), do: String.duplicate("  ", depth)

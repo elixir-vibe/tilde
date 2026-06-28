@@ -73,6 +73,19 @@ defmodule Tilde.Core.Palette do
     query_files(palette, workspace, query)
   end
 
+  @doc "Refreshes palette items against current workspace/file context."
+  @spec refresh(t() | term(), Workspace.t(), FileBuffer.t() | nil) :: t()
+  def refresh(
+        %__MODULE__{open?: true, query: query} = palette,
+        %Workspace{} = workspace,
+        open_file
+      ) do
+    %{query(palette, workspace, open_file, query) | open?: true}
+  end
+
+  def refresh(%__MODULE__{} = palette, _workspace, _open_file), do: palette
+  def refresh(_palette, _workspace, _open_file), do: new()
+
   @doc "Switches palette mode and rebuilds items with the current query."
   @spec switch_mode(t(), mode() | String.t(), Workspace.t(), FileBuffer.t() | nil) :: t()
   def switch_mode(%__MODULE__{} = palette, mode, %Workspace{} = workspace, open_file) do

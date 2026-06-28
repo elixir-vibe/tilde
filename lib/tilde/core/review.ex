@@ -73,6 +73,38 @@ defmodule Tilde.Core.Review do
     |> Enum.filter(&(&1.path == path))
   end
 
+  @doc "Returns review files other than the current path that have comments."
+  @spec other_files(t(), String.t() | nil) :: [File.t()]
+  def other_files(%__MODULE__{files: files}, current_path) do
+    Enum.reject(files, fn %File{path: path, comments: comments} ->
+      path == current_path or comments == []
+    end)
+  end
+
+  @doc "Returns the active open comment id, falling back to the first open or any comment."
+  @spec focused_comment_id(t(), String.t() | nil) :: String.t() | nil
+  def focused_comment_id(%__MODULE__{} = review, active_comment_id) do
+    with id when is_binary(id) <- active_comment_id,
+         %{status: :open} <- find_comment(review, id) do
+      id
+    else
+      _other -> first_comment_id(review, :open) || first_comment_id(review, :any)
+    end
+  end
+
+  defp first_comment_id(%__MODULE__{} = review, status) do
+    review
+    |> comments()
+    |> Enum.find(&comment_status?(&1, status))
+    |> case do
+      %{id: id} -> id
+      nil -> nil
+    end
+  end
+
+  defp comment_status?(_comment, :any), do: true
+  defp comment_status?(comment, status), do: comment.status == status
+
   defp update_comment_status(%__MODULE__{files: files} = review, id, status) do
     files =
       Enum.map(files, fn %File{comments: comments} = file ->

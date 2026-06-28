@@ -7,6 +7,7 @@ defmodule Tilde.Core.Keys do
           :toggle_expand
           | :quit
           | :redraw
+          | :palette_open
           | :tab
           | :backtab
           | :up
@@ -33,6 +34,7 @@ defmodule Tilde.Core.Keys do
 
   @doc "Decodes raw terminal bytes into a semantic key action."
   @spec decode(binary()) :: key()
+  def decode(<<16>>), do: :palette_open
   def decode(<<15>>), do: :toggle_expand
   def decode("q"), do: :quit
   def decode("r"), do: :redraw
@@ -54,6 +56,9 @@ defmodule Tilde.Core.Keys do
   def decode(_data), do: :unknown
 
   defp do_decode_many("", keys), do: Enum.reverse(keys)
+
+  defp do_decode_many(<<16, rest::binary>>, keys),
+    do: do_decode_many(rest, [:palette_open | keys])
 
   defp do_decode_many(<<15, rest::binary>>, keys),
     do: do_decode_many(rest, [:toggle_expand | keys])
