@@ -436,6 +436,11 @@ defmodule Tilde.Demo.Live do
 
   defp apply_shortcut_id("tilde.review.focus", socket), do: focus_review(socket)
 
+  defp apply_shortcut_id("tilde.review.next", socket), do: focus_adjacent_review(socket, :next)
+
+  defp apply_shortcut_id("tilde.review.previous", socket),
+    do: focus_adjacent_review(socket, :previous)
+
   defp apply_shortcut_id("tilde.workspace.focus_previous", socket),
     do: focus_workspace_file(socket, :previous)
 
@@ -542,6 +547,15 @@ defmodule Tilde.Demo.Live do
   defp focus_review(socket) do
     socket.assigns.review
     |> Review.focused_comment_id(socket.assigns.active_review_comment_id)
+    |> case do
+      nil -> assign(socket, review_open?: true)
+      comment_id -> socket |> assign(review_open?: true) |> jump_review_comment(comment_id)
+    end
+  end
+
+  defp focus_adjacent_review(socket, direction) do
+    socket.assigns.review
+    |> Review.adjacent_comment_id(socket.assigns.active_review_comment_id, direction)
     |> case do
       nil -> assign(socket, review_open?: true)
       comment_id -> socket |> assign(review_open?: true) |> jump_review_comment(comment_id)

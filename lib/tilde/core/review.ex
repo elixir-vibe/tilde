@@ -113,6 +113,33 @@ defmodule Tilde.Core.Review do
     end
   end
 
+  @doc "Returns the next or previous review comment id in file order."
+  @spec adjacent_comment_id(t(), String.t() | nil, :next | :previous) :: String.t() | nil
+  def adjacent_comment_id(%__MODULE__{} = review, active_comment_id, direction)
+      when direction in [:next, :previous] do
+    ids = Enum.map(comments(review), & &1.id)
+
+    case ids do
+      [] ->
+        nil
+
+      [_id] ->
+        List.first(ids)
+
+      ids ->
+        if is_nil(active_comment_id) do
+          focused_comment_id(review, nil) || List.first(ids)
+        else
+          index = Enum.find_index(ids, &(&1 == active_comment_id)) || 0
+          Enum.at(ids, adjacent_index(index, length(ids), direction))
+        end
+    end
+  end
+
+  defp adjacent_index(index, count, :next), do: rem(index + 1, count)
+  defp adjacent_index(0, count, :previous), do: count - 1
+  defp adjacent_index(index, _count, :previous), do: index - 1
+
   defp first_comment_id(%__MODULE__{} = review, status) do
     review
     |> comments()

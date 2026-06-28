@@ -98,7 +98,7 @@ defmodule Tilde.Renderer.TUI.WorkbenchTest do
         active_review_comment_id: "review-1",
         palette: Palette.new()
       }
-      |> Workbench.render(100, 40, ansi: false)
+      |> Workbench.render(140, 40, ansi: false)
       |> IO.iodata_to_binary()
       |> strip_ansi()
 
@@ -106,6 +106,8 @@ defmodule Tilde.Renderer.TUI.WorkbenchTest do
     assert rendered =~ "f files"
     assert rendered =~ "s symbols"
     assert rendered =~ "r review"
+    assert rendered =~ "n next"
+    assert rendered =~ "p previous"
     assert rendered =~ "x resolve"
     assert rendered =~ "escape chat"
   end

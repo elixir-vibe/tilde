@@ -363,8 +363,9 @@ defmodule Tilde.Transport.SSH.Channel do
   defp shortcut_key(%{workspace_mode: :file}, {:text, "j"}), do: "j"
   defp shortcut_key(%{workspace_mode: :file}, {:text, "k"}), do: "k"
 
-  defp shortcut_key(%{workspace_mode: :file}, {:text, key}) when key in ["f", "s", "r", "x"],
-    do: key
+  defp shortcut_key(%{workspace_mode: :file}, {:text, key})
+       when key in ["f", "s", "r", "x", "n", "p"],
+       do: key
 
   defp shortcut_key(%{session: %Session{input: %{value: ""}}} = state, :cancel),
     do: if(state.workspace_mode == :workspace, do: "escape")
@@ -424,6 +425,12 @@ defmodule Tilde.Transport.SSH.Channel do
   defp apply_shortcut_id("tilde.review.toggle_current", state) do
     {:cont, {:cont, toggle_review_comment(state)}}
   end
+
+  defp apply_shortcut_id("tilde.review.next", state),
+    do: {:cont, {:cont, focus_adjacent_review(state, :next)}}
+
+  defp apply_shortcut_id("tilde.review.previous", state),
+    do: {:cont, {:cont, focus_adjacent_review(state, :previous)}}
 
   defp apply_shortcut_id("tilde.workspace.focus_previous", state) do
     {:cont, {:cont, focus_workspace_file(state, :previous)}}
@@ -501,6 +508,17 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp focus_review(%__MODULE__{} = state), do: state
+
+  defp focus_adjacent_review(%__MODULE__{review: %Review{} = review} = state, direction) do
+    review
+    |> Review.adjacent_comment_id(state.active_review_comment_id, direction)
+    |> case do
+      nil -> state
+      comment_id -> jump_review_comment(state, comment_id)
+    end
+  end
+
+  defp focus_adjacent_review(%__MODULE__{} = state, _direction), do: state
 
   defp toggle_review_comment(%__MODULE__{review: %Review{} = review} = state) do
     case active_or_focused_review_comment_id(review, state.active_review_comment_id) do

@@ -46,6 +46,26 @@ defmodule Tilde.Core.ReviewTest do
     assert %Comment{status: :open} = Review.find_comment(reopened, "c1")
   end
 
+  test "navigates adjacent comments in file order" do
+    first = Comment.new(id: "c1", path: "lib/one.ex", line: 1, body: "First")
+    second = Comment.new(id: "c2", path: "lib/one.ex", line: 4, body: "Second")
+    third = Comment.new(id: "c3", path: "lib/two.ex", line: 2, body: "Third")
+
+    review =
+      Review.new(
+        files: [
+          File.new(path: "lib/one.ex", comments: [first, second]),
+          File.new(path: "lib/two.ex", comments: [third])
+        ]
+      )
+
+    assert Review.adjacent_comment_id(review, nil, :next) == "c1"
+    assert Review.adjacent_comment_id(review, "c1", :next) == "c2"
+    assert Review.adjacent_comment_id(review, "c3", :next) == "c1"
+    assert Review.adjacent_comment_id(review, "c1", :previous) == "c3"
+    assert Review.adjacent_comment_id(review, "c3", :previous) == "c2"
+  end
+
   test "dumps and applies metadata-safe comment statuses" do
     comment =
       Comment.new(

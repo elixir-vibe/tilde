@@ -237,6 +237,8 @@ defmodule Tilde.Renderer.TUI.Workbench do
       "tilde.workspace.view_files",
       "tilde.workspace.view_symbols",
       "tilde.review.focus",
+      "tilde.review.next",
+      "tilde.review.previous",
       review_toggle_action(state),
       "tilde.session.chat"
     ]

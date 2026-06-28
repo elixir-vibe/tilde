@@ -49,6 +49,22 @@ defmodule Tilde.Core.Shortcuts do
       prevent_default?: true
     ),
     Shortcut.new(
+      id: "tilde.review.next",
+      keys: "n",
+      label: "next",
+      description: "Open the next review comment",
+      scopes: [:buffer],
+      prevent_default?: true
+    ),
+    Shortcut.new(
+      id: "tilde.review.previous",
+      keys: "p",
+      label: "previous",
+      description: "Open the previous review comment",
+      scopes: [:buffer],
+      prevent_default?: true
+    ),
+    Shortcut.new(
       id: "tilde.workspace.focus_previous",
       keys: ["arrowup", "k"],
       label: "previous",

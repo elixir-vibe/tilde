@@ -388,6 +388,38 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert state.open_file.path != ""
   end
 
+  test "ssh channel navigates next and previous review comments from buffer scope" do
+    state = attached_ssh_state("ssh-review-navigation-command")
+
+    assert {:ok, state} = open_first_ssh_file(state)
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "r"}},
+               state
+             )
+
+    [first_id, second_id | _rest] = review_comment_ids(state)
+    assert state.active_review_comment_id == first_id
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "n"}},
+               state
+             )
+
+    assert state.active_review_comment_id == second_id
+    assert state.open_file.path == Tilde.Core.Review.find_comment(state.review, second_id).path
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "p"}},
+               state
+             )
+
+    assert state.active_review_comment_id == first_id
+  end
+
   test "ssh channel toggles the active review comment resolved and open" do
     state = attached_ssh_state("ssh-review-toggle-command")
 
@@ -457,9 +489,18 @@ defmodule Tilde.DemoRuntimeTransportTest do
     {:ok, _pid} = Tilde.Session.Registry.ensure_started()
     server = Tilde.Session.Registry.via(session_id)
 
+    session =
+      Tilde.Demo.Live.demo_session(id: session_id)
+      |> Session.append_event(
+        Tilde.tool_started("edit", %{path: "lib/tilde/core/review.ex"}, tool_call_id: "edit-1")
+      )
+      |> Session.append_event(
+        Tilde.tool_started("edit", %{path: "lib/tilde/demo/live.ex"}, tool_call_id: "edit-2")
+      )
+
     assert {:ok, pid} =
              Tilde.Session.Server.ensure_started(server,
-               session: Tilde.Demo.Live.demo_session(id: session_id)
+               session: session
              )
 
     on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
@@ -479,10 +520,15 @@ defmodule Tilde.DemoRuntimeTransportTest do
   end
 
   defp first_review_comment_id(state) do
+    state
+    |> review_comment_ids()
+    |> List.first()
+  end
+
+  defp review_comment_ids(state) do
     state.review
     |> Tilde.Core.Review.comments()
-    |> List.first()
-    |> Map.fetch!(:id)
+    |> Enum.map(& &1.id)
   end
 
   test "tui key decoder maps terminal bytes to semantic actions" do
