@@ -27,12 +27,16 @@ defmodule Tilde.Core.Stream do
   @doc "Appends a chunk to the stream."
   @spec append(t(), String.t()) :: t()
   def append(%__MODULE__{} = stream, chunk) when is_binary(chunk) do
-    %{stream | chunks: stream.chunks ++ [chunk]}
+    %{stream | chunks: [chunk | stream.chunks]}
   end
+
+  @doc "Returns stream chunks in chronological order."
+  @spec chunks(t()) :: [String.t()]
+  def chunks(%__MODULE__{chunks: chunks}), do: Enum.reverse(chunks)
 
   @doc "Returns the full stream text."
   @spec text(t()) :: String.t()
-  def text(%__MODULE__{} = stream), do: Enum.join(stream.chunks)
+  def text(%__MODULE__{} = stream), do: stream |> chunks() |> IO.iodata_to_binary()
 
   @doc "Returns stream lines, preserving partial trailing lines."
   @spec lines(t()) :: [String.t()]

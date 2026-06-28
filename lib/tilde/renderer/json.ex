@@ -45,7 +45,7 @@ defmodule Tilde.Renderer.JSON do
     %{
       id: stream.id,
       kind: stream.kind,
-      chunks: stream.chunks,
+      chunks: Stream.chunks(stream),
       text: Stream.text(stream),
       line_count: Stream.line_count(stream),
       byte_count: Stream.byte_count(stream),

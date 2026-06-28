@@ -24,6 +24,7 @@ defmodule Tilde.CoreSemanticTest do
     assert tool.name == "bash"
     assert tool.status == :success
     assert [%Stream{kind: :stdout} = stdout] = tool.streams
+    assert Stream.chunks(stdout) == ["Compiling...\n", "2 tests, 0 failures\n"]
     assert Stream.lines(stdout) == ["Compiling...", "2 tests, 0 failures"]
     assert tool.result == %{exit_code: 0}
   end

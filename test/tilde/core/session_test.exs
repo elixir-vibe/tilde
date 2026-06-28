@@ -15,6 +15,18 @@ defmodule Tilde.Core.SessionTest do
     assert session.statuses["model"] == "sonnet"
   end
 
+  test "appends batches of events in order" do
+    events = [
+      Tilde.input_submitted("one", id: "evt_one"),
+      Tilde.assistant_done("two", id: "evt_two")
+    ]
+
+    session = Session.append_events(Tilde.session(), events)
+
+    assert Enum.map(session.events, & &1.id) == ["evt_one", "evt_two"]
+    assert [%Block{source: "one"}, %Block{source: "two"}] = session.transcript.blocks
+  end
+
   test "toggles tool expansion as one semantic group" do
     session =
       Tilde.session()

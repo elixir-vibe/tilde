@@ -104,8 +104,12 @@ defmodule Tilde.Core.AssistantTurn do
   def content_started?(%__MODULE__{phase: phase}),
     do: phase in [:streaming, :thinking, :tooling, :done]
 
+  @doc "Returns assistant chunks in chronological order."
+  @spec chunks(t()) :: [StreamChunk.t()]
+  def chunks(%__MODULE__{chunks: chunks}), do: Enum.reverse(chunks)
+
   defp append_chunk(%__MODULE__{} = turn, %StreamChunk{} = chunk) do
-    %{turn | chunks: turn.chunks ++ [chunk]}
+    %{turn | chunks: [chunk | turn.chunks]}
   end
 
   defp usage(%Response{usage: usage}), do: usage

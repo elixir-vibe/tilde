@@ -64,19 +64,19 @@ defmodule Tilde.Core.Session do
   def append_event(%__MODULE__{} = session, %Event{} = event) do
     events = session.events ++ [event]
 
-    session = apply_session_event(session, event)
+    session = apply_event_without_log(session, event)
 
-    %{
-      session
-      | events: events,
-        transcript: Transcript.apply_event(event, session.transcript)
-    }
+    %{session | events: events}
   end
 
   @doc "Appends events in order."
   @spec append_events(t(), [Event.t()]) :: t()
+  def append_events(%__MODULE__{} = session, []), do: session
+
   def append_events(%__MODULE__{} = session, events) when is_list(events) do
-    Enum.reduce(events, session, &append_event(&2, &1))
+    updated = Enum.reduce(events, session, &apply_event_without_log(&2, &1))
+
+    %{updated | events: session.events ++ events}
   end
 
   @doc "Adds or replaces a widget by id in its placement."
@@ -234,6 +234,12 @@ defmodule Tilde.Core.Session do
           {:ok, append_event(session, Tilde.input_submitted(completion))}
         end
     end
+  end
+
+  defp apply_event_without_log(%__MODULE__{} = session, %Event{} = event) do
+    session = apply_session_event(session, event)
+
+    %{session | transcript: Transcript.apply_event(event, session.transcript)}
   end
 
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_changed} = event) do

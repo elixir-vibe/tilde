@@ -12,6 +12,7 @@ defmodule Tilde.Renderer.JSONTest do
     rendered = Renderer.JSON.render(transcript)
 
     assert [%{kind: :tool, streams: [stream]}] = rendered.blocks
+    assert stream.chunks == ["ok\n"]
     assert stream.text == "ok\n"
     assert stream.line_count == 1
     assert stream.byte_count == 3
