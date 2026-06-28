@@ -146,11 +146,11 @@ defmodule Tilde.Transport.SSH.Delta do
     old_streams = Map.new(old_tool.streams, &{&1.kind, &1})
 
     Enum.find_value(new_tool.streams, fn %Stream{kind: kind} = new_stream ->
-      old_text = old_streams |> Map.get(kind, Stream.new(kind)) |> Stream.text()
-      new_text = Stream.text(new_stream)
+      old_stream = Map.get(old_streams, kind, Stream.new(kind))
 
-      if String.starts_with?(new_text, old_text) and new_text != old_text do
-        {kind, String.replace_prefix(new_text, old_text, ""), old_text == ""}
+      case Stream.appended_text(old_stream, new_stream) do
+        {delta, first?} when delta != "" -> {kind, delta, first?}
+        _other -> nil
       end
     end)
   end

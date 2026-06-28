@@ -280,8 +280,11 @@ defmodule Tilde.DemoRuntimeTransportTest do
     streamed = Session.append_event(started, Tilde.tool_stream("tool_1", :stdout, "one\n"))
     streamed_more = Session.append_event(streamed, Tilde.tool_stream("tool_1", :stdout, "two\n"))
 
+    streamed_stderr =
+      Session.append_event(streamed_more, Tilde.tool_stream("tool_1", :stderr, "warn\n"))
+
     done =
-      Session.append_event(streamed_more, Tilde.tool_done("tool_1", :success, %{exit_code: 0}))
+      Session.append_event(streamed_stderr, Tilde.tool_done("tool_1", :success, %{exit_code: 0}))
 
     assert {:new_blocks, [%Block{kind: :tool, id: "tool_1"}]} =
              Tilde.Transport.SSH.Delta.classify(Tilde.session(), started)
@@ -292,8 +295,29 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert {:tool_delta, %Block{id: "tool_1"}, :stdout, "two\n", false} =
              Tilde.Transport.SSH.Delta.classify(streamed, streamed_more)
 
+    assert {:tool_delta, %Block{id: "tool_1"}, :stderr, "warn\n", true} =
+             Tilde.Transport.SSH.Delta.classify(streamed_more, streamed_stderr)
+
     assert {:tool_done, %Block{id: "tool_1", status: :success}} =
-             Tilde.Transport.SSH.Delta.classify(streamed_more, done)
+             Tilde.Transport.SSH.Delta.classify(streamed_stderr, done)
+  end
+
+  test "ssh delta classifier redraws non-append stream changes" do
+    old =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+      |> Session.append_event(Tilde.tool_stream("tool_1", :stdout, "one\n"))
+
+    replacement =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+      |> Session.append_event(Tilde.tool_stream("tool_1", :stdout, "different\n"))
+
+    assert Tilde.Transport.SSH.Delta.classify(old, replacement) == :redraw
   end
 
   test "ssh delta classifier redraws non-append transcript changes" do
