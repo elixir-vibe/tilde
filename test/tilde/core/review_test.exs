@@ -45,4 +45,26 @@ defmodule Tilde.Core.ReviewTest do
     assert Review.open_comment_count(reopened) == 1
     assert %Comment{status: :open} = Review.find_comment(reopened, "c1")
   end
+
+  test "dumps and applies metadata-safe comment statuses" do
+    comment =
+      Comment.new(
+        id: "c1",
+        path: "lib/example.ex",
+        line: 12,
+        severity: :issue,
+        body: "Check this."
+      )
+
+    review = Review.new(files: [File.new(path: "lib/example.ex", comments: [comment])])
+    resolved = Review.resolve_comment(review, "c1")
+
+    assert Review.dump_statuses(resolved) == %{"c1" => "resolved"}
+
+    assert %Comment{status: :resolved} =
+             Review.apply_statuses(review, %{"c1" => "resolved"}) |> Review.find_comment("c1")
+
+    assert %Comment{status: :open} =
+             Review.apply_statuses(resolved, %{"c1" => "open"}) |> Review.find_comment("c1")
+  end
 end

@@ -384,7 +384,7 @@ defmodule Tilde.DemoRuntimeTransportTest do
              )
 
     assert state.workspace_mode == :file
-    assert state.active_review_comment_id == "review-1"
+    assert state.active_review_comment_id == first_review_comment_id(state)
     assert state.open_file.path != ""
   end
 
@@ -399,7 +399,9 @@ defmodule Tilde.DemoRuntimeTransportTest do
                state
              )
 
-    assert %{status: :open} = Tilde.Core.Review.find_comment(state.review, "review-1")
+    comment_id = first_review_comment_id(state)
+
+    assert %{status: :open} = Tilde.Core.Review.find_comment(state.review, comment_id)
 
     assert {:ok, state} =
              Tilde.Transport.SSH.Channel.handle_ssh_msg(
@@ -407,8 +409,8 @@ defmodule Tilde.DemoRuntimeTransportTest do
                state
              )
 
-    assert state.active_review_comment_id == "review-1"
-    assert %{status: :resolved} = Tilde.Core.Review.find_comment(state.review, "review-1")
+    assert state.active_review_comment_id == comment_id
+    assert %{status: :resolved} = Tilde.Core.Review.find_comment(state.review, comment_id)
 
     assert {:ok, state} =
              Tilde.Transport.SSH.Channel.handle_ssh_msg(
@@ -416,7 +418,32 @@ defmodule Tilde.DemoRuntimeTransportTest do
                state
              )
 
-    assert %{status: :open} = Tilde.Core.Review.find_comment(state.review, "review-1")
+    assert %{status: :open} = Tilde.Core.Review.find_comment(state.review, comment_id)
+  end
+
+  test "ssh buffer shortcuts are not blocked by hidden chat draft text" do
+    state = attached_ssh_state("ssh-review-hidden-draft-command")
+
+    assert {:ok, state} = open_first_ssh_file(state)
+
+    state = %{state | session: Session.append_event(state.session, Tilde.input_changed("draft"))}
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "r"}},
+               state
+             )
+
+    comment_id = first_review_comment_id(state)
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "x"}},
+               state
+             )
+
+    assert state.active_review_comment_id == comment_id
+    assert %{status: :resolved} = Tilde.Core.Review.find_comment(state.review, comment_id)
   end
 
   defp open_first_ssh_file(state) do
@@ -446,9 +473,16 @@ defmodule Tilde.DemoRuntimeTransportTest do
       session_id: session_id,
       attached?: true,
       workspace: workspace,
-      review: Tilde.Demo.Live.demo_review(workspace),
+      review: Tilde.Runtime.WorkspaceReview.review(workspace, session),
       palette: Tilde.Core.Palette.new()
     }
+  end
+
+  defp first_review_comment_id(state) do
+    state.review
+    |> Tilde.Core.Review.comments()
+    |> List.first()
+    |> Map.fetch!(:id)
   end
 
   test "tui key decoder maps terminal bytes to semantic actions" do

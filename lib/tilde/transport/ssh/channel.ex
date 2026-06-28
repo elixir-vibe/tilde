@@ -25,8 +25,9 @@ defmodule Tilde.Transport.SSH.Channel do
   }
 
   alias Tilde.Core.Interaction.Outcome
-  alias Tilde.Runtime.WorkspaceFiles
+  alias Tilde.Runtime.{WorkspaceFiles, WorkspaceReview}
   alias Tilde.Session.Registry, as: SessionRegistry
+  alias Tilde.Session.ReviewState
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.SSH.Delta
   alias Tilde.Transport.SSH.Interaction, as: SSHInteraction
@@ -96,7 +97,7 @@ defmodule Tilde.Transport.SSH.Channel do
        session_mode: session_mode,
        session_id: session.id,
        workspace: workspace,
-       review: Tilde.Demo.Live.demo_review(workspace),
+       review: WorkspaceReview.review(workspace, session),
        palette: Palette.new()
      }}
   end
@@ -298,7 +299,7 @@ defmodule Tilde.Transport.SSH.Channel do
       state
       | workspace: workspace,
         open_file: open_file,
-        review: state.review || Tilde.Demo.Live.demo_review(workspace),
+        review: WorkspaceReview.review(workspace, session),
         palette: Palette.refresh(state.palette || Palette.new(), workspace, open_file)
     }
   end
@@ -355,12 +356,18 @@ defmodule Tilde.Transport.SSH.Channel do
   defp apply_palette_key(state, _key), do: {:cont, {:cont, state}}
 
   defp shortcut_key(_state, :palette_open), do: "ctrl+p"
+  defp shortcut_key(%{workspace_mode: :file}, :redraw), do: "r"
+  defp shortcut_key(%{workspace_mode: :file}, :cancel), do: "escape"
+  defp shortcut_key(%{workspace_mode: :file}, :up), do: "arrowup"
+  defp shortcut_key(%{workspace_mode: :file}, :down), do: "arrowdown"
+  defp shortcut_key(%{workspace_mode: :file}, {:text, "j"}), do: "j"
+  defp shortcut_key(%{workspace_mode: :file}, {:text, "k"}), do: "k"
 
-  defp shortcut_key(%{workspace_mode: :file, session: %Session{input: %{value: ""}}}, :redraw),
-    do: "r"
+  defp shortcut_key(%{workspace_mode: :file}, {:text, key}) when key in ["f", "s", "r", "x"],
+    do: key
 
   defp shortcut_key(%{session: %Session{input: %{value: ""}}} = state, :cancel),
-    do: if(state.workspace_mode in [:file, :workspace], do: "escape")
+    do: if(state.workspace_mode == :workspace, do: "escape")
 
   defp shortcut_key(%{session: %Session{input: %{value: ""}}}, :up), do: "arrowup"
   defp shortcut_key(%{session: %Session{input: %{value: ""}}}, :down), do: "arrowdown"
@@ -368,7 +375,8 @@ defmodule Tilde.Transport.SSH.Channel do
   defp shortcut_key(%{session: %Session{input: %{value: ""}}}, {:text, "k"}), do: "k"
 
   defp shortcut_key(%{session: %Session{input: %{value: ""}}}, {:text, key})
-       when key in ["f", "s", "r", "x"], do: key
+       when key in ["f", "s"],
+       do: key
 
   defp shortcut_key(_state, _key), do: nil
 
@@ -514,22 +522,30 @@ defmodule Tilde.Transport.SSH.Channel do
   defp toggle_review_comment(%__MODULE__{review: %Review{} = review} = state, comment_id) do
     case Review.find_comment(review, comment_id) do
       %{status: :open} ->
-        %{
-          state
-          | review: Review.resolve_comment(review, comment_id),
-            active_review_comment_id: comment_id
-        }
+        persist_review(state, Review.resolve_comment(review, comment_id), comment_id)
 
       %{status: :resolved} ->
-        %{
-          state
-          | review: Review.reopen_comment(review, comment_id),
-            active_review_comment_id: comment_id
-        }
+        persist_review(state, Review.reopen_comment(review, comment_id), comment_id)
 
       _comment ->
         state
     end
+  end
+
+  defp persist_review(%__MODULE__{session_server: server} = state, %Review{} = review, comment_id)
+       when not is_nil(server) do
+    session = SessionServer.update_session(server, &ReviewState.put(&1, review))
+
+    %{
+      state
+      | session: session,
+        review: ReviewState.load(review, session),
+        active_review_comment_id: comment_id
+    }
+  end
+
+  defp persist_review(%__MODULE__{} = state, %Review{} = review, comment_id) do
+    %{state | review: review, active_review_comment_id: comment_id}
   end
 
   defp jump_review_comment(%__MODULE__{review: %Review{} = review} = state, comment_id) do

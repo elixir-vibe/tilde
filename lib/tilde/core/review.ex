@@ -57,6 +57,27 @@ defmodule Tilde.Core.Review do
     update_comment_status(review, id, :open)
   end
 
+  @doc "Dumps comment statuses into a metadata-safe map."
+  @spec dump_statuses(t()) :: %{String.t() => String.t()}
+  def dump_statuses(%__MODULE__{} = review) do
+    review
+    |> comments()
+    |> Map.new(fn %Comment{id: id, status: status} -> {id, Atom.to_string(status)} end)
+  end
+
+  @doc "Applies metadata-safe comment statuses to matching review comments."
+  @spec apply_statuses(t(), map() | nil) :: t()
+  def apply_statuses(%__MODULE__{} = review, statuses) when is_map(statuses) do
+    Enum.reduce(statuses, review, fn {id, status}, review ->
+      case normalize_comment_status(status) do
+        nil -> review
+        status -> update_comment_status(review, to_string(id), status)
+      end
+    end)
+  end
+
+  def apply_statuses(%__MODULE__{} = review, _statuses), do: review
+
   @doc "Finds a comment by id."
   @spec find_comment(t(), String.t()) :: Comment.t() | nil
   def find_comment(%__MODULE__{} = review, id) when is_binary(id) do
@@ -104,6 +125,11 @@ defmodule Tilde.Core.Review do
 
   defp comment_status?(_comment, :any), do: true
   defp comment_status?(comment, status), do: comment.status == status
+
+  defp normalize_comment_status(status) when status in [:open, :resolved], do: status
+  defp normalize_comment_status("open"), do: :open
+  defp normalize_comment_status("resolved"), do: :resolved
+  defp normalize_comment_status(_status), do: nil
 
   defp update_comment_status(%__MODULE__{files: files} = review, id, status) do
     files =

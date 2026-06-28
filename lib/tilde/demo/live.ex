@@ -24,14 +24,14 @@ defmodule Tilde.Demo.Live do
   alias Tilde.Core.Interaction
   alias Tilde.Core.Palette
   alias Tilde.Core.Review
-  alias Tilde.Core.Review.Comment
-  alias Tilde.Core.Review.File
   alias Tilde.Core.Session
   alias Tilde.Core.Shortcuts
   alias Tilde.Core.Workspace
   alias Tilde.Runtime.WorkspaceFiles
+  alias Tilde.Runtime.WorkspaceReview
   alias Tilde.Session.Loader, as: SessionLoader
   alias Tilde.Session.Registry, as: SessionRegistry
+  alias Tilde.Session.ReviewState
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.Live.Interaction, as: LiveInteraction
   alias Tilde.Transport.Live.Outcome, as: LiveOutcome
@@ -67,7 +67,7 @@ defmodule Tilde.Demo.Live do
        workspace_view: :files,
        open_file: nil,
        active_symbol_line: nil,
-       review: demo_review(workspace),
+       review: WorkspaceReview.review(workspace, session),
        review_open?: true,
        active_review_comment_id: nil,
        palette: Palette.new(),
@@ -349,67 +349,6 @@ defmodule Tilde.Demo.Live do
     )
   end
 
-  @doc "Returns the demo review used by mirrored web and SSH/TUI surfaces."
-  @spec demo_review(Workspace.t()) :: Review.t()
-  def demo_review(%Workspace{} = workspace) do
-    paths =
-      workspace
-      |> review_paths()
-      |> Enum.take(3)
-
-    files =
-      paths
-      |> Enum.with_index()
-      |> Enum.map(fn {path, index} ->
-        File.new(
-          path: path,
-          status: :needs_changes,
-          comments: [demo_comment(path, index)]
-        )
-      end)
-
-    Review.new(id: "working-tree", title: "working tree review", files: files)
-  end
-
-  defp review_paths(%Workspace{} = workspace) do
-    relevant_paths =
-      workspace
-      |> Workspace.file_sections()
-      |> Enum.flat_map(& &1.files)
-      |> Enum.map(& &1.path)
-
-    case relevant_paths do
-      [] -> fallback_review_paths(workspace)
-      paths -> paths
-    end
-  end
-
-  defp fallback_review_paths(%Workspace{files: files}) do
-    preferred = ["lib/tilde/demo/live.ex", "lib/tilde/core/palette.ex", "mix.exs"]
-    paths = Enum.map(files, & &1.path)
-
-    case paths do
-      [] -> preferred
-      paths -> preferred |> Enum.filter(&(&1 in paths)) |> Kernel.++(paths) |> Enum.uniq()
-    end
-  end
-
-  defp demo_comment(path, index) do
-    severity = Enum.at([:issue, :warning, :note], index, :note)
-
-    Comment.new(
-      id: "review-#{index + 1}",
-      path: path,
-      line: index + 1,
-      severity: severity,
-      body: demo_review_body(severity)
-    )
-  end
-
-  defp demo_review_body(:issue), do: "Check this change before shipping."
-  defp demo_review_body(:warning), do: "Confirm the behavior is covered by a focused test."
-  defp demo_review_body(:note), do: "Consider whether this belongs in shared UI vocabulary."
-
   defp apply_session_interaction(socket, %Interaction{} = interaction) do
     {:cont, session, effects} =
       SessionServer.apply_interaction(socket.assigns.session_server, interaction)
@@ -442,6 +381,7 @@ defmodule Tilde.Demo.Live do
     assign(socket,
       session: session,
       workspace: workspace,
+      review: WorkspaceReview.review(workspace, session),
       palette: Palette.refresh(socket.assigns[:palette], workspace, socket.assigns[:open_file])
     )
   end
@@ -609,11 +549,18 @@ defmodule Tilde.Demo.Live do
   end
 
   defp update_review_comment(socket, comment_id, :resolved) do
-    assign(socket, review: Review.resolve_comment(socket.assigns.review, comment_id))
+    persist_review(socket, Review.resolve_comment(socket.assigns.review, comment_id))
   end
 
   defp update_review_comment(socket, comment_id, :open) do
-    assign(socket, review: Review.reopen_comment(socket.assigns.review, comment_id))
+    persist_review(socket, Review.reopen_comment(socket.assigns.review, comment_id))
+  end
+
+  defp persist_review(socket, %Review{} = review) do
+    session =
+      SessionServer.update_session(socket.assigns.session_server, &ReviewState.put(&1, review))
+
+    assign(socket, session: session, review: ReviewState.load(review, session))
   end
 
   defp open_workspace_file_at_line(socket, path, line, comment_id) do
