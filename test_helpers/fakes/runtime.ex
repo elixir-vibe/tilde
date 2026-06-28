@@ -130,7 +130,7 @@ defmodule TildeTest.RuntimeEvents do
   end
 
   defp event(kind, data, opts \\ []) do
-    Jido.AI.Runtime.Event.new(%{
+    Tilde.Runtime.Event.new(%{
       seq: System.unique_integer([:positive]),
       run_id: "test-run",
       request_id: "test-request",

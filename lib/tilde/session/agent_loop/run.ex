@@ -1,7 +1,7 @@
 defmodule Tilde.Session.AgentLoop.Run do
   @moduledoc "Runtime identity for the active Jido ReAct loop."
 
-  alias Jido.AI.Runtime.Event
+  alias Tilde.Runtime.Event
   alias Tilde.Session.AgentLoop.ResumeCandidate
 
   @enforce_keys [:run_id, :request_id]

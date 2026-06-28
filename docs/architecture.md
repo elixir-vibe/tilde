@@ -229,9 +229,9 @@ Current state: `Tilde.Session.AgentLoop` owns assistant start, streaming,
 cancellation, tool projection, and queued prompt continuation. Runtime queuing is
 explicit in session-server state through `pending_prompts`; the loop does not scan
 durable history to decide what to run next. It still uses one stream task per
-active loop; the Jido provider uses Jido.AI's ReAct runtime directly and returns
-canonical `Jido.AI.Runtime.Event` structs, so Tilde does not wrap Jido with a
-second agent process.
+active loop; the Jido provider uses Jido.AI's ReAct runtime directly and normalizes
+provider events into `Tilde.Runtime.Event`, so Tilde does not wrap Jido with a
+second agent process or expose Jido-specific event shapes to the agent loop.
 
 Migration plan to a normal agent loop:
 

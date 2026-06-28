@@ -1,11 +1,13 @@
 defmodule Tilde.Runtime.LLM.Event do
-  @moduledoc "Helpers for canonical Jido AI runtime events emitted at Tilde runtime boundaries."
+  @moduledoc "Helpers for runtime events emitted at Tilde LLM boundaries."
 
-  @spec failed(term(), keyword()) :: Jido.AI.Runtime.Event.t()
+  alias Tilde.Runtime.Event
+
+  @spec failed(term(), keyword()) :: Event.t()
   def failed(reason, opts \\ []) do
     source = Keyword.get(opts, :source, "tilde-runtime")
 
-    Jido.AI.Runtime.Event.new(%{
+    Event.new(%{
       seq: Keyword.get(opts, :seq, 0),
       run_id: source,
       request_id: source,

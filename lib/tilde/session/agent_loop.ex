@@ -1,8 +1,8 @@
 defmodule Tilde.Session.AgentLoop do
   @moduledoc "Session-owned assistant loop: start, stream, cancel, and record semantic events."
 
-  alias Jido.AI.Runtime.Event, as: RuntimeEvent
   alias Tilde.Core.{Event, Session}
+  alias Tilde.Runtime.Event, as: RuntimeEvent
   alias Tilde.Runtime.{LLM, RateLimit}
   alias Tilde.Session.AgentLoop.{Prompt, ResumeCandidate, Run, State}
   alias Tilde.Tool.Event, as: ToolEvent

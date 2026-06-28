@@ -4,9 +4,10 @@ defmodule Tilde.Runtime.LLM.Provider do
   """
 
   alias Tilde.Core.Session
+  alias Tilde.Runtime.Event
   alias Tilde.Session.AgentLoop.ResumeCandidate
 
-  @type stream_event :: Jido.AI.Runtime.Event.t()
+  @type stream_event :: Event.t()
 
   @callback stream(Session.t(), keyword()) :: Enumerable.t(stream_event())
   @callback resume_checkpoint(Session.t(), ResumeCandidate.t(), keyword()) ::

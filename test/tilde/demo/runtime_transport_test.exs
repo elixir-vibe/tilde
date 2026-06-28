@@ -6,7 +6,7 @@ defmodule Tilde.DemoRuntimeTransportTest do
     System.delete_env("OPENROUTER_API_KEY")
 
     assert [
-             %Jido.AI.Runtime.Event{
+             %Tilde.Runtime.Event{
                kind: :request_failed,
                data: %{error: :missing_openrouter_api_key}
              }
