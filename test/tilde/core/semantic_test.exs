@@ -29,6 +29,24 @@ defmodule Tilde.CoreSemanticTest do
     assert tool.result == %{exit_code: 0}
   end
 
+  test "batch transcript replay matches incremental reduction" do
+    events = [
+      Tilde.user_message("Inspect", id: "evt_user"),
+      Tilde.assistant_delta("I'll inspect first.",
+        id: "evt_assistant_1",
+        block_id: "msg_assistant"
+      ),
+      Tilde.tool_started("bash", %{command: "ls"}, id: "evt_tool", tool_call_id: "tool_1"),
+      Tilde.tool_done("tool_1", :success, %{content: [%{type: "text", text: "README.md"}]}),
+      Tilde.assistant_delta("Found README.md.", id: "evt_assistant_2", block_id: "msg_assistant")
+    ]
+
+    batch = Transcript.from_events(events)
+    incremental = Enum.reduce(events, Transcript.new(), &Transcript.apply_event/2)
+
+    assert batch == incremental
+  end
+
   test "keeps assistant text after tools after the tool block" do
     events = [
       Tilde.user_message("Inspect", id: "evt_user"),

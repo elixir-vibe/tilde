@@ -74,9 +74,10 @@ defmodule Tilde.Core.Session do
   def append_events(%__MODULE__{} = session, []), do: session
 
   def append_events(%__MODULE__{} = session, events) when is_list(events) do
-    updated = Enum.reduce(events, session, &apply_event_without_log(&2, &1))
+    updated = Enum.reduce(events, session, &apply_session_event(&2, &1))
+    transcript = Transcript.apply_events(events, session.transcript)
 
-    %{updated | events: session.events ++ events}
+    %{updated | events: session.events ++ events, transcript: transcript}
   end
 
   @doc "Adds or replaces a widget by id in its placement."
