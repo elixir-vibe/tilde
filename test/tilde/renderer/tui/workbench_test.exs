@@ -108,6 +108,8 @@ defmodule Tilde.Renderer.TUI.WorkbenchTest do
     assert rendered =~ "r review"
     assert rendered =~ "n next"
     assert rendered =~ "p previous"
+    assert rendered =~ "pageup page up"
+    assert rendered =~ "pagedown page down"
     assert rendered =~ "x resolve"
     assert rendered =~ "escape chat"
   end

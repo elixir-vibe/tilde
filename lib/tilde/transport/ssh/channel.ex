@@ -51,6 +51,7 @@ defmodule Tilde.Transport.SSH.Channel do
             workspace_view: :files,
             open_file: nil,
             active_symbol_line: nil,
+            file_scroll_line: nil,
             review: nil,
             active_review_comment_id: nil,
             palette: nil
@@ -72,6 +73,7 @@ defmodule Tilde.Transport.SSH.Channel do
           workspace_view: :files | :symbols,
           open_file: Tilde.Core.FileBuffer.t() | nil,
           active_symbol_line: pos_integer() | nil,
+          file_scroll_line: pos_integer() | nil,
           review: Review.t() | nil,
           active_review_comment_id: String.t() | nil,
           palette: Palette.t() | nil
@@ -269,6 +271,7 @@ defmodule Tilde.Transport.SSH.Channel do
         workspace_view: :files,
         open_file: nil,
         active_symbol_line: nil,
+        file_scroll_line: nil,
         review: nil,
         active_review_comment_id: nil,
         palette: nil
@@ -360,6 +363,8 @@ defmodule Tilde.Transport.SSH.Channel do
   defp shortcut_key(%{workspace_mode: :file}, :cancel), do: "escape"
   defp shortcut_key(%{workspace_mode: :file}, :up), do: "arrowup"
   defp shortcut_key(%{workspace_mode: :file}, :down), do: "arrowdown"
+  defp shortcut_key(%{workspace_mode: :file}, :page_up), do: "pageup"
+  defp shortcut_key(%{workspace_mode: :file}, :page_down), do: "pagedown"
   defp shortcut_key(%{workspace_mode: :file}, {:text, "j"}), do: "j"
   defp shortcut_key(%{workspace_mode: :file}, {:text, "k"}), do: "k"
 
@@ -417,7 +422,15 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp apply_shortcut_id("tilde.session.chat", state) do
-    {:cont, {:cont, %{state | workspace_mode: :chat, open_file: nil, active_symbol_line: nil}}}
+    {:cont,
+     {:cont,
+      %{
+        state
+        | workspace_mode: :chat,
+          open_file: nil,
+          active_symbol_line: nil,
+          file_scroll_line: nil
+      }}}
   end
 
   defp apply_shortcut_id("tilde.review.focus", state), do: {:cont, {:cont, focus_review(state)}}
@@ -431,6 +444,12 @@ defmodule Tilde.Transport.SSH.Channel do
 
   defp apply_shortcut_id("tilde.review.previous", state),
     do: {:cont, {:cont, focus_adjacent_review(state, :previous)}}
+
+  defp apply_shortcut_id("tilde.file.page_up", state),
+    do: {:cont, {:cont, scroll_open_file(state, :up)}}
+
+  defp apply_shortcut_id("tilde.file.page_down", state),
+    do: {:cont, {:cont, scroll_open_file(state, :down)}}
 
   defp apply_shortcut_id("tilde.workspace.focus_previous", state) do
     {:cont, {:cont, focus_workspace_file(state, :previous)}}
@@ -490,7 +509,8 @@ defmodule Tilde.Transport.SSH.Channel do
           | palette: %{palette | open?: false},
             workspace_mode: :file,
             workspace_view: :symbols,
-            active_symbol_line: line
+            active_symbol_line: line,
+            file_scroll_line: nil
         }
 
       _item ->
@@ -519,6 +539,38 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp focus_adjacent_review(%__MODULE__{} = state, _direction), do: state
+
+  defp scroll_open_file(%__MODULE__{open_file: %{line_count: line_count}} = state, direction)
+       when line_count > 0 do
+    page_size = file_page_size(state)
+
+    current_line =
+      state.file_scroll_line || centered_start_line(state.active_symbol_line, page_size)
+
+    next_line = scroll_line(current_line, line_count, page_size, direction)
+
+    %{state | workspace_mode: :file, file_scroll_line: next_line}
+  end
+
+  defp scroll_open_file(%__MODULE__{} = state, _direction), do: state
+
+  defp file_page_size(%__MODULE__{height: height}), do: max(height - 8, 1)
+
+  defp centered_start_line(line, page_size) when is_integer(line) and line > 0,
+    do: max(line - div(page_size, 2), 1)
+
+  defp centered_start_line(_line, _page_size), do: 1
+
+  defp scroll_line(current_line, line_count, page_size, :up) do
+    max(current_line - page_size, 1)
+    |> min(max_start_line(line_count, page_size))
+  end
+
+  defp scroll_line(current_line, line_count, page_size, :down) do
+    min(current_line + page_size, max_start_line(line_count, page_size))
+  end
+
+  defp max_start_line(line_count, page_size), do: max(line_count - page_size + 1, 1)
 
   defp toggle_review_comment(%__MODULE__{review: %Review{} = review} = state) do
     case active_or_focused_review_comment_id(review, state.active_review_comment_id) do
@@ -579,6 +631,7 @@ defmodule Tilde.Transport.SSH.Channel do
     |> Map.merge(%{
       workspace_view: :files,
       active_symbol_line: line,
+      file_scroll_line: nil,
       active_review_comment_id: comment_id
     })
   end
@@ -594,6 +647,7 @@ defmodule Tilde.Transport.SSH.Channel do
         workspace_view: :symbols,
         open_file: WorkspaceFiles.open_file(workspace, path),
         active_symbol_line: nil,
+        file_scroll_line: 1,
         active_review_comment_id: nil
     }
   end

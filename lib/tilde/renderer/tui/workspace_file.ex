@@ -47,17 +47,33 @@ defmodule Tilde.Renderer.TUI.WorkspaceFile do
   end
 
   defp visible_lines(lines, opts) do
-    case Keyword.get(opts, :active_line) do
-      line when is_integer(line) and line > 0 ->
+    viewport_height = Keyword.get(opts, :viewport_height)
+    active_line = Keyword.get(opts, :active_line)
+    scroll_line = Keyword.get(opts, :scroll_line)
+
+    cond do
+      is_integer(scroll_line) and scroll_line > 0 and is_integer(viewport_height) ->
+        window(lines, scroll_line, viewport_height)
+
+      is_integer(active_line) and active_line > 0 ->
         radius = Keyword.get(opts, :line_context, 8)
-        start_line = max(line - radius, 1)
-        end_line = line + radius
+        height = viewport_height || radius * 2 + 1
+        start_line = max(active_line - div(height, 2), 1)
 
-        Enum.filter(lines, fn {_source, number} -> number >= start_line and number <= end_line end)
+        window(lines, start_line, height)
 
-      _other ->
+      is_integer(viewport_height) ->
+        window(lines, 1, viewport_height)
+
+      true ->
         lines
     end
+  end
+
+  defp window(lines, start_line, height) do
+    end_line = start_line + max(height, 1) - 1
+
+    Enum.filter(lines, fn {_source, number} -> number >= start_line and number <= end_line end)
   end
 
   defp line(number, source, width, opts) do

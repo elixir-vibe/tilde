@@ -11,6 +11,8 @@ defmodule Tilde.Core.ShortcutsTest do
     assert Shortcuts.display_key("tilde.review.toggle_current") == "x"
     assert Shortcuts.display_key("tilde.review.next") == "n"
     assert Shortcuts.display_key("tilde.review.previous") == "p"
+    assert Shortcuts.display_key("tilde.file.page_up") == "pageup"
+    assert Shortcuts.display_key("tilde.file.page_down") == "pagedown"
     assert Shortcuts.label("tilde.workspace.view_files") == "files"
     assert Shortcuts.label("tilde.workspace.view_symbols") == "symbols"
     assert Shortcuts.label("tilde.session.chat") == "chat"
@@ -18,6 +20,8 @@ defmodule Tilde.Core.ShortcutsTest do
     assert Shortcuts.label("tilde.review.toggle_current") == "resolve"
     assert Shortcuts.label("tilde.review.next") == "next"
     assert Shortcuts.label("tilde.review.previous") == "previous"
+    assert Shortcuts.label("tilde.file.page_up") == "page up"
+    assert Shortcuts.label("tilde.file.page_down") == "page down"
     assert Shortcuts.display_key("tilde.workspace.focus_previous") == "arrowup"
     assert Shortcuts.display_key("tilde.workspace.focus_next") == "arrowdown"
     assert Shortcuts.display_key("tilde.workspace.open_focused") == "enter"
@@ -77,6 +81,14 @@ defmodule Tilde.Core.ShortcutsTest do
              "preventDefault" => true,
              "captureInteractive" => false
            } in bindings
+
+    assert %{
+             "id" => "tilde.file.page_down",
+             "keys" => ["pagedown"],
+             "scopes" => ["buffer"],
+             "preventDefault" => true,
+             "captureInteractive" => false
+           } in bindings
   end
 
   test "matches keys only in their declared scopes" do
@@ -88,6 +100,8 @@ defmodule Tilde.Core.ShortcutsTest do
     assert Shortcuts.match(:buffer, "x") == "tilde.review.toggle_current"
     assert Shortcuts.match(:buffer, "n") == "tilde.review.next"
     assert Shortcuts.match(:buffer, "p") == "tilde.review.previous"
+    assert Shortcuts.match(:buffer, "PageUp") == "tilde.file.page_up"
+    assert Shortcuts.match(:buffer, "PageDown") == "tilde.file.page_down"
     assert Shortcuts.match(:workspace, "ArrowUp") == "tilde.workspace.focus_previous"
     assert Shortcuts.match(:workspace, "k") == "tilde.workspace.focus_previous"
     assert Shortcuts.match(:workspace, "ArrowDown") == "tilde.workspace.focus_next"
@@ -108,5 +122,6 @@ defmodule Tilde.Core.ShortcutsTest do
     refute Shortcuts.match(:workspace, "x")
     refute Shortcuts.match(:workspace, "n")
     refute Shortcuts.match(:workspace, "p")
+    refute Shortcuts.match(:workspace, "PageDown")
   end
 end

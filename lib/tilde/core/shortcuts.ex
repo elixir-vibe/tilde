@@ -65,6 +65,22 @@ defmodule Tilde.Core.Shortcuts do
       prevent_default?: true
     ),
     Shortcut.new(
+      id: "tilde.file.page_up",
+      keys: "pageup",
+      label: "page up",
+      description: "Scroll the open file up by one page",
+      scopes: [:buffer],
+      prevent_default?: true
+    ),
+    Shortcut.new(
+      id: "tilde.file.page_down",
+      keys: "pagedown",
+      label: "page down",
+      description: "Scroll the open file down by one page",
+      scopes: [:buffer],
+      prevent_default?: true
+    ),
+    Shortcut.new(
       id: "tilde.workspace.focus_previous",
       keys: ["arrowup", "k"],
       label: "previous",

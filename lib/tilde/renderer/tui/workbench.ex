@@ -175,10 +175,16 @@ defmodule Tilde.Renderer.TUI.Workbench do
   defp render_main(
          %{workspace_mode: :file, open_file: %FileBuffer{} = file} = state,
          width,
-         _height,
+         height,
          opts
        ) do
-    opts = Keyword.put(opts, :active_line, Map.get(state, :active_symbol_line))
+    opts =
+      Keyword.merge(opts,
+        active_line: Map.get(state, :active_symbol_line),
+        scroll_line: Map.get(state, :file_scroll_line),
+        viewport_height: max(height - 2, 1)
+      )
+
     WorkspaceFile.render(file, width, opts)
   end
 
@@ -239,6 +245,8 @@ defmodule Tilde.Renderer.TUI.Workbench do
       "tilde.review.focus",
       "tilde.review.next",
       "tilde.review.previous",
+      "tilde.file.page_up",
+      "tilde.file.page_down",
       review_toggle_action(state),
       "tilde.session.chat"
     ]

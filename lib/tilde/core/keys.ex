@@ -12,6 +12,8 @@ defmodule Tilde.Core.Keys do
           | :backtab
           | :up
           | :down
+          | :page_up
+          | :page_down
           | :suggest_next
           | :suggest_previous
           | :suggest_accept
@@ -42,6 +44,8 @@ defmodule Tilde.Core.Keys do
   def decode("\e[Z"), do: :backtab
   def decode("\e[A"), do: :up
   def decode("\e[B"), do: :down
+  def decode("\e[5~"), do: :page_up
+  def decode("\e[6~"), do: :page_down
   def decode("\r"), do: :enter
   def decode("\n"), do: :enter
   def decode(<<3>>), do: :interrupt
@@ -73,6 +77,12 @@ defmodule Tilde.Core.Keys do
 
   defp do_decode_many(<<27, ?[, ?B, rest::binary>>, keys),
     do: do_decode_many(rest, [:down | keys])
+
+  defp do_decode_many(<<27, ?[, ?5, ?~, rest::binary>>, keys),
+    do: do_decode_many(rest, [:page_up | keys])
+
+  defp do_decode_many(<<27, ?[, ?6, ?~, rest::binary>>, keys),
+    do: do_decode_many(rest, [:page_down | keys])
 
   defp do_decode_many(<<27, rest::binary>>, keys), do: do_decode_many(rest, [:cancel | keys])
   defp do_decode_many(<<9, rest::binary>>, keys), do: do_decode_many(rest, [:tab | keys])

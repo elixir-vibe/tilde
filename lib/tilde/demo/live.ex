@@ -441,6 +441,10 @@ defmodule Tilde.Demo.Live do
   defp apply_shortcut_id("tilde.review.previous", socket),
     do: focus_adjacent_review(socket, :previous)
 
+  defp apply_shortcut_id("tilde.file.page_up", socket), do: scroll_open_file(socket, :up)
+
+  defp apply_shortcut_id("tilde.file.page_down", socket), do: scroll_open_file(socket, :down)
+
   defp apply_shortcut_id("tilde.workspace.focus_previous", socket),
     do: focus_workspace_file(socket, :previous)
 
@@ -561,6 +565,22 @@ defmodule Tilde.Demo.Live do
       comment_id -> socket |> assign(review_open?: true) |> jump_review_comment(comment_id)
     end
   end
+
+  defp scroll_open_file(%{assigns: %{open_file: %{line_count: line_count}}} = socket, direction)
+       when line_count > 0 do
+    current_line = socket.assigns.active_symbol_line || 1
+    page_size = 20
+
+    line =
+      case direction do
+        :up -> max(current_line - page_size, 1)
+        :down -> min(current_line + page_size, line_count)
+      end
+
+    assign(socket, workspace_mode: :file, active_symbol_line: line)
+  end
+
+  defp scroll_open_file(socket, _direction), do: socket
 
   defp update_review_comment(socket, comment_id, :resolved) do
     persist_review(socket, Review.resolve_comment(socket.assigns.review, comment_id))

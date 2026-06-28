@@ -453,6 +453,31 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert %{status: :open} = Tilde.Core.Review.find_comment(state.review, comment_id)
   end
 
+  test "ssh channel scrolls the open file with page keys" do
+    state = attached_ssh_state("ssh-file-scroll-command")
+
+    assert {:ok, state} = open_first_ssh_file(%{state | height: 20})
+    assert state.file_scroll_line == 1
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "\e[6~"}},
+               state
+             )
+
+    assert state.file_scroll_line > 1
+    scrolled_line = state.file_scroll_line
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "\e[5~"}},
+               state
+             )
+
+    assert state.file_scroll_line < scrolled_line
+    assert state.workspace_mode == :file
+  end
+
   test "ssh buffer shortcuts are not blocked by hidden chat draft text" do
     state = attached_ssh_state("ssh-review-hidden-draft-command")
 
@@ -537,6 +562,8 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert Tilde.Core.Keys.decode("r") == :redraw
     assert Tilde.Core.Keys.decode("\t") == :tab
     assert Tilde.Core.Keys.decode("\e[Z") == :backtab
+    assert Tilde.Core.Keys.decode("\e[5~") == :page_up
+    assert Tilde.Core.Keys.decode("\e[6~") == :page_down
     assert Tilde.Core.Keys.decode("\r") == :enter
     assert Tilde.Core.Keys.decode(<<127>>) == :backspace
     assert Tilde.Core.Keys.decode(<<27>>) == :cancel
@@ -545,6 +572,7 @@ defmodule Tilde.DemoRuntimeTransportTest do
 
     assert Tilde.Core.Keys.decode_many("q\r") == [:quit]
     assert Tilde.Core.Keys.decode_many("r\r") == [:redraw]
+    assert Tilde.Core.Keys.decode_many("\e[5~\e[6~") == [:page_up, :page_down]
 
     assert Tilde.Core.Keys.decode_many("hello\r") == [
              {:text, "h"},
