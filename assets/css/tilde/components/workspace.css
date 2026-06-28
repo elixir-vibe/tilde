@@ -1,0 +1,286 @@
+.tilde {
+  &.workbench {
+    max-width: none;
+    display: grid;
+    grid-template-columns: minmax(22ch, 30ch) minmax(0, 1fr);
+    gap: 1.25ch;
+  }
+
+  &.workbench.review-open {
+    grid-template-columns: minmax(22ch, 30ch) minmax(0, 1fr) minmax(28ch, 40ch);
+  }
+
+  .workspace {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-right: 1px solid color-mix(in srgb, var(--color-border), transparent 35%);
+    padding-right: 1.25ch;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    color: var(--color-muted);
+  }
+
+  .workspace .header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1ch;
+    padding-bottom: 0.5lh;
+  }
+
+  .workspace .title {
+    color: var(--color-fg);
+    font-weight: 700;
+  }
+
+  .workspace .views {
+    display: inline-flex;
+    gap: 1ch;
+    align-items: baseline;
+    flex-wrap: nowrap;
+  }
+
+  .workspace .views .action,
+  .workspace .views .shortcut {
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .workspace .views .action.selected {
+    color: var(--color-link);
+    font-weight: 700;
+  }
+
+  .workspace .views .action:hover,
+  .workspace .views .action:focus-visible {
+    color: var(--color-link);
+  }
+
+  .workspace .meta,
+  .workspace .section_header {
+    color: var(--color-muted);
+    font-size: 0.9em;
+  }
+
+  .workspace .sections {
+    min-height: 0;
+    overflow: auto;
+    display: grid;
+    align-content: start;
+    gap: 0.6lh;
+  }
+
+  .workspace .section {
+    min-width: 0;
+    display: grid;
+    gap: 0.5lh;
+  }
+
+  .workspace .section_header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1ch;
+    text-transform: lowercase;
+  }
+
+  .workspace .files {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 0;
+  }
+
+  .workspace .file {
+    appearance: none;
+    border: 0;
+    padding: 0 0.5ch 0 calc(0.5ch + var(--depth, 0) * 2ch);
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    display: grid;
+    grid-template-columns: 2ch minmax(0, 1fr);
+    gap: 1ch;
+    align-items: baseline;
+    min-width: 0;
+    color: var(--color-muted);
+    font-size: 1em;
+    line-height: 1.25;
+    cursor: pointer;
+  }
+
+  .workspace .file.directory {
+    cursor: default;
+  }
+
+  .workspace .file.directory .path,
+  .workspace .file.directory .marks {
+    color: var(--color-muted);
+    font-weight: 700;
+  }
+
+  .workspace .marks {
+    color: var(--color-muted);
+    font-weight: 700;
+    text-align: right;
+    white-space: pre;
+  }
+
+  .workspace .path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspace .file.symbol {
+    grid-template-columns: 2ch minmax(0, 1fr) max-content;
+  }
+
+  .workspace .line {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .workspace .file.git-modified .path,
+  .workspace .file.git-modified .marks,
+  .workspace .file.git-renamed .path,
+  .workspace .file.git-renamed .marks {
+    color: var(--color-warning);
+  }
+
+  .workspace .file.git-added .path,
+  .workspace .file.git-added .marks {
+    color: var(--color-success);
+  }
+
+  .workspace .file.git-untracked .path,
+  .workspace .file.git-untracked .marks {
+    color: var(--color-muted);
+  }
+
+  .workspace .file.read .path,
+  .workspace .file.read .marks {
+    color: var(--color-link);
+  }
+
+  .workspace .file.modified .path,
+  .workspace .file.modified .marks {
+    color: var(--color-success);
+  }
+
+  .workspace .file.symbol .path,
+  .workspace .file.symbol .marks {
+    color: var(--color-fg);
+  }
+
+  .workspace .file.symbol.module .path,
+  .workspace .file.symbol.module .marks {
+    color: var(--syntax-module);
+  }
+
+  .workspace .file.symbol.function .path,
+  .workspace .file.symbol.function .marks,
+  .workspace .file.symbol.delegate .path,
+  .workspace .file.symbol.delegate .marks {
+    color: var(--syntax-function);
+  }
+
+  .workspace .file.symbol.macro .path,
+  .workspace .file.symbol.macro .marks,
+  .workspace .file.symbol.callback .path,
+  .workspace .file.symbol.callback .marks {
+    color: var(--syntax-attribute);
+  }
+
+  .workspace .file.symbol.struct .path,
+  .workspace .file.symbol.struct .marks,
+  .workspace .file.symbol.type .path,
+  .workspace .file.symbol.type .marks {
+    color: var(--syntax-constant);
+  }
+
+  .workspace .file.git-conflicted .path,
+  .workspace .file.git-conflicted .marks,
+  .workspace .file.git-deleted .path,
+  .workspace .file.git-deleted .marks {
+    color: var(--color-error);
+  }
+
+  .workspace .file.focused {
+    background: color-mix(in srgb, var(--color-border) 35%, transparent);
+  }
+
+  .workspace .file.selected {
+    background: color-mix(in srgb, var(--color-link) 12%, transparent);
+  }
+
+  .workspace .file.selected.focused {
+    background: color-mix(in srgb, var(--color-link) 18%, transparent);
+  }
+
+  .workspace .file.selected .path,
+  .workspace .file.selected .marks {
+    color: var(--color-link);
+    font-weight: 700;
+    text-decoration: underline;
+  }
+
+  .workspace button.file:hover .path,
+  .workspace button.file:focus-visible .path {
+    text-decoration: underline;
+  }
+
+  .workspace .file:focus-visible {
+    outline: 1px solid var(--color-border);
+    outline-offset: 0.2lh;
+  }
+
+  .workspace .file.muted {
+    opacity: 0.64;
+  }
+
+  .workspace > .footer {
+    padding-top: 0.4lh;
+  }
+
+  .workspace .empty {
+    align-self: start;
+    display: grid;
+    gap: 0.5lh;
+    color: var(--color-muted);
+    font-size: 1em;
+    line-height: 1.35;
+  }
+
+  .workspace .empty span {
+    opacity: 0.72;
+  }
+
+  &.workbench > .main {
+    min-width: 0;
+    min-height: 0;
+  }
+}
+
+@media (max-width: 84ch) {
+  .tilde.workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .tilde.workbench .workspace {
+    display: none;
+  }
+
+  .tilde.workbench.workspace-open .workspace {
+    display: grid;
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .tilde.workbench.workspace-open > .main {
+    display: none;
+  }
+}

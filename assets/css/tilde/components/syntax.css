@@ -16,5 +16,22 @@
     .l-line {
       min-height: var(--leading-base);
     }
+
+    .l-line::before {
+      content: attr(data-line);
+      display: inline-block;
+      width: 5ch;
+      margin-right: 1ch;
+      padding-right: 1ch;
+      border-right: 1px solid color-mix(in srgb, var(--color-border), transparent 35%);
+      color: var(--color-muted);
+      text-align: right;
+      user-select: none;
+    }
+
+    .l-line.has-symbol::before {
+      color: var(--color-link);
+      font-weight: 700;
+    }
   }
 }

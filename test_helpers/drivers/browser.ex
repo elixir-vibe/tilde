@@ -13,7 +13,8 @@ defmodule TildeTest.Driver.Browser do
 
   @doc "Returns true when a local Playwright executable is available."
   @spec available?() :: boolean()
-  def available?, do: File.exists?(playwright_executable()) or not is_nil(System.find_executable("playwright"))
+  def available?,
+    do: File.exists?(playwright_executable()) or not is_nil(System.find_executable("playwright"))
 
   @doc "Starts Playwright and a supervised Tilde demo, logs in, and visits a session console."
   @spec open(keyword()) :: t()
@@ -33,8 +34,21 @@ defmodule TildeTest.Driver.Browser do
     {:ok, demo} = start_demo(web_port: port, ssh_port: ssh_port, password: password)
 
     connection = PlaywrightEx.Supervisor.connection_name(TildeTest.Driver.Browser.Playwright)
-    {:ok, browser} = PlaywrightEx.launch_browser(:chromium, headless: true, timeout: timeout, connection: connection)
-    {:ok, context} = Browser.new_context(browser.guid, base_url: "http://127.0.0.1:#{port}", timeout: timeout, connection: connection)
+
+    {:ok, browser} =
+      PlaywrightEx.launch_browser(:chromium,
+        headless: true,
+        timeout: timeout,
+        connection: connection
+      )
+
+    {:ok, context} =
+      Browser.new_context(browser.guid,
+        base_url: "http://127.0.0.1:#{port}",
+        timeout: timeout,
+        connection: connection
+      )
+
     {:ok, page} = BrowserContext.new_page(context.guid, timeout: timeout, connection: connection)
 
     state = %__MODULE__{
@@ -58,14 +72,30 @@ defmodule TildeTest.Driver.Browser do
   @doc "Visits a path relative to the demo base URL."
   @spec visit(t(), String.t()) :: t()
   def visit(%__MODULE__{} = state, path) do
-    unwrap(Frame.goto(state.frame_id, url: path, wait_until: "load", timeout: @timeout, connection: state.connection))
+    unwrap(
+      Frame.goto(state.frame_id,
+        url: path,
+        wait_until: "load",
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
     state
   end
 
   @doc "Types into the console textarea."
   @spec type(t(), String.t()) :: t()
   def type(%__MODULE__{} = state, text) do
-    unwrap(Frame.type(state.frame_id, selector: @input, text: text, timeout: @timeout, connection: state.connection))
+    unwrap(
+      Frame.type(state.frame_id,
+        selector: @input,
+        text: text,
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
     state
   end
 
@@ -78,28 +108,57 @@ defmodule TildeTest.Driver.Browser do
   @doc "Presses a semantic key on an arbitrary selector."
   @spec press(t(), String.t(), atom()) :: t()
   def press(%__MODULE__{} = state, selector, key) do
-    unwrap(Frame.press(state.frame_id, selector: selector, key: key_name(key), timeout: @timeout, connection: state.connection))
+    unwrap(
+      Frame.press(state.frame_id,
+        selector: selector,
+        key: key_name(key),
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
     state
   end
 
   @doc "Fills an arbitrary selector."
   @spec fill(t(), String.t(), String.t()) :: t()
   def fill(%__MODULE__{} = state, selector, value) do
-    unwrap(Frame.fill(state.frame_id, selector: selector, value: value, timeout: @timeout, connection: state.connection))
+    unwrap(
+      Frame.fill(state.frame_id,
+        selector: selector,
+        value: value,
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
     state
   end
 
   @doc "Clicks an arbitrary selector."
   @spec click(t(), String.t()) :: t()
   def click(%__MODULE__{} = state, selector) do
-    unwrap(Frame.click(state.frame_id, selector: selector, timeout: @timeout, connection: state.connection))
+    unwrap(
+      Frame.click(state.frame_id,
+        selector: selector,
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
     state
   end
 
   @doc "Evaluates JavaScript in the page."
   @spec evaluate(t(), String.t()) :: any()
   def evaluate(%__MODULE__{} = state, expression) do
-    unwrap(Frame.evaluate(state.frame_id, expression: expression, timeout: @timeout, connection: state.connection))
+    unwrap(
+      Frame.evaluate(state.frame_id,
+        expression: expression,
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
   end
 
   @doc "Asserts the console textarea value using Playwright's input_value API."
@@ -118,7 +177,14 @@ defmodule TildeTest.Driver.Browser do
   @doc "Asserts a selector is visible."
   @spec assert_has(t(), String.t()) :: t()
   def assert_has(%__MODULE__{} = state, selector) do
-    unwrap(Frame.wait_for_selector(state.frame_id, selector: selector, timeout: @timeout, connection: state.connection))
+    unwrap(
+      Frame.wait_for_selector(state.frame_id,
+        selector: selector,
+        timeout: @timeout,
+        connection: state.connection
+      )
+    )
+
     state
   end
 
@@ -173,8 +239,18 @@ defmodule TildeTest.Driver.Browser do
   @doc "Closes browser/demo resources."
   @spec close(t()) :: :ok
   def close(%__MODULE__{} = state) do
-    if state.context_id, do: ignore_exit(fn -> BrowserContext.close(state.context_id, timeout: @timeout, connection: state.connection) end)
-    if state.browser_id, do: ignore_exit(fn -> Browser.close(state.browser_id, timeout: @timeout, connection: state.connection) end)
+    if state.context_id,
+      do:
+        ignore_exit(fn ->
+          BrowserContext.close(state.context_id, timeout: @timeout, connection: state.connection)
+        end)
+
+    if state.browser_id,
+      do:
+        ignore_exit(fn ->
+          Browser.close(state.browser_id, timeout: @timeout, connection: state.connection)
+        end)
+
     if state.demo, do: ignore_exit(fn -> GenServer.stop(state.demo) end)
     cleanup_demo_processes()
     :ok
@@ -291,7 +367,9 @@ defmodule TildeTest.Driver.Browser do
   end
 
   defp unwrap({:ok, value}), do: value
-  defp unwrap({:error, error}), do: flunk("Playwright operation failed: #{inspect(error, pretty: true)}")
+
+  defp unwrap({:error, error}),
+    do: flunk("Playwright operation failed: #{inspect(error, pretty: true)}")
 
   defp key_name(:enter), do: "Enter"
   defp key_name(:tab), do: "Tab"
@@ -300,6 +378,7 @@ defmodule TildeTest.Driver.Browser do
   defp key_name(:down), do: "ArrowDown"
   defp key_name(:escape), do: "Escape"
   defp key_name(:ctrl_o), do: "Control+O"
+  defp key_name(:ctrl_p), do: "Control+P"
   defp key_name(key), do: to_string(key)
 
   defp free_port! do

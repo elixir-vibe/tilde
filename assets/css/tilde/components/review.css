@@ -1,0 +1,177 @@
+.tilde {
+  .review {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-left: 1px solid color-mix(in srgb, var(--color-border), transparent 35%);
+    padding-left: 1.25ch;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    color: var(--color-muted);
+  }
+
+  .review .header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1ch;
+    padding-bottom: 0.5lh;
+  }
+
+  .review .title {
+    color: var(--color-fg);
+    font-weight: 700;
+  }
+
+  .review .meta,
+  .review .section_header {
+    color: var(--color-muted);
+    font-size: 0.9em;
+  }
+
+  .review .sections {
+    min-height: 0;
+    overflow: auto;
+    display: grid;
+    align-content: start;
+    gap: 0.6lh;
+  }
+
+  .review .section {
+    min-width: 0;
+    display: grid;
+    gap: 0.5lh;
+  }
+
+  .review .section_header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1ch;
+    text-transform: lowercase;
+  }
+
+  .review .path {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .review button.path {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: var(--color-link);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .review .comments {
+    display: grid;
+    gap: 0.35lh;
+  }
+
+  .review .comment {
+    border-left: 0.25ch solid transparent;
+    padding: 0.15lh 0.75ch 0.15lh 0.6ch;
+    background: transparent;
+    color: var(--color-muted);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 1ch;
+    align-items: start;
+    min-width: 0;
+  }
+
+  .review .comment .target {
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    display: grid;
+    gap: 0.15lh;
+    min-width: 0;
+  }
+
+  .review .comment.issue {
+    border-left-color: var(--color-error);
+  }
+
+  .review .comment.warning {
+    border-left-color: var(--color-warning);
+  }
+
+  .review .comment.note {
+    border-left-color: var(--color-link);
+  }
+
+  .review .comment.resolved {
+    opacity: 0.72;
+  }
+
+  .review .comment.selected,
+  .review .comment:hover,
+  .review .comment:focus-within {
+    background: color-mix(in srgb, var(--color-link) 8%, transparent);
+    color: var(--color-fg);
+  }
+
+  .review .comment .body {
+    color: var(--color-fg);
+    line-height: 1.3;
+  }
+
+  .review .comment.resolved .body {
+    color: var(--color-muted);
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+    text-decoration-color: color-mix(in srgb, var(--color-muted), transparent 35%);
+  }
+
+  .review .comment .actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5ch;
+  }
+
+  .review .files {
+    display: grid;
+    gap: 0.25lh;
+  }
+
+  .review .file {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    gap: 1ch;
+    align-items: baseline;
+  }
+
+  .review .empty {
+    align-self: start;
+    display: grid;
+    gap: 0.5lh;
+    color: var(--color-muted);
+    font-size: 1em;
+    line-height: 1.35;
+  }
+
+  .review .empty span {
+    opacity: 0.72;
+  }
+}
+
+@media (max-width: 84ch) {
+  .tilde.workbench .review {
+    display: none;
+  }
+}

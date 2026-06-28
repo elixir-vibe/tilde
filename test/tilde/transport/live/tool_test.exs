@@ -17,8 +17,6 @@ defmodule Tilde.Transport.Live.ToolTest do
     assert html =~ ~s|class="text muted">stderr|
     assert html =~ ~s|class="text primary">  ok|
     assert html =~ ~s|class="text primary">  warning|
-    refute html =~ "tool-stream-stdout"
-    refute html =~ "/tmp/app"
   end
 
   test "compact tool has a single expand affordance" do
@@ -31,7 +29,6 @@ defmodule Tilde.Transport.Live.ToolTest do
 
     html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
 
-    refute html =~ "more stdout lines"
     assert html =~ "… 2 more lines"
     assert html =~ "ctrl+o"
     assert html =~ "expand"

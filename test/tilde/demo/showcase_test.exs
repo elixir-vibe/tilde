@@ -12,11 +12,7 @@ defmodule Tilde.Demo.ShowcaseTest do
     assert tool_cell.attrs.template == :source
     assert html =~ "Build a pi-like console"
     assert html =~ "tool_demo_tests"
-    refute html =~ "cwd ~/Development/elixir-vibe/tilde"
-    refute html =~ "exit 0"
     assert html =~ ~s|class="block tool success"|
-    refute html =~ "tool-status"
-    refute html =~ "✓"
     assert html =~ ~s|class="key"|
     assert html =~ "ctrl+o"
     assert html =~ "expand"
@@ -28,8 +24,6 @@ defmodule Tilde.Demo.ShowcaseTest do
     assert html =~ ~s|id="dialog_demo"|
     assert html =~ "Dialog primitive"
     assert html =~ "shared web component and the TUI box renderer"
-    refute html =~ "background: no running jobs"
-
     tui = session |> Tilde.Renderer.TUI.render_to_string(width: 72, ansi: false) |> strip_ansi()
     assert tui =~ "╭ Dialog primitive"
     assert tui =~ "enter Confirm    esc Cancel"

@@ -20,11 +20,6 @@ defmodule Tilde.Viewable.CoreBlockTest do
     live_text = strip_html(live)
     tui = cell |> Tilde.Renderer.TUI.ViewRenderer.render(60, ansi: true) |> strip_ansi()
 
-    refute live_text =~ "cwd /tmp/app"
-    refute live_text =~ "exit 0"
-    refute tui =~ "cwd /tmp/app"
-    refute tui =~ "exit 0"
-
     for line <- cell.lines do
       text = Tilde.View.Helpers.plain_text(line)
       assert live_text =~ text

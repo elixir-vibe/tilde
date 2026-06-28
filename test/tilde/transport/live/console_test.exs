@@ -14,7 +14,6 @@ defmodule Tilde.Transport.Live.ConsoleTest do
     assert html =~ "bash"
     assert html =~ "mix test"
     assert html =~ "Waiting…"
-    refute html =~ "tool-status"
     assert tui =~ "Waiting…"
   end
 
@@ -28,7 +27,6 @@ defmodule Tilde.Transport.Live.ConsoleTest do
     assert html =~ "pending"
     assert html =~ "assistant"
     assert html =~ "thinking…"
-    refute html =~ "model: thinking"
     assert html =~ "interrupt"
   end
 

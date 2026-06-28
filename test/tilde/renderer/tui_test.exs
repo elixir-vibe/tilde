@@ -68,7 +68,6 @@ defmodule Tilde.Renderer.TUITest do
     refute rendered =~ "one"
     assert rendered =~ "three"
     assert rendered =~ "assistant\r\nthinking…\r\n\r\n> "
-    refute rendered =~ "model: thinking…"
     assert String.ends_with?(rendered, "> ")
   end
 

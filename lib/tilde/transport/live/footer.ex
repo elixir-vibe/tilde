@@ -5,12 +5,14 @@ defmodule Tilde.Transport.Live.Footer do
 
   use Phoenix.Component
 
+  import Tilde.Transport.Live.Controls
   import Tilde.Transport.Live.SlashCommand
 
   attr(:session, :any, default: nil)
   attr(:left, :string, default: "")
   attr(:right, :string, default: "")
   attr(:commands, :list, default: [])
+  attr(:actions, :list, default: [])
   attr(:devtools?, :boolean, default: false)
   attr(:dev_grid?, :boolean, default: false)
   attr(:dev_raw, :string, default: "")
@@ -32,6 +34,17 @@ defmodule Tilde.Transport.Live.Footer do
       </div>
       <div class="right">
         <span :if={@right != ""}>{@right}</span>
+        <nav :if={@actions != []} class="actions" aria-label="actions">
+          <.action
+            :for={action <- @actions}
+            event={action.event}
+            label={action.label}
+            key={Map.get(action, :key)}
+            shortcut={Map.get(action, :shortcut)}
+            kind={Map.get(action, :kind, :normal)}
+            values={Map.get(action, :values, %{})}
+          />
+        </nav>
         <.slash_commands :if={@commands != []} commands={@commands} />
         <.devtools enabled?={@devtools?} grid?={@dev_grid?} raw={@dev_raw} />
       </div>

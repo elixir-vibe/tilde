@@ -1,0 +1,126 @@
+.tilde {
+  .palette-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: grid;
+    align-items: start;
+    justify-items: center;
+    padding: 2lh 2ch;
+    box-sizing: border-box;
+    pointer-events: none;
+    background: color-mix(in srgb, var(--color-bg) 55%, transparent);
+  }
+
+  .dialog.palette {
+    width: min(64ch, calc(100vw - 4ch));
+    max-height: calc(100dvh - 4lh);
+    margin: 0;
+    padding: 0.75lh 1ch 1lh;
+    pointer-events: auto;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    box-shadow: 0 1lh 4ch color-mix(in srgb, var(--color-fg) 10%, transparent);
+  }
+
+  .dialog.palette .title {
+    margin-bottom: 0.5lh;
+  }
+
+  .dialog.palette .body {
+    min-height: 0;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 0.75lh;
+  }
+
+  .dialog.palette .modes {
+    justify-content: flex-start;
+    gap: 1ch;
+  }
+
+  .dialog.palette .modes .action,
+  .dialog.palette .modes .shortcut {
+    color: var(--color-muted);
+    white-space: nowrap;
+  }
+
+  .dialog.palette .modes .action.selected {
+    color: var(--color-link);
+    font-weight: 700;
+  }
+
+  .dialog.palette .modes .action:hover,
+  .dialog.palette .modes .action:focus-visible {
+    color: var(--color-link);
+  }
+
+  .dialog.palette .input {
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .dialog.palette input {
+    padding: 0.4lh 1ch;
+  }
+
+  .dialog.palette .choices {
+    min-height: 0;
+    overflow: auto;
+    display: grid;
+    gap: 0.15lh;
+  }
+
+  .dialog.palette .choice {
+    appearance: none;
+    border: 0;
+    border-left: 0.25ch solid transparent;
+    background: transparent;
+    color: var(--color-muted);
+    font: inherit;
+    text-align: left;
+    display: grid;
+    grid-template-columns: minmax(12ch, 18ch) minmax(0, 1fr);
+    gap: 2ch;
+    align-items: baseline;
+    padding: 0.2lh 1ch 0.2lh 0.75ch;
+    min-width: 0;
+  }
+
+  .dialog.palette button.choice {
+    cursor: pointer;
+  }
+
+  .dialog.palette .choice.selected,
+  .dialog.palette button.choice:hover,
+  .dialog.palette button.choice:focus-visible {
+    border-left-color: var(--color-link);
+    background: color-mix(in srgb, var(--color-link) 8%, transparent);
+    color: var(--color-fg);
+  }
+
+  .dialog.palette .choice.empty {
+    cursor: default;
+  }
+
+  .dialog.palette .label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-fg);
+  }
+
+  .dialog.palette .detail {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-muted);
+    font-size: 0.9em;
+  }
+}

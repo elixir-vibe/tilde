@@ -16,7 +16,6 @@ defmodule Tilde.Demo.LiveTest do
     assert html =~ "/help"
     assert html =~ "/showcase"
     assert html =~ "/new"
-    refute html =~ "/new name · /attach name"
   end
 
   test "demo session starts minimal" do

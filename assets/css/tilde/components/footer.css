@@ -5,7 +5,7 @@
   align-items: baseline;
   flex-wrap: nowrap;
   color: var(--color-muted);
-  font-size: 0.9rem;
+  font-size: 0.95em;
 }
 
 .tilde .footer .left {
@@ -26,4 +26,54 @@
 
 .tilde .footer .right .dev {
   margin-left: var(--space-md);
+}
+
+.tilde .footer .right .action.mobile {
+  display: none;
+}
+
+@media (max-width: 84ch) {
+  .tilde .footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.35lh;
+    align-items: start;
+  }
+
+  .tilde .footer .left {
+    order: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+
+  .tilde .footer .right {
+    order: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5ch 1ch;
+    align-items: baseline;
+    white-space: normal;
+  }
+
+  .tilde .footer .right .actions,
+  .tilde .footer .right .dev {
+    display: inline-flex;
+    gap: 1ch;
+    align-items: baseline;
+  }
+
+  .tilde .footer .right .action,
+  .tilde .footer .right .dev .button {
+    display: inline-flex;
+  }
+
+  .tilde .footer .right .dev {
+    margin-left: 0;
+  }
+
+  .tilde .footer .right .action.mobile {
+    display: inline-flex;
+  }
 }

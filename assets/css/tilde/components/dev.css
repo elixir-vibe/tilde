@@ -69,8 +69,10 @@
       right: 0;
       bottom: calc(100% + var(--space-xs));
       z-index: 60;
+      box-sizing: border-box;
+      display: block;
       width: min(56ch, calc(100vw - 2 * var(--space-page)));
-      max-height: 14rem;
+      height: min(14rem, calc(100vh - 2 * var(--space-page)));
       overflow: auto;
       visibility: hidden;
       margin: 0;
@@ -80,7 +82,7 @@
       color: var(--color-fg);
       font: inherit;
       white-space: pre;
-      pointer-events: none;
+      pointer-events: auto;
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-bg) 70%, transparent);
     }
 

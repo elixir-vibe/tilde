@@ -1,0 +1,79 @@
+.tilde {
+  --scrollbar-size: 0.85em;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb-soft: color-mix(in srgb, var(--scrollbar-thumb) 72%, transparent);
+  --scrollbar-thumb-strong: color-mix(in srgb, var(--scrollbar-thumb-hover) 88%, transparent);
+
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+.tilde .transcript,
+.tilde .workspace .sections,
+.tilde .buffer .body,
+.tilde .buffer .error {
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  .tilde::-webkit-scrollbar,
+  .tilde *::-webkit-scrollbar {
+    width: var(--scrollbar-size);
+    height: var(--scrollbar-size);
+    background: var(--scrollbar-track);
+  }
+
+  .tilde::-webkit-scrollbar-button,
+  .tilde::-webkit-scrollbar-corner,
+  .tilde::-webkit-resizer,
+  .tilde *::-webkit-scrollbar-button,
+  .tilde *::-webkit-scrollbar-corner,
+  .tilde *::-webkit-resizer {
+    display: none;
+    background: transparent;
+  }
+
+  .tilde::-webkit-scrollbar-track,
+  .tilde::-webkit-scrollbar-track-piece,
+  .tilde *::-webkit-scrollbar-track,
+  .tilde *::-webkit-scrollbar-track-piece {
+    background: var(--scrollbar-track);
+    border: 0;
+    box-shadow: none;
+  }
+
+  .tilde::-webkit-scrollbar-thumb,
+  .tilde *::-webkit-scrollbar-thumb {
+    min-width: 3lh;
+    min-height: 3lh;
+    background-color: var(--scrollbar-thumb-soft);
+    background-clip: content-box;
+    border: 0.28em solid transparent;
+    border-radius: 999px;
+    box-shadow: none;
+  }
+
+  .tilde::-webkit-scrollbar-thumb:hover,
+  .tilde *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-strong);
+    border-width: 0.22em;
+  }
+
+  .tilde::-webkit-scrollbar-thumb:active,
+  .tilde *::-webkit-scrollbar-thumb:active {
+    background-color: var(--scrollbar-thumb-hover);
+    border-width: 0.18em;
+  }
+}
+
+@media (forced-colors: active) {
+  .tilde,
+  .tilde .transcript,
+  .tilde .workspace .sections,
+  .tilde .buffer .body,
+  .tilde .buffer .error {
+    scrollbar-color: auto;
+  }
+}

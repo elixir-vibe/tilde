@@ -1,9 +1,6 @@
 import { Socket } from "phoenix"
 import { LiveSocket } from "phoenix_live_view"
-import TildeConsole from "./hooks/tilde-console"
-import TildeDevtools from "./hooks/tilde-devtools"
-
-const hooks = { TildeConsole, TildeDevtools }
+import hooks from "./hooks"
 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   hooks,

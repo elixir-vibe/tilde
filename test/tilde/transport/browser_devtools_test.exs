@@ -35,5 +35,31 @@ defmodule Tilde.Transport.BrowserDevtoolsTest do
              browser,
              "['absolute', 'fixed'].includes(getComputedStyle(document.querySelector('#tilde-dev-tooltip')).position)"
            )
+
+    assert Browser.evaluate(
+             browser,
+             """
+             (async () => {
+               const button = document.querySelector('#tilde-devtools .button')
+               const tooltip = document.querySelector('#tilde-dev-tooltip')
+               button.dispatchEvent(new PointerEvent('pointerenter', {bubbles: false}))
+               await new Promise(resolve => setTimeout(resolve, 100))
+               button.dispatchEvent(new PointerEvent('pointerleave', {bubbles: false}))
+               tooltip.dispatchEvent(new PointerEvent('pointerenter', {bubbles: false}))
+               await new Promise(resolve => setTimeout(resolve, 180))
+               const rect = tooltip.getBoundingClientRect()
+               const style = getComputedStyle(tooltip)
+
+               return tooltip.dataset.open === 'true' &&
+                 tooltip.textContent.includes('%Tilde.Core.Session{') &&
+                 style.position === 'fixed' &&
+                 style.visibility === 'visible' &&
+                 style.pointerEvents === 'auto' &&
+                 tooltip.scrollHeight > tooltip.clientHeight &&
+                 rect.height > 100 &&
+                 rect.width > 300
+             })()
+             """
+           )
   end
 end

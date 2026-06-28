@@ -8,6 +8,14 @@
   --color-success: #2f7d32;
   --color-error: #b3261e;
   --color-warning: #8a5a00;
+  --syntax-keyword: #5b2bbf;
+  --syntax-module: #7a3e00;
+  --syntax-function: #214f8f;
+  --syntax-string: #7a3d00;
+  --syntax-constant: #8a5a00;
+  --syntax-attribute: #7a2f6d;
+  --syntax-comment: #7b746c;
+  --syntax-punctuation: #8f8378;
   --surface-tool: rgba(222, 214, 203, 0.35);
   --surface-tool-pending: rgba(138, 90, 0, 0.1);
   --surface-tool-success: rgba(47, 125, 50, 0.1);
@@ -15,14 +23,14 @@
   --scrollbar-thumb: #b9aea1;
   --scrollbar-thumb-hover: #8f8378;
   --space-cell: 1ch;
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 0.75rem;
-  --space-lg: 1.25rem;
-  --space-page: 24px;
+  --space-xs: 0.25em;
+  --space-sm: 0.5em;
+  --space-md: 0.75em;
+  --space-lg: 1.25em;
+  --space-page: 12px;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --text-base: 16px;
-  --leading-base: 1.55;
+  --text-base: 12px;
+  --leading-base: 1.35;
   --content-max: 920px;
 }
 
@@ -36,6 +44,14 @@
     --color-success: #8bc48a;
     --color-error: #ffb4ab;
     --color-warning: #e0b35a;
+    --syntax-keyword: #c7a8ff;
+    --syntax-module: #ffc777;
+    --syntax-function: #8cc7ff;
+    --syntax-string: #ce9178;
+    --syntax-constant: #e0b35a;
+    --syntax-attribute: #ff9ad5;
+    --syntax-comment: #8d8278;
+    --syntax-punctuation: #aaa096;
     --surface-tool: rgba(48, 44, 40, 0.45);
     --surface-tool-pending: rgba(224, 179, 90, 0.13);
     --surface-tool-success: rgba(139, 196, 138, 0.13);

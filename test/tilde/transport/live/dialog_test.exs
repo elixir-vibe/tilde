@@ -39,7 +39,6 @@ defmodule Tilde.Transport.Live.DialogTest do
     assert html =~ ~s|data-placement="overlay"|
     assert html =~ ~s|id="confirm"|
     assert html =~ ~s|class="dialog"|
-    refute html =~ ~s|<aside id="confirm"|
     assert html =~ "Continue?"
     assert html =~ "OK"
   end

@@ -209,6 +209,44 @@ defmodule TildeTest.FailingLLMBackend do
   def stream(_session, _opts), do: [TildeTest.RuntimeEvents.failed(:boom)]
 end
 
+defmodule TildeTest.BufferedDeltaLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def cancel_checkpoint(token, _opts), do: {:ok, token}
+
+  @impl true
+  def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
+
+  @impl true
+  def stream(_session, _opts) do
+    test_pid = Application.fetch_env!(:tilde, :buffered_delta_llm_test_pid)
+    send(test_pid, {:buffered_delta_llm_started, self()})
+
+    Stream.concat(
+      [
+        TildeTest.RuntimeEvents.delta("he"),
+        TildeTest.RuntimeEvents.delta("llo")
+      ],
+      Stream.resource(
+        fn -> :ok end,
+        fn
+          :ok ->
+            receive do
+              :finish_buffered_delta_llm -> {[TildeTest.RuntimeEvents.completed("hello")], :done}
+            after
+              1_000 -> {[TildeTest.RuntimeEvents.failed(:timeout)], :done}
+            end
+
+          :done ->
+            {:halt, :done}
+        end,
+        fn _state -> :ok end
+      )
+    )
+  end
+end
+
 defmodule TildeTest.StreamingLLMBackend do
   @behaviour Tilde.Runtime.LLM.Provider
 
