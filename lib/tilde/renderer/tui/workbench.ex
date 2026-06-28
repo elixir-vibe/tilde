@@ -9,12 +9,18 @@ defmodule Tilde.Renderer.TUI.Workbench do
   alias Tilde.Renderer.TUI
   alias Tilde.Renderer.TUI.Palette, as: PaletteRenderer
   alias Tilde.Renderer.TUI.Review, as: ReviewRenderer
+  alias Tilde.Renderer.TUI.TextLayout
   alias Tilde.Renderer.TUI.Theme
   alias Tilde.Renderer.TUI.Workspace, as: WorkspaceRenderer
   alias Tilde.Renderer.TUI.WorkspaceFile
 
   @type mode :: :chat | :file | :workspace
   @type view :: :files | :symbols
+
+  @wide_layout_width 110
+  @workspace_width 32
+  @review_width 38
+  @pane_gap " │ "
 
   @doc "Renders workspace, main surface, review, and optional palette."
   @spec render(map(), pos_integer(), pos_integer(), keyword()) :: iodata()
@@ -23,16 +29,11 @@ defmodule Tilde.Renderer.TUI.Workbench do
     opts = Keyword.put(opts, :ansi, ansi?)
 
     body =
-      [
-        Theme.title("# tilde", opts),
-        section("workspace", render_workspace(state, width, opts), opts),
-        section("main", render_main(state, width, height, opts), opts),
-        section("review", render_review(state, width, opts), opts),
-        render_palette(state, width, opts)
-      ]
-      |> Enum.reject(&(&1 in [nil, ""]))
-      |> Enum.join("\n\n")
-      |> maybe_clip(height)
+      if wide_layout?(width, opts) do
+        wide_body(state, width, height, opts)
+      else
+        stacked_body(state, width, height, opts)
+      end
 
     if ansi? do
       [IO.ANSI.home(), IO.ANSI.clear(), terminal_newlines(body)]
@@ -41,11 +42,94 @@ defmodule Tilde.Renderer.TUI.Workbench do
     end
   end
 
+  defp wide_layout?(width, opts) do
+    Keyword.get(opts, :layout, :auto) != :stacked and width >= @wide_layout_width
+  end
+
+  defp wide_body(state, width, height, opts) do
+    {workspace_width, main_width, review_width} = pane_widths(width)
+    palette = render_palette(state, width, opts)
+    palette_height = line_count(palette)
+    pane_height = max(height - palette_height - 3, 8)
+
+    panes =
+      [
+        pane("workspace", render_workspace(state, workspace_width, opts), workspace_width, opts),
+        pane("main", render_main(state, main_width, pane_height, opts), main_width, opts),
+        pane("review", render_review(state, review_width, opts), review_width, opts)
+      ]
+
+    [Theme.title("# tilde", opts), columns(panes, pane_height), palette]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n")
+    |> maybe_clip(height)
+  end
+
+  defp stacked_body(state, width, height, opts) do
+    [
+      Theme.title("# tilde", opts),
+      section("workspace", render_workspace(state, width, opts), opts),
+      section("main", render_main(state, width, height, opts), opts),
+      section("review", render_review(state, width, opts), opts),
+      render_palette(state, width, opts)
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n\n")
+    |> maybe_clip(height)
+  end
+
   defp section(title, body, opts) do
     [Theme.muted("── #{title} ──", opts), body]
     |> Enum.reject(&(&1 in [nil, ""]))
     |> Enum.join("\n")
   end
+
+  defp pane(title, body, width, opts) do
+    [pane_title(title, width, opts), body]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join("\n")
+    |> pane_lines(width)
+  end
+
+  defp pane_title(title, width, opts) do
+    title = " #{title} "
+    rule = String.duplicate("─", max(width - String.length(title), 0))
+    Theme.muted(title <> rule, opts)
+  end
+
+  defp columns(panes, height) do
+    panes
+    |> Enum.map(&fit_lines(&1, height))
+    |> Enum.zip()
+    |> Enum.map_join("\n", fn {left, center, right} ->
+      left <> @pane_gap <> center <> @pane_gap <> right
+    end)
+  end
+
+  defp pane_widths(width) do
+    workspace_width = @workspace_width
+    review_width = if width >= 140, do: 44, else: @review_width
+    gap_width = TextLayout.visible_width(@pane_gap) * 2
+    main_width = max(width - workspace_width - review_width - gap_width, 40)
+    {workspace_width, main_width, review_width}
+  end
+
+  defp pane_lines(body, width) do
+    body
+    |> lines()
+    |> Enum.map(&(&1 |> TextLayout.truncate(width) |> TextLayout.pad(width)))
+  end
+
+  defp fit_lines(lines, height) do
+    width = lines |> Enum.map(&TextLayout.visible_width/1) |> Enum.max(fn -> 0 end)
+    visible = Enum.take(lines, height)
+    visible ++ List.duplicate(String.duplicate(" ", width), max(height - length(visible), 0))
+  end
+
+  defp line_count(""), do: 0
+  defp line_count(text), do: text |> lines() |> length()
+
+  defp lines(text), do: String.split(text, "\n", trim: false)
 
   defp render_workspace(
          %{workspace: %CoreWorkspace{} = _workspace, workspace_view: :symbols} = state,
