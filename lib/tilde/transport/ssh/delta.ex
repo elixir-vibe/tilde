@@ -30,7 +30,8 @@ defmodule Tilde.Transport.SSH.Delta do
       &block_change/2,
       &assistant_change/2,
       &tool_stream_change/2,
-      &tool_done/2
+      &tool_done/2,
+      &transcript_change/2
     ]
     |> Enum.find_value(:none, & &1.(old, new))
   end
@@ -109,6 +110,10 @@ defmodule Tilde.Transport.SSH.Delta do
     else
       _other -> nil
     end
+  end
+
+  defp transcript_change(%Session{} = old, %Session{} = new) do
+    if old.transcript != new.transcript, do: :redraw
   end
 
   defp tool_done(%Session{} = old, %Session{} = new) do

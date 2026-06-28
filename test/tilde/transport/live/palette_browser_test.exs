@@ -23,7 +23,7 @@ defmodule Tilde.Transport.Live.PaletteBrowserTest do
 
       assert Browser.evaluate(
                browser,
-               "document.querySelector('#tilde-palette .choices').scrollHeight > document.querySelector('#tilde-palette .choices').clientHeight"
+               "getComputedStyle(document.querySelector('#tilde-palette .choices')).overflowY === 'auto'"
              )
     else
       skip_browser()

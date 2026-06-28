@@ -296,6 +296,18 @@ defmodule Tilde.DemoRuntimeTransportTest do
              Tilde.Transport.SSH.Delta.classify(streamed_more, done)
   end
 
+  test "ssh delta classifier redraws non-append transcript changes" do
+    collapsed =
+      Tilde.session()
+      |> Session.append_event(
+        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
+      )
+
+    expanded = Session.toggle_tool_expansion(collapsed)
+
+    assert Tilde.Transport.SSH.Delta.classify(collapsed, expanded) == :redraw
+  end
+
   test "ssh shell applies tui keys to semantic session" do
     session =
       Tilde.session()
@@ -306,6 +318,53 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert {:cont, toggled} = Tilde.Transport.SSH.Shell.apply_key(session, :toggle_expand)
     assert [%Block{display: %{expanded?: true}}] = toggled.transcript.blocks
     assert {:halt, ^toggled} = Tilde.Transport.SSH.Shell.apply_key(toggled, :quit)
+  end
+
+  test "ssh channel submits exact slash command suggestions instead of accepting forever" do
+    state = attached_ssh_state("ssh-exact-command")
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "/session\n"}},
+               state
+             )
+
+    assert state.session.input.value == ""
+  end
+
+  test "ssh channel detach command returns to the index" do
+    state = attached_ssh_state("ssh-detach-command")
+
+    assert {:ok, state} =
+             Tilde.Transport.SSH.Channel.handle_ssh_msg(
+               {:ssh_cm, nil, {:data, nil, 0, "/detach\n"}},
+               state
+             )
+
+    assert state.session_server == nil
+    assert state.session == nil
+    assert state.session_id == nil
+    refute state.attached?
+    assert %Tilde.Core.Index{} = state.index
+  end
+
+  defp attached_ssh_state(session_id) do
+    {:ok, _pid} = Tilde.Session.Registry.ensure_started()
+    server = Tilde.Session.Registry.via(session_id)
+
+    assert {:ok, pid} =
+             Tilde.Session.Server.ensure_started(server,
+               session: Tilde.Demo.Live.demo_session(id: session_id)
+             )
+
+    on_exit(fn -> if Process.alive?(pid), do: GenServer.stop(pid) end)
+
+    %Tilde.Transport.SSH.Channel{
+      session_server: server,
+      session: Tilde.Session.Server.subscribe(server),
+      session_id: session_id,
+      attached?: true
+    }
   end
 
   test "tui key decoder maps terminal bytes to semantic actions" do

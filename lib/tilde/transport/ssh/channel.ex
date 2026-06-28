@@ -251,7 +251,7 @@ defmodule Tilde.Transport.SSH.Channel do
   defp apply_keys(%__MODULE__{session_server: server} = state, keys) do
     Enum.reduce_while(keys, {:cont, state}, fn
       :enter, {:cont, state} ->
-        if Session.command_suggestions(state.session) do
+        if accept_suggestion_before_submit?(state.session) do
           {:cont, session} = Controller.apply_key(state.session, :enter)
           {:cont, {:cont, %{state | session: session}}}
         else
@@ -261,6 +261,19 @@ defmodule Tilde.Transport.SSH.Channel do
       key, {:cont, state} ->
         LocalPrompt.apply_key(state, key)
     end)
+  end
+
+  defp accept_suggestion_before_submit?(%Session{} = session) do
+    case {Session.command_suggestions(session), SlashCommand.completion(session.input.value)} do
+      {nil, _completion} ->
+        false
+
+      {_suggestions, completion} when completion in [nil, session.input.value] ->
+        false
+
+      {_suggestions, _completion} ->
+        true
+    end
   end
 
   defp submit_or_command(server, state) do
@@ -323,6 +336,11 @@ defmodule Tilde.Transport.SSH.Channel do
         {:halt, session} -> {:halt, {:halt, %{state | session: session}}}
       end
     end)
+  end
+
+  defp render_change(%__MODULE__{session: nil} = state, _old_session) do
+    render(state)
+    state
   end
 
   defp render_change(%__MODULE__{} = state, %Session{} = old_session) do
