@@ -571,45 +571,47 @@ defmodule Tilde.Session.ServerTest do
 
     test "session server projects Jidoka terminal metadata onto terminal assistant events" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.BlockingMetadataLLMBackend, fn ->
-          with_application_env(:metadata_llm_test_pid, self(), fn ->
-            name = :"tilde_session_server_llm_metadata_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_metadata_test_#{System.unique_integer([:positive])}"
 
-            assert {:ok, pid} =
-                     Tilde.Session.Server.start_link(
-                       name: name,
-                       session: Tilde.session(id: "llm_metadata")
-                     )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_metadata"),
+                   llm_opts: [llm: metadata_llm(self())]
+                 )
 
-            assert %Session{} = Tilde.Session.Server.subscribe(name)
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("semantic metadata"))
-            assert_receive {:metadata_llm_started, task}
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("semantic metadata"))
+        assert_receive {:metadata_llm_started, task}, 1_000
 
-            assert %{agent_loop: %{active?: true, run_id: "test-run", request_id: "test-request"}} =
-                     wait_until_session(name, fn session ->
-                       match?(%{agent_loop: %{run_id: "test-run"}}, session.metadata)
-                     end).metadata
+        metadata =
+          wait_until_session(name, fn session ->
+            match?(%{agent_loop: %{run_id: "tilde"}}, session.metadata)
+          end).metadata
 
-            send(task, :release_metadata_llm)
+        assert %{agent_loop: %{active?: true, run_id: "tilde", request_id: request_id}} = metadata
+        assert is_binary(request_id)
 
-            session =
-              wait_until_session(name, fn session ->
-                Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
-              end)
+        send(task, :release_metadata_llm)
 
-            finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
-            refute Map.has_key?(finished.metadata, :model)
-            assert finished.metadata.usage == %{input_tokens: 21, output_tokens: 8}
-            assert finished.metadata.termination_reason == :final_answer
-            assert finished.metadata.thinking_content == "I should answer tersely."
-            assert [%{summary: "reasoned"}] = finished.metadata.reasoning_details
-            assert finished.metadata.checkpoint_token == "checkpoint-semantic"
-
-            assert Session.agent_runtime(session).active? == false
-
-            GenServer.stop(pid)
+        session =
+          wait_until_session(name, fn session ->
+            Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
           end)
-        end)
+
+        finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
+        refute Map.has_key?(finished.metadata, :model)
+        assert finished.metadata.usage == %{input_tokens: 21, output_tokens: 8}
+        assert finished.metadata.termination_reason == :final_answer
+        assert finished.metadata.thinking_content == "I should answer tersely."
+        assert [%{summary: "reasoned"}] = finished.metadata.reasoning_details
+        assert finished.metadata.jidoka.metadata.usage == %{input_tokens: 21, output_tokens: 8}
+        assert finished.metadata.jidoka.metadata.termination_reason == :final_answer
+        refute contains_process_identifier?(finished.metadata)
+
+        assert Session.agent_runtime(session).active? == false
+
+        GenServer.stop(pid)
       end)
     end
 
@@ -1334,6 +1336,27 @@ defmodule Tilde.Session.ServerTest do
 
   defp notify(nil, _message), do: :ok
   defp notify(pid, message) when is_pid(pid), do: send(pid, message)
+
+  defp metadata_llm(test_pid) do
+    fn _intent, _journal ->
+      send(test_pid, {:metadata_llm_started, self()})
+
+      receive do
+        :release_metadata_llm ->
+          {:ok,
+           Jidoka.Effect.LLMDecision.final("semantic reply",
+             metadata: %{
+               usage: %{input_tokens: 21, output_tokens: 8},
+               termination_reason: :final_answer,
+               thinking_content: "I should answer tersely.",
+               reasoning_details: [%{summary: "reasoned", dropped: self()}]
+             }
+           )}
+      after
+        1_000 -> {:error, :timeout}
+      end
+    end
+  end
 
   defp max_iterations_terminal_llm do
     fn intent, _journal, stream_opts ->
