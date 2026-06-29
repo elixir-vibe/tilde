@@ -51,54 +51,66 @@ defmodule Tilde.Session.ServerTest do
         |> Session.append_event(Tilde.input_submitted("nine"))
         |> Session.append_event(Tilde.assistant_done("ten"))
 
-      with_application_env(:llm_backend, TildeTest.LLMBackend, fn ->
-        assert {:ok, command} = Tilde.Command.parse("/compact focus on decisions")
-        compacted = Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
+      assert {:ok, command} = Tilde.Command.parse("/compact focus on decisions")
 
-        assert length(compacted.events) == length(session.events) + 1
+      compacted =
+        Tilde.Command.apply_effects(
+          session,
+          Tilde.Command.run(command, session,
+            compaction_summarizer: fn _blocks -> "## Context Compaction\n\nTest summary" end
+          )
+        )
 
-        assert %Tilde.Core.Event{type: :context_compacted, metadata: metadata} =
-                 List.last(compacted.events)
+      assert length(compacted.events) == length(session.events) + 1
 
-        assert metadata.custom_instructions == "focus on decisions"
-        assert metadata.first_kept_block_id
-        assert List.last(compacted.transcript.blocks).role == :system
-        assert List.last(compacted.transcript.blocks).source =~ "## Context Compaction"
-      end)
+      assert %Tilde.Core.Event{type: :context_compacted, metadata: metadata} =
+               List.last(compacted.events)
+
+      assert metadata.custom_instructions == "focus on decisions"
+      assert metadata.first_kept_block_id
+      assert List.last(compacted.transcript.blocks).role == :system
+      assert List.last(compacted.transcript.blocks).source =~ "## Context Compaction"
     end
 
     test "compact command prefers configured LLM summary" do
       session = compactable_session()
 
-      with_application_env(:llm_backend, TildeTest.CompactionSummaryLLMBackend, fn ->
-        with_application_env(:compaction_summary_test_pid, self(), fn ->
-          assert {:ok, command} = Tilde.Command.parse("/compact preserve blockers")
+      assert {:ok, command} = Tilde.Command.parse("/compact preserve blockers")
 
-          compacted =
-            Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
+      summarizer = fn blocks, opts ->
+        send(self(), {:summarize_compaction, Enum.map(blocks, & &1.source), opts})
+        {:ok, "## Context Compaction\n\nLLM summary"}
+      end
 
-          assert_receive {:summarize_compaction, summarized_sources, opts}
-          assert "one" in summarized_sources
-          assert opts[:instructions] == "preserve blockers"
+      compacted =
+        Tilde.Command.apply_effects(
+          session,
+          Tilde.Command.run(command, session, compaction_summarizer: summarizer)
+        )
 
-          assert List.last(compacted.transcript.blocks).source ==
-                   "## Context Compaction\n\nLLM summary"
-        end)
-      end)
+      assert_receive {:summarize_compaction, summarized_sources, opts}
+      assert "one" in summarized_sources
+      assert opts[:instructions] == "preserve blockers"
+
+      assert List.last(compacted.transcript.blocks).source ==
+               "## Context Compaction\n\nLLM summary"
     end
 
     test "compact command falls back when configured LLM summary is blank" do
       session = compactable_session()
 
-      with_application_env(:llm_backend, TildeTest.EmptyCompactionSummaryLLMBackend, fn ->
-        assert {:ok, command} = Tilde.Command.parse("/compact")
-        compacted = Tilde.Command.apply_effects(session, Tilde.Command.run(command, session, []))
+      assert {:ok, command} = Tilde.Command.parse("/compact")
 
-        assert List.last(compacted.transcript.blocks).source =~
-                 "Earlier conversation was compacted"
+      compacted =
+        Tilde.Command.apply_effects(
+          session,
+          Tilde.Command.run(command, session, compaction_summarizer: fn _blocks -> "" end)
+        )
 
-        assert List.last(compacted.transcript.blocks).source =~ "User: one"
-      end)
+      assert List.last(compacted.transcript.blocks).source =~
+               "Earlier conversation was compacted"
+
+      assert List.last(compacted.transcript.blocks).source =~ "User: one"
     end
 
     test "command suggestions complete argument-taking commands instead of executing them" do

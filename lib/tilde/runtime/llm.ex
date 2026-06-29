@@ -19,10 +19,6 @@ defmodule Tilde.Runtime.LLM do
     Protocol.UndefinedError
   ]
 
-  @doc "Returns the configured LLM backend."
-  @spec backend() :: module()
-  def backend, do: Application.get_env(:tilde, :llm_backend, Tilde.Runtime.LLM.Jidoka)
-
   @doc "Returns the configured model id."
   @spec model() :: String.t()
   def model, do: Application.get_env(:tilde, :llm_model, @default_model)
@@ -34,22 +30,14 @@ defmodule Tilde.Runtime.LLM do
   @doc "Streams assistant response events from the configured backend."
   @spec stream(Session.t(), keyword()) :: Enumerable.t(Jidoka.Event.t())
   def stream(%Session{} = session, opts \\ []) do
-    backend = Keyword.get(opts, :backend, backend())
-    backend.stream(session, opts)
-  rescue
-    exception in UndefinedFunctionError ->
-      [failed_event({:llm_backend_unavailable, exception.module})]
+    Tilde.Runtime.LLM.Jidoka.stream(session, opts)
   end
 
   @doc "Resumes assistant response events from a checkpoint through the configured backend."
   @spec resume_checkpoint(Session.t(), AgentRuntime.t(), keyword()) ::
           Enumerable.t(Jidoka.Event.t())
   def resume_checkpoint(%Session{} = session, %AgentRuntime{} = runtime, opts \\ []) do
-    backend = Keyword.get(opts, :backend, backend())
-    backend.resume_checkpoint(session, runtime, opts)
-  rescue
-    exception in UndefinedFunctionError ->
-      [failed_event({:llm_backend_unavailable, exception.module})]
+    Tilde.Runtime.LLM.Jidoka.resume_checkpoint(session, runtime, opts)
   end
 
   @doc "Builds the Jidoka failure event used when a runtime boundary fails before streaming."
@@ -69,17 +57,8 @@ defmodule Tilde.Runtime.LLM do
   @doc "Generates a semantic compaction summary through the configured backend."
   @spec summarize_compaction([Block.t()], keyword()) :: {:ok, String.t()} | {:error, term()}
   def summarize_compaction(blocks, opts \\ []) when is_list(blocks) do
-    backend = Keyword.get(opts, :backend, backend())
-
-    if function_exported?(backend, :summarize_compaction, 2) do
-      backend.summarize_compaction(blocks, opts)
-    else
-      {:error, :unsupported_compaction_summary}
-    end
+    Tilde.Runtime.LLM.Jidoka.summarize_compaction(blocks, opts)
   rescue
-    exception in UndefinedFunctionError ->
-      {:error, {:llm_backend_unavailable, exception.module}}
-
     exception in @summary_errors ->
       {:error, exception}
   end
@@ -87,11 +66,7 @@ defmodule Tilde.Runtime.LLM do
   @doc "Cancels a checkpointed agent turn through the configured backend."
   @spec cancel_checkpoint(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def cancel_checkpoint(token, opts \\ []) when is_binary(token) do
-    backend = Keyword.get(opts, :backend, backend())
-    backend.cancel_checkpoint(token, opts)
-  rescue
-    exception in UndefinedFunctionError ->
-      {:error, {:llm_backend_unavailable, exception.module}}
+    Tilde.Runtime.LLM.Jidoka.cancel_checkpoint(token, opts)
   end
 
   @doc "Returns the latest submitted user text, if present."
