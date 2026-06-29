@@ -13,4 +13,10 @@ defmodule Tilde.Runtime.LLMTest do
              data: %{error: :boom}
            } = LLM.failed_event(:boom, source: "tilde-test", iteration: 2)
   end
+
+  test "facade does not expose an app-configured runtime seam" do
+    refute function_exported?(LLM, :backend, 0)
+
+    refute File.read!("lib/tilde/runtime/llm.ex") =~ ":llm_" <> "backend"
+  end
 end

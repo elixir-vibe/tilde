@@ -64,7 +64,7 @@ defmodule Tilde.Session.AgentLoop.ResumeStartTest do
     end)
   end
 
-  test "resume backend crashes map to failed lifecycle and clear metadata" do
+  test "resume runtime crashes map to failed lifecycle and clear metadata" do
     with_application_env(:llm_enabled, true, fn ->
       {session, _llm_opts} = resumable_session("resume-crash", final_llm("ignored"))
 
