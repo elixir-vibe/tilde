@@ -696,57 +696,47 @@ defmodule Tilde.Session.ServerTest do
       end)
     end
 
-    test "session server interrupt cancels checkpointed runtime and stream task" do
+    test "session server interrupt clears a checkpointed Jidoka runtime" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.CancellableLLMBackend, fn ->
-          with_application_env(:cancellable_llm_test_pid, self(), fn ->
-            name = :"tilde_session_server_llm_cancel_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_cancel_test_#{System.unique_integer([:positive])}"
 
-            assert {:ok, pid} =
-                     Tilde.Session.Server.start_link(
-                       name: name,
-                       session: Tilde.session(id: "llm_cancel")
-                     )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_cancel"),
+                   llm_opts: [llm: final_llm("unreached"), checkpoint: :before_each_effect]
+                 )
 
-            assert %Session{} = Tilde.Session.Server.subscribe(name)
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("stop me"))
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("stop me"))
 
-            assert_receive {:cancellable_llm_started, task, agent}
-            task_ref = Process.monitor(task)
-            agent_ref = Process.monitor(agent)
-
-            assert_receive {:tilde_session_updated, "llm_cancel",
-                            %Session{transcript: %{blocks: [_, %Block{source: "working"}]}}}
-
-            assert %{
-                     agent_loop: %{
-                       active?: true,
-                       block_id: "msg_assistant_2",
-                       queue_length: 0,
-                       run_id: "test-run",
-                       request_id: "test-request",
-                       checkpoint_token: "checkpoint-123",
-                       iteration: 0
-                     }
-                   } = Tilde.Session.Server.dev_snapshot(name)
-
-            assert {:cont, %Session{} = cancelled, []} =
-                     Tilde.Session.Server.apply_interaction(name, %Tilde.Core.Interaction{
-                       type: :interrupt
-                     })
-
-            assert_assistant_phase(cancelled, :cancelled)
-
-            assert %{agent_loop: %{active?: false, run_id: nil, checkpoint_token: nil}} =
-                     Tilde.Session.Server.dev_snapshot(name)
-
-            assert_receive {:cancellable_llm_cancelled, "checkpoint-123"}
-            assert_receive {:DOWN, ^task_ref, :process, ^task, _reason}
-            assert_receive {:DOWN, ^agent_ref, :process, ^agent, _reason}
-
-            GenServer.stop(pid)
+        runtime =
+          wait_until_agent_loop(name, fn runtime ->
+            is_binary(runtime.checkpoint_token) and
+              String.starts_with?(runtime.checkpoint_token, "jidoka:snapshot:v1:")
           end)
-        end)
+
+        assert %{
+                 active?: true,
+                 block_id: "msg_assistant_2",
+                 queue_length: 0,
+                 run_id: "tilde",
+                 iteration: 0
+               } = runtime
+
+        assert is_binary(runtime.request_id)
+
+        assert {:cont, %Session{} = cancelled, []} =
+                 Tilde.Session.Server.apply_interaction(name, %Tilde.Core.Interaction{
+                   type: :interrupt
+                 })
+
+        assert_assistant_phase(cancelled, :cancelled)
+
+        assert %{agent_loop: %{active?: false, run_id: nil, checkpoint_token: nil}} =
+                 Tilde.Session.Server.dev_snapshot(name)
+
+        GenServer.stop(pid)
       end)
     end
 
@@ -819,6 +809,22 @@ defmodule Tilde.Session.ServerTest do
   end
 
   defp wait_until_session(name, _predicate, 0), do: Tilde.Session.Server.get_session(name)
+
+  defp wait_until_agent_loop(name, predicate, attempts \\ 20)
+
+  defp wait_until_agent_loop(name, predicate, attempts) when attempts > 0 do
+    runtime = Tilde.Session.Server.dev_snapshot(name).agent_loop
+
+    if predicate.(runtime) do
+      runtime
+    else
+      Process.sleep(25)
+      wait_until_agent_loop(name, predicate, attempts - 1)
+    end
+  end
+
+  defp wait_until_agent_loop(name, _predicate, 0),
+    do: Tilde.Session.Server.dev_snapshot(name).agent_loop
 
   describe "dev snapshots" do
     test "dev snapshot includes resumable runtime for restored checkpoint metadata" do
@@ -1007,45 +1013,44 @@ defmodule Tilde.Session.ServerTest do
 
     test "persists sanitized agent loop checkpoint metadata and clears it after cancellation" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.CancellableLLMBackend, fn ->
-          with_application_env(:cancellable_llm_test_pid, self(), fn ->
-            with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
-              with_application_env(:storage_test_pid, self(), fn ->
-                {:ok, server} = Server.start_link(session: Tilde.session(id: "runtime-state"))
+        with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
+          with_application_env(:storage_test_pid, self(), fn ->
+            {:ok, server} =
+              Server.start_link(
+                session: Tilde.session(id: "runtime-state"),
+                llm_opts: [llm: final_llm("unreached"), checkpoint: :before_each_effect]
+              )
 
-                Server.append_event(server, Tilde.input_submitted("checkpoint me"))
+            Server.append_event(server, Tilde.input_submitted("checkpoint me"))
 
-                assert_receive {:cancellable_llm_started, _task, _agent}
-
-                checkpoint =
-                  wait_for_agent_loop_metadata("runtime-state", fn metadata ->
-                    get_in(metadata, [:agent_loop, :checkpoint_token]) == "checkpoint-123"
-                  end)
-
-                assert checkpoint.agent_loop.active? == true
-                assert checkpoint.agent_loop.run_id == "test-run"
-                assert checkpoint.agent_loop.request_id == "test-request"
-
-                assert Tilde.Core.AgentRuntime.load(checkpoint.agent_loop).checkpoint_token ==
-                         "checkpoint-123"
-
-                refute contains_process_identifier?(checkpoint)
-
-                Server.apply_interaction(server, %Tilde.Core.Interaction{type: :interrupt})
-
-                cleared =
-                  wait_for_agent_loop_metadata("runtime-state", fn metadata ->
-                    match?(
-                      %{agent_loop: %{active?: false, run_id: nil, checkpoint_token: nil}},
-                      metadata
-                    )
-                  end)
-
-                assert cleared.agent_loop.active? == false
-                assert cleared.agent_loop.run_id == nil
-                refute contains_process_identifier?(cleared)
+            checkpoint =
+              wait_for_agent_loop_metadata("runtime-state", fn metadata ->
+                token = get_in(metadata, [:agent_loop, :checkpoint_token])
+                is_binary(token) and String.starts_with?(token, "jidoka:snapshot:v1:")
               end)
-            end)
+
+            assert checkpoint.agent_loop.active? == true
+            assert checkpoint.agent_loop.run_id == "tilde"
+            assert is_binary(checkpoint.agent_loop.request_id)
+
+            runtime = Tilde.Core.AgentRuntime.load(checkpoint.agent_loop)
+            assert String.starts_with?(runtime.checkpoint_token, "jidoka:snapshot:v1:")
+
+            refute contains_process_identifier?(checkpoint)
+
+            Server.apply_interaction(server, %Tilde.Core.Interaction{type: :interrupt})
+
+            cleared =
+              wait_for_agent_loop_metadata("runtime-state", fn metadata ->
+                match?(
+                  %{agent_loop: %{active?: false, run_id: nil, checkpoint_token: nil}},
+                  metadata
+                )
+              end)
+
+            assert cleared.agent_loop.active? == false
+            assert cleared.agent_loop.run_id == nil
+            refute contains_process_identifier?(cleared)
           end)
         end)
       end)
