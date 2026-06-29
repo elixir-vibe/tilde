@@ -31,7 +31,15 @@ defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
         checkpoint_token: snapshot
       }
 
-      assert [%Jidoka.Event{event: :turn_finished, data: %{result: "resumed answer"}}] =
+      assert [
+               %Jidoka.Event{
+                 event: :turn_finished,
+                 data: %{
+                   result: "resumed answer",
+                   jidoka: %{journal: %{intent_count: 1, result_count: 1}}
+                 }
+               }
+             ] =
                session
                |> Provider.resume_checkpoint(candidate,
                  llm: __MODULE__.FinalLLM.llm("resumed answer")

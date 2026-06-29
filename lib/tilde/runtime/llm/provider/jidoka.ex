@@ -373,7 +373,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jidoka do
   defp enrich_terminal_event(%Jidoka.Event{event: :turn_finished} = event, async, opts) do
     case Jidoka.await(async, timeout: Keyword.get(opts, :timeout, 30_000)) do
       {:ok, %Jidoka.Turn.Result{} = result} ->
-        put_event_data(event, %{result: result.content})
+        put_event_data(event, %{result: result.content, jidoka: turn_result_metadata(result)})
 
       {:ok, _session, content} when is_binary(content) ->
         put_event_data(event, %{result: content})
@@ -406,6 +406,43 @@ defmodule Tilde.Runtime.LLM.Provider.Jidoka do
 
   defp put_event_data(%Jidoka.Event{data: data} = event, extra) when is_map(data) do
     %Jidoka.Event{event | data: Map.merge(data, extra)}
+  end
+
+  defp turn_result_metadata(%Jidoka.Turn.Result{} = result) do
+    %{
+      usage: result.usage,
+      metadata: result.metadata,
+      journal: journal_metadata(result.journal),
+      operations: operation_results_metadata(result.agent_state.operation_results)
+    }
+    |> reject_empty_values()
+  end
+
+  defp journal_metadata(%Jidoka.Effect.Journal{intents: intents, results: results}) do
+    operation_results = Enum.filter(results, fn {_id, result} -> result.kind == :operation end)
+
+    %{
+      intent_count: map_size(intents),
+      result_count: map_size(results),
+      operation_count: length(operation_results),
+      operation_statuses: Enum.map(operation_results, fn {_id, result} -> result.status end)
+    }
+  end
+
+  defp operation_results_metadata(operation_results) when is_list(operation_results) do
+    Enum.map(operation_results, fn result ->
+      %{
+        operation: result.operation,
+        request_id: result.request_id,
+        loop_index: result.loop_index,
+        effect_id: result.effect_id
+      }
+      |> reject_empty_values()
+    end)
+  end
+
+  defp reject_empty_values(map) do
+    Map.reject(map, fn {_key, value} -> value in [nil, %{}, []] end)
   end
 
   defp serialize_snapshot(snapshot) do

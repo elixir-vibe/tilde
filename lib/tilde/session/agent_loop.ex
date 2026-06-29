@@ -449,7 +449,8 @@ defmodule Tilde.Session.AgentLoop do
         usage: event_field(event_data, :usage),
         termination_reason: event_field(event_data, :termination_reason),
         thinking_content: event_field(event_data, :thinking_content),
-        reasoning_details: event_field(event_data, :reasoning_details)
+        reasoning_details: event_field(event_data, :reasoning_details),
+        jidoka: event_field(event_data, :jidoka)
       })
     )
     |> reject_nil_values()

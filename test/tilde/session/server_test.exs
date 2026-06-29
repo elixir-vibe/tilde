@@ -655,6 +655,12 @@ defmodule Tilde.Session.ServerTest do
                        event.type == :assistant_done and event.text == "Tool finished."
                      end)
 
+              finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
+              assert finished.metadata.jidoka.journal.operation_count == 1
+              assert finished.metadata.jidoka.journal.operation_statuses == [:ok]
+              assert [%{operation: "utc_now"}] = finished.metadata.jidoka.operations
+              refute contains_process_identifier?(finished.metadata.jidoka)
+
               GenServer.stop(pid)
             end)
           end)
