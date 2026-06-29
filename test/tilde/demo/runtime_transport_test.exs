@@ -1,7 +1,7 @@
 defmodule Tilde.DemoRuntimeTransportTest do
   use TildeTest.Case
 
-  test "Jidoka LLM backend reports a missing OpenRouter key before calling the runtime" do
+  test "Jidoka runtime reports a missing OpenRouter key before calling the runtime" do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")
 

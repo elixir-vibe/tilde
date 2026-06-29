@@ -28,7 +28,7 @@ defmodule Tilde.Runtime.LLM.ResumeTest do
     assert result == "resumed through Jidoka"
   end
 
-  test "Jidoka provider reports missing OpenRouter key before resuming runtime" do
+  test "Jidoka runtime reports missing OpenRouter key before resuming runtime" do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")
 

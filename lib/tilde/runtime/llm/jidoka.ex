@@ -1,6 +1,6 @@
 defmodule Tilde.Runtime.LLM.Jidoka do
   @moduledoc """
-  Jidoka-backed LLM backend for Tilde.
+  Jidoka runtime adapter for Tilde assistant turns.
 
   Tilde owns session/event projection; Jidoka owns model routing, turn execution,
   effect interpretation, and operation journaling.
@@ -586,6 +586,6 @@ defmodule Tilde.Runtime.LLM.Jidoka do
   end
 
   defp failed_event(reason) do
-    LLM.failed_event(reason, source: "tilde-jidoka-provider")
+    LLM.failed_event(reason, source: "tilde-jidoka-runtime")
   end
 end

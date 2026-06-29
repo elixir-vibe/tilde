@@ -220,41 +220,38 @@ LiveView DOM or TUI cells/ANSI
 
 ## Agent runtime
 
-Jidoka, ReqLLM, and Jido action tools are mandatory dependencies. Tilde should
-not compile a reduced model-free agent/runtime surface behind conditional
-`Code.ensure_loaded?` branches. Missing API keys or provider configuration are
-runtime errors surfaced as assistant events, not alternate compilation modes.
+Jidoka, ReqLLM, and Jido action tools are mandatory dependencies. Tilde does not
+compile a reduced model-free agent/runtime surface behind conditional
+`Code.ensure_loaded?` branches, and it does not support swappable Tilde LLM
+backends. Missing API keys or model configuration are runtime errors surfaced as
+assistant events, not alternate compilation modes.
 
 Current state: `Tilde.Session.AgentLoop` owns assistant start, streaming,
 cancellation, tool projection, and queued prompt continuation. Runtime queuing is
 explicit in session-server state through `pending_prompts`; the loop does not scan
-durable history to decide what to run next. It still uses one stream task per
-active loop; the Jidoka provider runs `Jidoka.turn/3` / `Jidoka.resume/2` and
+durable history to decide what to run next. It uses one stream task per active
+loop; `Tilde.Runtime.LLM.Jidoka` runs `Jidoka.turn/3` / `Jidoka.resume/2` and
 streams canonical `Jidoka.Event` structs, while Tilde projects those runtime
 events into durable console events.
 
-Migration plan to a normal agent loop:
+Runtime loop rules:
 
-1. Introduce a session-owned agent runtime state alongside `prompt_task` and
-   `prompt_ref` (`active_agent`, stream owner/ref, current tool context, and last
-   submitted prompt).
-2. Move prompt submission into a single lifecycle entry point that records the
-   user event, starts/continues the agent loop, and wires Jidoka/ReqLLM callbacks
-   for deltas, thinking, operation started/finished, usage, completion, and
-   errors.
-3. Keep the loop alive for tool/assistant iterations until the provider reports a
-   terminal result, rather than treating every model call as a standalone response.
-4. Project every loop transition back into `Tilde.Core.Event` only:
+1. Prompt submission records the user event, starts or continues the agent loop,
+   and wires Jidoka/ReqLLM callbacks for deltas, thinking, operation
+   started/finished, usage, completion, and errors.
+2. Runtime progress is represented as Jidoka events until a terminal turn result,
+   hibernation checkpoint, or failure is observed.
+3. Tilde projects runtime transitions back into `Tilde.Core.Event` only:
    assistant lifecycle events, assistant deltas, tool events, status/usage events,
-   and final assistant messages.
-5. Make cancellation stop both the active agent and prompt task, emit a
-   cancellation event, and clear runtime state without losing durable transcript
-   events.
-6. Preserve index/session transport neutrality: Live, SSH, and TUI continue to
-   submit `Tilde.Core.Interaction` values and receive semantic session updates;
-   none of them own agent-loop behavior.
-7. Add regression tests for multi-step tool loops, multiple queued user prompts,
-   cancellation, provider errors, and resume/listing behavior.
+   checkpoint metadata, and final assistant messages.
+4. Cancellation stops the active agent task, asks Jidoka to cancel a checkpoint
+   when one exists, emits semantic cancellation/error lifecycle events, and clears
+   runtime state without losing durable transcript events.
+5. Index/session transport neutrality is preserved: Live, SSH, and TUI submit
+   `Tilde.Core.Interaction` values and receive semantic session updates; none of
+   them own agent-loop behavior.
+6. Regression coverage must include multi-step tool loops, multiple queued user
+   prompts, cancellation, runtime errors, and resume/listing behavior.
 
 ## Test support
 

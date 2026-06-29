@@ -27,13 +27,13 @@ defmodule Tilde.Runtime.LLM do
   @spec enabled?() :: boolean()
   def enabled?, do: Application.get_env(:tilde, :llm_enabled, false)
 
-  @doc "Streams assistant response events from the configured backend."
+  @doc "Streams assistant response events from the Jidoka runtime."
   @spec stream(Session.t(), keyword()) :: Enumerable.t(Jidoka.Event.t())
   def stream(%Session{} = session, opts \\ []) do
     Tilde.Runtime.LLM.Jidoka.stream(session, opts)
   end
 
-  @doc "Resumes assistant response events from a checkpoint through the configured backend."
+  @doc "Resumes assistant response events from a Jidoka checkpoint."
   @spec resume_checkpoint(Session.t(), AgentRuntime.t(), keyword()) ::
           Enumerable.t(Jidoka.Event.t())
   def resume_checkpoint(%Session{} = session, %AgentRuntime{} = runtime, opts \\ []) do
@@ -54,7 +54,7 @@ defmodule Tilde.Runtime.LLM do
     )
   end
 
-  @doc "Generates a semantic compaction summary through the configured backend."
+  @doc "Generates a semantic compaction summary through Jidoka."
   @spec summarize_compaction([Block.t()], keyword()) :: {:ok, String.t()} | {:error, term()}
   def summarize_compaction(blocks, opts \\ []) when is_list(blocks) do
     Tilde.Runtime.LLM.Jidoka.summarize_compaction(blocks, opts)
@@ -63,7 +63,7 @@ defmodule Tilde.Runtime.LLM do
       {:error, exception}
   end
 
-  @doc "Cancels a checkpointed agent turn through the configured backend."
+  @doc "Cancels a checkpointed Jidoka agent turn."
   @spec cancel_checkpoint(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def cancel_checkpoint(token, opts \\ []) when is_binary(token) do
     Tilde.Runtime.LLM.Jidoka.cancel_checkpoint(token, opts)

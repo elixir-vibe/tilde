@@ -290,17 +290,17 @@ The web demo also exposes a “New isolated session” link, which is UI sugar o
 ## LLM runtime
 
 Tilde keeps its semantic session/event model as the source of truth and delegates
-model/runtime orchestration to a behaviour-backed LLM boundary. ReqLLM, Jido, and
-Jido.AI are required dependencies, not optional compilation paths. The default
-backend is `Tilde.Runtime.LLM.Provider.Jido`, which uses Jido.AI's ReAct runtime
-with ReqLLM/OpenRouter. The runtime includes a safe demo tool,
-`Tilde.Tools.UtcNow`, whose Jido tool lifecycle is projected back into Tilde
-semantic tool events. The demo enables automatic assistant replies; set
-`OPENROUTER_API_KEY` to use the configured model:
+agent/runtime orchestration to Jidoka. Jidoka, ReqLLM, and Jido action tools are
+required dependencies, not optional compilation paths or swappable Tilde runtime
+backends. `Tilde.Runtime.LLM` is a small facade over `Tilde.Runtime.LLM.Jidoka`,
+which runs `Jidoka.turn/3` / `Jidoka.resume/2` with ReqLLM/OpenRouter and projects
+canonical `Jidoka.Event` structs back into Tilde semantic events. The runtime
+includes a safe demo tool, `Tilde.Tools.UtcNow`, whose Jido tool lifecycle is
+projected back into Tilde semantic tool events. The demo enables automatic
+assistant replies; set `OPENROUTER_API_KEY` to use the configured model:
 
 ```elixir
 config :tilde,
-  llm_backend: Tilde.Runtime.LLM.Provider.Jido,
   llm_model: "openrouter:~anthropic/claude-haiku-latest"
 ```
 
