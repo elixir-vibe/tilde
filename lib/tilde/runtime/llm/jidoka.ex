@@ -339,7 +339,7 @@ defmodule Tilde.Runtime.LLM.Jidoka do
         Jidoka.Event.build(:turn_finished, [],
           agent_id: "tilde",
           request_id: async.request_id,
-          data: %{result: result.content, jidoka: turn_result_metadata(result)}
+          data: turn_finished_data(result)
         )
 
       {:hibernate, snapshot} ->
@@ -431,7 +431,7 @@ defmodule Tilde.Runtime.LLM.Jidoka do
   defp enrich_terminal_event(%Jidoka.Event{event: :turn_finished} = event, async, opts) do
     case Jidoka.await(async, timeout: Keyword.get(opts, :timeout, 30_000)) do
       {:ok, %Jidoka.Turn.Result{} = result} ->
-        put_event_data(event, %{result: result.content, jidoka: turn_result_metadata(result)})
+        put_event_data(event, turn_finished_data(result))
 
       {:ok, _session, content} when is_binary(content) ->
         put_event_data(event, %{result: content})
@@ -466,14 +466,35 @@ defmodule Tilde.Runtime.LLM.Jidoka do
     %Jidoka.Event{event | data: Map.merge(data, extra)}
   end
 
+  defp turn_finished_data(%Jidoka.Turn.Result{} = result) do
+    result
+    |> llm_result_metadata()
+    |> Map.merge(%{result: result.content, jidoka: turn_result_metadata(result)})
+  end
+
   defp turn_result_metadata(%Jidoka.Turn.Result{} = result) do
+    metadata = Map.merge(result.metadata, llm_result_metadata(result))
+
     %{
       usage: result.usage,
-      metadata: result.metadata,
+      metadata: metadata,
       journal: journal_metadata(result.journal),
       operations: operation_results_metadata(result.agent_state.operation_results)
     }
     |> reject_empty_values()
+  end
+
+  defp llm_result_metadata(%Jidoka.Turn.Result{journal: %Jidoka.Effect.Journal{results: results}}) do
+    results
+    |> Map.values()
+    |> Enum.reverse()
+    |> Enum.find_value(%{}, fn
+      %Jidoka.Effect.Result{kind: :llm, status: :ok, metadata: metadata} when is_map(metadata) ->
+        metadata
+
+      _result ->
+        nil
+    end)
   end
 
   defp journal_metadata(%Jidoka.Effect.Journal{intents: intents, results: results}) do

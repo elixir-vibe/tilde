@@ -320,65 +320,76 @@ defmodule Tilde.Session.ServerTest do
 
     test "session server keeps post-tool assistant text after tool without duplicating terminal result" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.PostToolTerminalLLMBackend, fn ->
-          name =
-            :"tilde_session_server_post_tool_terminal_test_#{System.unique_integer([:positive])}"
+        name =
+          :"tilde_session_server_post_tool_terminal_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "post_tool_terminal")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "post_tool_terminal"),
+                   llm_opts: [
+                     llm:
+                       before_tool_after_tool_llm(
+                         "Before.",
+                         "bash",
+                         %{command: "printf README.md"},
+                         "After."
+                       ),
+                     tools: [Tilde.Tools.Bash],
+                     max_model_turns: 3
+                   ]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("inspect"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("inspect"))
 
-          session =
-            wait_until_session(name, fn %Session{transcript: %{blocks: blocks}} ->
-              Enum.map(blocks, & &1.kind) == [:message, :message, :tool, :message]
-            end)
+        session =
+          wait_until_session(name, fn %Session{transcript: %{blocks: blocks}} ->
+            Enum.map(blocks, & &1.kind) == [:message, :message, :tool, :message]
+          end)
 
-          assert [_, before_tool, tool, after_tool] = session.transcript.blocks
-          assert %Block{role: :assistant, source: "Before."} = before_tool
-          assert %Block{kind: :tool, name: "bash"} = tool
-          assert %Block{role: :assistant, source: "After."} = after_tool
+        assert [_, before_tool, tool, after_tool] = session.transcript.blocks
+        assert %Block{role: :assistant, source: "Before."} = before_tool
+        assert %Block{kind: :tool, name: "bash"} = tool
+        assert %Block{role: :assistant, source: "After."} = after_tool
 
-          GenServer.stop(pid)
-        end)
+        GenServer.stop(pid)
       end)
     end
 
     test "session server does not render max-iteration runtime fallback as assistant prose" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.MaxIterationsLLMBackend, fn ->
-          name =
-            :"tilde_session_server_terminal_result_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_terminal_result_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "terminal_result")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "terminal_result"),
+                   llm_opts: [llm: max_iterations_terminal_llm()]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("inspect"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("inspect"))
 
-          session =
-            wait_until_session(name, fn %Session{transcript: %{blocks: blocks}} ->
+        session =
+          wait_until_session(name, fn %Session{
+                                        assistant: assistant,
+                                        transcript: %{blocks: blocks}
+                                      } ->
+            assistant.phase == :done and
               Enum.any?(
                 blocks,
                 &match?(%Block{role: :assistant, source: "Let me inspect that:"}, &1)
               )
-            end)
+          end)
 
-          assert [_, %Block{role: :assistant, source: source}] = session.transcript.blocks
-          assert source == "Let me inspect that:"
-          refute source =~ "Maximum iterations reached without a final answer."
+        assert [_, %Block{role: :assistant, source: source}] = session.transcript.blocks
+        assert source == "Let me inspect that:"
+        refute source =~ "Maximum iterations reached without a final answer."
 
-          GenServer.stop(pid)
-        end)
+        GenServer.stop(pid)
       end)
     end
 
@@ -1286,6 +1297,23 @@ defmodule Tilde.Session.ServerTest do
     end
   end
 
+  defp before_tool_after_tool_llm(before_text, operation, arguments, after_text) do
+    key = {__MODULE__, make_ref()}
+
+    fn intent, _journal, stream_opts ->
+      case Process.get(key, :operation) do
+        :operation ->
+          Process.put(key, :final)
+          emit_llm_delta(intent, stream_opts, :content, before_text, 0)
+          {:ok, Jidoka.Effect.LLMDecision.operation(operation, arguments)}
+
+        :final ->
+          emit_llm_delta(intent, stream_opts, :content, after_text, 1)
+          {:ok, Jidoka.Effect.LLMDecision.final(after_text)}
+      end
+    end
+  end
+
   defp next_llm_decision(key, operation, arguments, final, notify) do
     case Process.get(key, :operation) do
       :operation -> operation_llm_decision(key, operation, arguments, notify)
@@ -1306,6 +1334,17 @@ defmodule Tilde.Session.ServerTest do
 
   defp notify(nil, _message), do: :ok
   defp notify(pid, message) when is_pid(pid), do: send(pid, message)
+
+  defp max_iterations_terminal_llm do
+    fn intent, _journal, stream_opts ->
+      emit_llm_delta(intent, stream_opts, :content, "Let me inspect that:", 0)
+
+      {:ok,
+       Jidoka.Effect.LLMDecision.final("Maximum iterations reached without a final answer.",
+         metadata: %{termination_reason: :max_iterations}
+       )}
+    end
+  end
 
   defp blocking_llm(test_pid) do
     fn intent, _journal ->

@@ -256,36 +256,3 @@ defmodule TildeTest.MetadataLLMBackend do
     ]
   end
 end
-
-defmodule TildeTest.PostToolTerminalLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
-
-  def stream(_session, _opts) do
-    [
-      TildeTest.RuntimeEvents.delta("Before."),
-      TildeTest.RuntimeEvents.tool_started("tool_bash", "bash", %{command: "ls"}),
-      TildeTest.RuntimeEvents.tool_completed("tool_bash", "bash", %{
-        content: [%{type: "text", text: "README.md"}]
-      }),
-      TildeTest.RuntimeEvents.delta("After."),
-      TildeTest.RuntimeEvents.completed("After.")
-    ]
-  end
-end
-
-defmodule TildeTest.MaxIterationsLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
-
-  def stream(_session, _opts) do
-    [
-      TildeTest.RuntimeEvents.delta("Let me inspect that:"),
-      TildeTest.RuntimeEvents.completed("Maximum iterations reached without a final answer.", %{
-        termination_reason: :max_iterations
-      })
-    ]
-  end
-end
