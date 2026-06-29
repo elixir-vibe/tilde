@@ -477,94 +477,90 @@ defmodule Tilde.Session.ServerTest do
       end)
     end
 
-    test "session server turns LLM backend failures into public assistant messages" do
+    test "session server turns Jidoka LLM capability failures into public assistant messages" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.FailingLLMBackend, fn ->
-          name = :"tilde_session_server_llm_failure_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_failure_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "llm_failure")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_failure"),
+                   llm_opts: [llm: error_llm(:boom), stream_event_timeout_ms: 10]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
-          assert_receive {:tilde_session_updated, "llm_failure",
-                          %Session{transcript: %{blocks: [_user]}}}
+        assert_receive {:tilde_session_updated, "llm_failure",
+                        %Session{transcript: %{blocks: [_user]}}}
 
-          assert_receive_phase("llm_failure", :waiting)
+        assert_receive_phase("llm_failure", :waiting)
 
-          assert_receive {:tilde_session_updated, "llm_failure",
-                          %Session{
-                            transcript: %{
-                              blocks: [
-                                %Block{role: :user},
-                                %Block{
-                                  role: :assistant,
-                                  source: "The model is unavailable right now. Please try again."
-                                }
-                              ]
-                            }
-                          } = error_session}
+        assert_receive {:tilde_session_updated, "llm_failure",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{
+                                role: :assistant,
+                                source: "The model is unavailable right now. Please try again."
+                              }
+                            ]
+                          }
+                        } = error_session}
 
-          assert_assistant_phase(error_session, :error)
+        assert_assistant_phase(error_session, :error)
 
-          GenServer.stop(pid)
-        end)
+        GenServer.stop(pid)
       end)
     end
 
-    test "session server maps runtime cancellation events to cancelled assistant turns" do
+    test "session server maps cancelled Jidoka LLM capability failures to error assistant turns" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.CancelledLLMBackend, fn ->
-          name =
-            :"tilde_session_server_llm_runtime_cancel_test_#{System.unique_integer([:positive])}"
+        name =
+          :"tilde_session_server_llm_runtime_cancel_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "llm_runtime_cancel")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_runtime_cancel"),
+                   llm_opts: [llm: error_llm(:cancelled), stream_event_timeout_ms: 10]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
-          assert_receive_phase("llm_runtime_cancel", :waiting)
+        assert_receive_phase("llm_runtime_cancel", :waiting)
+        assert_receive_phase("llm_runtime_cancel", :error)
 
-          assert_receive_phase("llm_runtime_cancel", :cancelled)
-
-          GenServer.stop(pid)
-        end)
+        GenServer.stop(pid)
       end)
     end
 
-    test "session server recovers when LLM streams raise" do
+    test "session server recovers when Jidoka LLM capabilities raise" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.CrashingLLMBackend, fn ->
-          name = :"tilde_session_server_llm_crash_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_crash_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "llm_crash")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_crash"),
+                   llm_opts: [llm: crashing_llm(), stream_event_timeout_ms: 10]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
-          assert_receive_phase("llm_crash", :waiting)
+        assert_receive_phase("llm_crash", :waiting)
 
-          assert_receive {:tilde_session_updated, "llm_crash",
-                          %Session{transcript: %{blocks: [_user, assistant]}} = error_session}
+        assert_receive {:tilde_session_updated, "llm_crash",
+                        %Session{transcript: %{blocks: [_user, assistant]}} = error_session}
 
-          assert_assistant_phase(error_session, :error)
-          assert assistant.source == "The model is unavailable right now. Please try again."
+        assert_assistant_phase(error_session, :error)
+        assert assistant.source == "The model is unavailable right now. Please try again."
 
-          GenServer.stop(pid)
-        end)
+        GenServer.stop(pid)
       end)
     end
 
@@ -1253,5 +1249,13 @@ defmodule Tilde.Session.ServerTest do
     fn _intent, _journal ->
       {:ok, Jidoka.Effect.LLMDecision.final(content)}
     end
+  end
+
+  defp error_llm(reason) do
+    fn _intent, _journal -> {:error, reason} end
+  end
+
+  defp crashing_llm do
+    fn _intent, _journal -> raise "boom" end
   end
 end
