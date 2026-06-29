@@ -186,28 +186,26 @@ defmodule Tilde.Session.ServerTest do
 
     test "session server handles slash commands without invoking the LLM" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.StreamingLLMBackend, fn ->
-          name = :"tilde_session_server_command_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_command_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "cmd_test")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "cmd_test")
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("/help"))
+        updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("/help"))
 
-          assert [%Block{role: :user, source: "/help"}, %Block{role: :assistant, source: source}] =
-                   updated.transcript.blocks
+        assert [%Block{role: :user, source: "/help"}, %Block{role: :assistant, source: source}] =
+                 updated.transcript.blocks
 
-          assert source =~ "/new [name]"
+        assert source =~ "/new [name]"
 
-          refute_receive_phase("cmd_test", :waiting, 50)
+        refute_receive_phase("cmd_test", :waiting, 50)
 
-          GenServer.stop(pid)
-        end)
+        GenServer.stop(pid)
       end)
     end
   end
@@ -283,41 +281,40 @@ defmodule Tilde.Session.ServerTest do
   end
 
   describe "LLM runtime" do
-    test "session server appends async assistant replies through configured LLM backend" do
+    test "session server appends async assistant replies through Jidoka" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.LLMBackend, fn ->
-          name = :"tilde_session_server_llm_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "llm_test")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_test"),
+                   llm_opts: [llm: final_llm("echo: hello")]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
-          assert_receive {:tilde_session_updated, "llm_test",
-                          %Session{transcript: %{blocks: [_user]}}}
+        assert_receive {:tilde_session_updated, "llm_test",
+                        %Session{transcript: %{blocks: [_user]}}}
 
-          assert_receive_phase("llm_test", :waiting)
-          |> assert_assistant_waiting()
+        assert_receive_phase("llm_test", :waiting)
+        |> assert_assistant_waiting()
 
-          assert_receive {:tilde_session_updated, "llm_test",
-                          %Session{
-                            transcript: %{
-                              blocks: [
-                                %Block{role: :user},
-                                %Block{role: :assistant, source: "echo: hello"}
-                              ]
-                            }
-                          } = done_session}
+        assert_receive {:tilde_session_updated, "llm_test",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "echo: hello"}
+                            ]
+                          }
+                        } = done_session}
 
-          assert_assistant_phase(done_session, :done)
+        assert_assistant_phase(done_session, :done)
 
-          GenServer.stop(pid)
-        end)
+        GenServer.stop(pid)
       end)
     end
 
@@ -438,47 +435,44 @@ defmodule Tilde.Session.ServerTest do
 
     test "session server rate limits public demo LLM submissions" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.StreamingLLMBackend, fn ->
-          rate_limit = [
-            scope: :"test_#{System.unique_integer([:positive])}",
-            scale: :timer.minutes(1),
-            limit: 0
-          ]
+        rate_limit = [
+          scope: :"test_#{System.unique_integer([:positive])}",
+          scale: :timer.minutes(1),
+          limit: 0
+        ]
 
-          with_application_env(:llm_rate_limit, rate_limit, fn ->
-            assert {:ok, _pid} = Tilde.Runtime.RateLimit.ensure_started()
+        with_application_env(:llm_rate_limit, rate_limit, fn ->
+          assert {:ok, _pid} = Tilde.Runtime.RateLimit.ensure_started()
 
-            name =
-              :"tilde_session_server_llm_rate_limit_test_#{System.unique_integer([:positive])}"
+          name =
+            :"tilde_session_server_llm_rate_limit_test_#{System.unique_integer([:positive])}"
 
-            assert {:ok, pid} =
-                     Tilde.Session.Server.start_link(
-                       name: name,
-                       session: Tilde.session(id: "llm_rate_limit")
-                     )
+          assert {:ok, pid} =
+                   Tilde.Session.Server.start_link(
+                     name: name,
+                     session: Tilde.session(id: "llm_rate_limit")
+                   )
 
-            assert %Session{} = Tilde.Session.Server.subscribe(name)
+          assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+          Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
-            assert_receive {:tilde_session_updated, "llm_rate_limit",
-                            %Session{
-                              transcript: %{
-                                blocks: [
-                                  %Block{role: :user},
-                                  %Block{
-                                    role: :assistant,
-                                    source:
-                                      "The public demo is busy. Please try again in " <> _rest
-                                  }
-                                ]
-                              }
-                            }}
+          assert_receive {:tilde_session_updated, "llm_rate_limit",
+                          %Session{
+                            transcript: %{
+                              blocks: [
+                                %Block{role: :user},
+                                %Block{
+                                  role: :assistant,
+                                  source: "The public demo is busy. Please try again in " <> _rest
+                                }
+                              ]
+                            }
+                          }}
 
-            refute_receive_phase("llm_rate_limit", :waiting, 50)
+          refute_receive_phase("llm_rate_limit", :waiting, 50)
 
-            GenServer.stop(pid)
-          end)
+          GenServer.stop(pid)
         end)
       end)
     end
@@ -1252,6 +1246,12 @@ defmodule Tilde.Session.ServerTest do
           end)
         end)
       end)
+    end
+  end
+
+  defp final_llm(content) do
+    fn _intent, _journal ->
+      {:ok, Jidoka.Effect.LLMDecision.final(content)}
     end
   end
 end
