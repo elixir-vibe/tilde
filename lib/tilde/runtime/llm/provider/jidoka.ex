@@ -498,6 +498,6 @@ defmodule Tilde.Runtime.LLM.Provider.Jidoka do
   end
 
   defp failed_event(reason) do
-    Tilde.Runtime.LLM.Event.failed(reason, source: "tilde-jidoka-provider")
+    LLM.failed_event(reason, source: "tilde-jidoka-provider")
   end
 end

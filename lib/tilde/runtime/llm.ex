@@ -39,7 +39,7 @@ defmodule Tilde.Runtime.LLM do
     backend.stream(session, opts)
   rescue
     exception in UndefinedFunctionError ->
-      [Tilde.Runtime.LLM.Event.failed({:llm_backend_unavailable, exception.module})]
+      [failed_event({:llm_backend_unavailable, exception.module})]
   end
 
   @doc "Resumes assistant response events from a checkpoint through the configured backend."
@@ -50,7 +50,21 @@ defmodule Tilde.Runtime.LLM do
     backend.resume_checkpoint(session, runtime, opts)
   rescue
     exception in UndefinedFunctionError ->
-      [Tilde.Runtime.LLM.Event.failed({:llm_backend_unavailable, exception.module})]
+      [failed_event({:llm_backend_unavailable, exception.module})]
+  end
+
+  @doc "Builds the Jidoka failure event used when a runtime boundary fails before streaming."
+  @spec failed_event(term(), keyword()) :: Jidoka.Event.t()
+  def failed_event(reason, opts \\ []) do
+    source = Keyword.get(opts, :source, "tilde-runtime")
+
+    Jidoka.Event.build(:turn_failed, [],
+      seq: Keyword.get(opts, :seq, 0),
+      agent_id: source,
+      request_id: source,
+      loop_index: Keyword.get(opts, :iteration, 0),
+      data: %{error: reason}
+    )
   end
 
   @doc "Generates a semantic compaction summary through the configured backend."

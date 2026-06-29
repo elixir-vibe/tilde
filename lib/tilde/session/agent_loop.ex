@@ -342,7 +342,7 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp failed_event(reason) do
-    Tilde.Runtime.LLM.Event.failed(reason, source: "tilde-agent-loop")
+    LLM.failed_event(reason, source: "tilde-agent-loop")
   end
 
   defp cancel_checkpoint(%AgentRuntime{checkpoint_token: token}) when is_binary(token) do
