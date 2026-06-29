@@ -752,44 +752,41 @@ defmodule Tilde.Session.ServerTest do
 
     test "session server answers a queued submission after the active LLM response finishes" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.BlockingLLMBackend, fn ->
-          with_application_env(:blocking_llm_test_pid, self(), fn ->
-            name = :"tilde_session_server_llm_queue_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_queue_test_#{System.unique_integer([:positive])}"
 
-            assert {:ok, pid} =
-                     Tilde.Session.Server.start_link(
-                       name: name,
-                       session: Tilde.session(id: "llm_queue")
-                     )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_queue"),
+                   llm_opts: [llm: blocking_llm(self())]
+                 )
 
-            assert %Session{} = Tilde.Session.Server.subscribe(name)
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("first"))
-            assert_receive {:blocking_llm_started, first_task, "first"}
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("first"))
+        assert_receive {:blocking_llm_started, first_task, "first"}
 
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("second"))
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("third"))
-            send(first_task, :release_blocking_llm)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("second"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("third"))
+        send(first_task, :release_blocking_llm)
 
-            assert_receive {:blocking_llm_started, second_task, "second"}, 1_000
-            send(second_task, :release_blocking_llm)
+        assert_receive {:blocking_llm_started, second_task, "second"}, 1_000
+        send(second_task, :release_blocking_llm)
 
-            assert_receive {:blocking_llm_started, third_task, "third"}, 1_000
-            send(third_task, :release_blocking_llm)
+        assert_receive {:blocking_llm_started, third_task, "third"}, 1_000
+        send(third_task, :release_blocking_llm)
 
-            sources = wait_for_sources("llm_queue", &("reply: first" in &1))
-            assert "reply: first" in sources
+        sources = wait_for_sources("llm_queue", &("reply: first" in &1))
+        assert "reply: first" in sources
 
-            sources = wait_for_sources("llm_queue", &("reply: third" in &1))
-            assert "first" in sources
-            assert "second" in sources
-            assert "third" in sources
-            assert "reply: first" in sources
-            assert "reply: second" in sources
-            assert "reply: third" in sources
+        sources = wait_for_sources("llm_queue", &("reply: third" in &1))
+        assert "first" in sources
+        assert "second" in sources
+        assert "third" in sources
+        assert "reply: first" in sources
+        assert "reply: second" in sources
+        assert "reply: third" in sources
 
-            GenServer.stop(pid)
-          end)
-        end)
+        GenServer.stop(pid)
       end)
     end
   end
@@ -1275,6 +1272,42 @@ defmodule Tilde.Session.ServerTest do
 
   defp notify(nil, _message), do: :ok
   defp notify(pid, message) when is_pid(pid), do: send(pid, message)
+
+  defp blocking_llm(test_pid) do
+    fn intent, _journal ->
+      prompt = llm_prompt(intent)
+      send(test_pid, {:blocking_llm_started, self(), prompt})
+
+      receive do
+        :release_blocking_llm -> {:ok, Jidoka.Effect.LLMDecision.final("reply: #{prompt}")}
+      after
+        1_000 -> {:error, :timeout}
+      end
+    end
+  end
+
+  defp llm_prompt(%Jidoka.Effect.Intent{payload: payload}) do
+    payload
+    |> event_payload_field(:prompt)
+    |> case do
+      %{messages: messages} -> latest_user_message(messages)
+      %{"messages" => messages} -> latest_user_message(messages)
+      _prompt -> nil
+    end
+  end
+
+  defp latest_user_message(messages) when is_list(messages) do
+    messages
+    |> Enum.reverse()
+    |> Enum.find_value(fn
+      %{role: :user, content: content} when is_binary(content) -> content
+      %{role: "user", content: content} when is_binary(content) -> content
+      %{"role" => "user", "content" => content} when is_binary(content) -> content
+      _message -> nil
+    end)
+  end
+
+  defp latest_user_message(_messages), do: nil
 
   defp streaming_llm(deltas, final, test_pid) do
     fn intent, _journal, stream_opts ->

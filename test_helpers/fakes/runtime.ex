@@ -314,26 +314,6 @@ defmodule TildeTest.CrashingLLMBackend do
   def stream(_session, _opts), do: raise("boom")
 end
 
-defmodule TildeTest.BlockingLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, runtime, _opts) do
-    [TildeTest.RuntimeEvents.completed("resumed: #{runtime.checkpoint_token}")]
-  end
-
-  def stream(session, opts) do
-    prompt = Keyword.get(opts, :prompt) || Tilde.Runtime.LLM.latest_user_text(session)
-    test_pid = Application.fetch_env!(:tilde, :blocking_llm_test_pid)
-    send(test_pid, {:blocking_llm_started, self(), prompt})
-
-    receive do
-      :release_blocking_llm -> [TildeTest.RuntimeEvents.completed("reply: #{prompt}")]
-    after
-      1_000 -> [TildeTest.RuntimeEvents.failed(:timeout)]
-    end
-  end
-end
-
 defmodule TildeTest.CancellableLLMBackend do
   def cancel_checkpoint(token, _opts) do
     test_pid = Application.fetch_env!(:tilde, :cancellable_llm_test_pid)
