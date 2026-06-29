@@ -237,6 +237,10 @@ runtime events as deltas, tool lifecycle values, failure reasons, terminal text,
 and terminal metadata. `Tilde.Runtime.Metadata` sanitizes runtime-originated
 metadata before it enters durable console events.
 
+When Tilde has to compensate for missing runtime semantics, record the gap in
+[`docs/jidoka-upstream-gaps.md`](jidoka-upstream-gaps.md) and prefer upstreaming a
+Jidoka abstraction over adding a parallel Tilde runtime concept.
+
 Runtime loop rules:
 
 1. Prompt submission records the user event, starts or continues the agent loop,

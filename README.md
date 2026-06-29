@@ -310,9 +310,12 @@ config :tilde,
 ```
 
 Without an API key, submissions remain semantic user messages and the demo shows
-a clear configuration message instead of crashing. The standalone public demo
-uses optional Hammer/ETS rate limiting for LLM submissions and caps retained
-session events so shared demo history stays bounded.
+a clear configuration message instead of crashing. Runtime gaps found while
+integrating Jidoka are tracked in [`docs/jidoka-upstream-gaps.md`](docs/jidoka-upstream-gaps.md)
+so they can be upstreamed instead of becoming parallel Tilde runtime concepts.
+The standalone public demo uses optional Hammer/ETS rate limiting for LLM
+submissions and caps retained session events so shared demo history stays
+bounded.
 
 ## Mirrored sessions
 
