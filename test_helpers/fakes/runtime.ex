@@ -352,40 +352,6 @@ defmodule TildeTest.ThinkingLLMBackend do
   end
 end
 
-defmodule TildeTest.JidokaToolLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: []
-
-  def stream(session, opts) do
-    Tilde.Runtime.LLM.Jidoka.stream(
-      session,
-      Keyword.merge(opts,
-        llm: llm(),
-        tools: [Tilde.Tools.UtcNow],
-        max_model_turns: 3
-      )
-    )
-  end
-
-  defp llm do
-    test_pid = Application.fetch_env!(:tilde, :jidoka_tool_llm_test_pid)
-
-    fn _intent, _journal ->
-      case Process.get({__MODULE__, :turn}, :operation) do
-        :operation ->
-          Process.put({__MODULE__, :turn}, :final)
-          send(test_pid, :jidoka_tool_llm_operation_requested)
-          {:ok, Jidoka.Effect.LLMDecision.operation("utc_now", %{})}
-
-        :final ->
-          send(test_pid, :jidoka_tool_llm_final_requested)
-          {:ok, Jidoka.Effect.LLMDecision.final("Tool finished.")}
-      end
-    end
-  end
-end
-
 defmodule TildeTest.PostToolTerminalLLMBackend do
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
@@ -415,25 +381,6 @@ defmodule TildeTest.MaxIterationsLLMBackend do
       TildeTest.RuntimeEvents.completed("Maximum iterations reached without a final answer.", %{
         termination_reason: :max_iterations
       })
-    ]
-  end
-end
-
-defmodule TildeTest.ToolStreamingLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts) do
-    [TildeTest.RuntimeEvents.completed("resumed with tools")]
-  end
-
-  def stream(_session, _opts) do
-    [
-      TildeTest.RuntimeEvents.tool_started("tool_utc", "utc_now", %{}),
-      TildeTest.RuntimeEvents.tool_completed("tool_utc", "utc_now", %{
-        utc_now: "2026-06-14T00:00:00Z"
-      }),
-      TildeTest.RuntimeEvents.delta("done"),
-      TildeTest.RuntimeEvents.completed("done")
     ]
   end
 end

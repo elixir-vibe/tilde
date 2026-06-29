@@ -382,49 +382,43 @@ defmodule Tilde.Session.ServerTest do
       end)
     end
 
-    test "session server renders streamed LLM tool events as semantic tool blocks" do
+    test "session server renders streamed Jidoka tool events as semantic tool blocks" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.ToolStreamingLLMBackend, fn ->
-          name =
-            :"tilde_session_server_llm_tool_stream_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_tool_stream_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "llm_tool_stream")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_tool_stream"),
+                   llm_opts: [
+                     llm: operation_then_final_llm("utc_now", %{}, "done"),
+                     tools: [Tilde.Tools.UtcNow],
+                     max_model_turns: 3
+                   ]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("what time is it?"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("what time is it?"))
 
-          assert_receive {:tilde_session_updated, "llm_tool_stream",
-                          %Session{
-                            transcript: %{
-                              blocks: [
-                                %Block{role: :user},
-                                %Block{kind: :tool, id: "tool_utc", name: "utc_now"}
-                              ]
-                            }
-                          }}
+        session =
+          wait_until_session(name, fn %Session{transcript: %{blocks: blocks}} ->
+            Enum.any?(blocks, &match?(%Block{kind: :tool, status: :success}, &1)) and
+              Enum.any?(blocks, &match?(%Block{role: :assistant, source: "done"}, &1))
+          end)
 
-          assert_receive {:tilde_session_updated, "llm_tool_stream",
-                          %Session{
-                            transcript: %{
-                              blocks: [
-                                %Block{role: :user},
-                                %Block{
-                                  kind: :tool,
-                                  status: :success,
-                                  result: %{utc_now: "2026-06-14T00:00:00Z"}
-                                },
-                                %Block{role: :assistant, source: "done"}
-                              ]
-                            }
-                          }}
+        assert %Block{kind: :tool, name: "utc_now", args: %{}, status: :success} =
+                 tool = Enum.find(session.transcript.blocks, &match?(%Block{kind: :tool}, &1))
 
-          GenServer.stop(pid)
-        end)
+        assert %{"utc_now" => timestamp} = tool.result
+        assert {:ok, _datetime, 0} = DateTime.from_iso8601(timestamp)
+
+        assert Enum.any?(session.transcript.blocks, fn
+                 %Block{role: :assistant, source: "done"} -> true
+                 _block -> false
+               end)
+
+        GenServer.stop(pid)
       end)
     end
 
@@ -609,54 +603,48 @@ defmodule Tilde.Session.ServerTest do
     end
 
     test "session server projects Jidoka operation effects into tool transcript" do
-      previous_key = System.get_env("OPENROUTER_API_KEY")
-      System.put_env("OPENROUTER_API_KEY", "test-key")
+      with_application_env(:llm_enabled, true, fn ->
+        name = :"tilde_session_server_jidoka_tool_test_#{System.unique_integer([:positive])}"
 
-      try do
-        with_application_env(:llm_enabled, true, fn ->
-          with_application_env(:llm_backend, TildeTest.JidokaToolLLMBackend, fn ->
-            with_application_env(:jidoka_tool_llm_test_pid, self(), fn ->
-              name =
-                :"tilde_session_server_jidoka_tool_test_#{System.unique_integer([:positive])}"
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "jidoka_tool"),
+                   llm_opts: [
+                     llm:
+                       operation_then_final_llm("utc_now", %{}, "Tool finished.", notify: self()),
+                     tools: [Tilde.Tools.UtcNow],
+                     max_model_turns: 3
+                   ]
+                 )
 
-              assert {:ok, pid} =
-                       Tilde.Session.Server.start_link(
-                         name: name,
-                         session: Tilde.session(id: "jidoka_tool")
-                       )
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("what time is it?"))
 
-              assert %Session{} = Tilde.Session.Server.subscribe(name)
-              Tilde.Session.Server.append_event(name, Tilde.input_submitted("what time is it?"))
+        assert_receive :jidoka_tool_llm_operation_requested
+        assert_receive :jidoka_tool_llm_final_requested
 
-              assert_receive :jidoka_tool_llm_operation_requested
-              assert_receive :jidoka_tool_llm_final_requested
-
-              session =
-                wait_until_session(name, fn session ->
-                  Enum.any?(session.transcript.blocks, &match?(%Block{kind: :tool}, &1)) and
-                    Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
-                end)
-
-              assert %Block{kind: :tool, name: "utc_now", args: %{}, status: :success} =
-                       Enum.find(session.transcript.blocks, &match?(%Block{kind: :tool}, &1))
-
-              assert Enum.any?(session.events, fn event ->
-                       event.type == :assistant_done and event.text == "Tool finished."
-                     end)
-
-              finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
-              assert finished.metadata.jidoka.journal.operation_count == 1
-              assert finished.metadata.jidoka.journal.operation_statuses == [:ok]
-              assert [%{operation: "utc_now"}] = finished.metadata.jidoka.operations
-              refute contains_process_identifier?(finished.metadata.jidoka)
-
-              GenServer.stop(pid)
-            end)
+        session =
+          wait_until_session(name, fn session ->
+            Enum.any?(session.transcript.blocks, &match?(%Block{kind: :tool}, &1)) and
+              Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
           end)
-        end)
-      after
-        restore_system_env("OPENROUTER_API_KEY", previous_key)
-      end
+
+        assert %Block{kind: :tool, name: "utc_now", args: %{}, status: :success} =
+                 Enum.find(session.transcript.blocks, &match?(%Block{kind: :tool}, &1))
+
+        assert Enum.any?(session.events, fn event ->
+                 event.type == :assistant_done and event.text == "Tool finished."
+               end)
+
+        finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
+        assert finished.metadata.jidoka.journal.operation_count == 1
+        assert finished.metadata.jidoka.journal.operation_statuses == [:ok]
+        assert [%{operation: "utc_now"}] = finished.metadata.jidoka.operations
+        refute contains_process_identifier?(finished.metadata.jidoka)
+
+        GenServer.stop(pid)
+      end)
     end
 
     test "session server projects thinking deltas through existing assistant delta lifecycle" do
@@ -1254,6 +1242,36 @@ defmodule Tilde.Session.ServerTest do
   defp error_llm(reason) do
     fn _intent, _journal -> {:error, reason} end
   end
+
+  defp operation_then_final_llm(operation, arguments, final, opts \\ []) do
+    notify = Keyword.get(opts, :notify)
+    key = {__MODULE__, make_ref()}
+
+    fn _intent, _journal ->
+      next_llm_decision(key, operation, arguments, final, notify)
+    end
+  end
+
+  defp next_llm_decision(key, operation, arguments, final, notify) do
+    case Process.get(key, :operation) do
+      :operation -> operation_llm_decision(key, operation, arguments, notify)
+      :final -> final_llm_decision(final, notify)
+    end
+  end
+
+  defp operation_llm_decision(key, operation, arguments, notify) do
+    Process.put(key, :final)
+    notify(notify, :jidoka_tool_llm_operation_requested)
+    {:ok, Jidoka.Effect.LLMDecision.operation(operation, arguments)}
+  end
+
+  defp final_llm_decision(final, notify) do
+    notify(notify, :jidoka_tool_llm_final_requested)
+    {:ok, Jidoka.Effect.LLMDecision.final(final)}
+  end
+
+  defp notify(nil, _message), do: :ok
+  defp notify(pid, message) when is_pid(pid), do: send(pid, message)
 
   defp crashing_llm do
     fn _intent, _journal -> raise "boom" end
