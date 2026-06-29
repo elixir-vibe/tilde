@@ -20,13 +20,15 @@ defmodule Tilde.Session.Server do
   defstruct session: nil,
             subscribers: %{},
             agent_loop: AgentLoopState.new(),
-            stream_buffers: %{}
+            stream_buffers: %{},
+            llm_opts: []
 
   @type t :: %__MODULE__{
           session: Session.t(),
           subscribers: %{reference() => pid()},
           agent_loop: AgentLoopState.t(),
-          stream_buffers: map()
+          stream_buffers: map(),
+          llm_opts: keyword()
         }
 
   @type name :: GenServer.name() | pid()
@@ -37,7 +39,8 @@ defmodule Tilde.Session.Server do
   def start_link(opts \\ []) do
     session = Keyword.get_lazy(opts, :session, &Tilde.session/0)
     name = Keyword.get(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, session, name: name)
+    llm_opts = Keyword.get(opts, :llm_opts, [])
+    GenServer.start_link(__MODULE__, {session, llm_opts}, name: name)
   end
 
   @doc "Ensures a named server exists and returns `{:ok, pid}`."
@@ -116,9 +119,9 @@ defmodule Tilde.Session.Server do
   end
 
   @impl true
-  def init(%Session{} = session) do
+  def init({%Session{} = session, llm_opts}) when is_list(llm_opts) do
     state =
-      %__MODULE__{session: session}
+      %__MODULE__{session: session, llm_opts: llm_opts}
       |> AgentLoop.maybe_resume(&broadcast/1)
 
     Persistence.persist_if_changed(session, state.session)

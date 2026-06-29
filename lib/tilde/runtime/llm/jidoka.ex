@@ -174,9 +174,7 @@ defmodule Tilde.Runtime.LLM.Jidoka do
     with {:ok, agent} <- jidoka_agent(opts),
          {:ok, request} <- turn_request(session, query, opts),
          {:ok, async} <- start_async_turn(agent, request, opts) do
-      async
-      |> Jidoka.stream(stream_opts(opts))
-      |> Stream.map(&enrich_terminal_event(&1, async, opts))
+      stream_events(async, opts)
     else
       {:error, reason} -> [failed_event(reason)]
     end
@@ -185,9 +183,7 @@ defmodule Tilde.Runtime.LLM.Jidoka do
   defp resume_turn_stream(%AgentRuntime{} = runtime, opts) do
     case start_async_resume(runtime, opts) do
       {:ok, async} ->
-        async
-        |> Jidoka.stream(stream_opts(opts))
-        |> Stream.map(&enrich_terminal_event(&1, async, opts))
+        stream_events(async, opts)
 
       {:error, reason} ->
         [failed_event(reason)]
@@ -302,7 +298,57 @@ defmodule Tilde.Runtime.LLM.Jidoka do
     )
   end
 
-  defp stream_opts(opts), do: [stream_event_timeout_ms: Keyword.get(opts, :timeout, 30_000)]
+  defp stream_events(async, opts) do
+    events =
+      async
+      |> Jidoka.stream(stream_opts(opts))
+      |> Stream.map(&enrich_terminal_event(&1, async, opts))
+      |> Stream.map(&{:event, &1})
+
+    events
+    |> Stream.concat([:fallback])
+    |> Stream.transform(false, fn
+      {:event, event}, terminal_seen? ->
+        {[event], terminal_seen? or Jidoka.Stream.terminal?(event)}
+
+      :fallback, true ->
+        {[], true}
+
+      :fallback, false ->
+        {[terminal_event_from_await(async, opts)], true}
+    end)
+  end
+
+  defp terminal_event_from_await(async, opts) do
+    case Jidoka.await(async, timeout: Keyword.get(opts, :timeout, 30_000)) do
+      {:ok, %Jidoka.Turn.Result{} = result} ->
+        Jidoka.Event.build(:turn_finished, [],
+          agent_id: "tilde",
+          request_id: async.request_id,
+          data: %{result: result.content, jidoka: turn_result_metadata(result)}
+        )
+
+      {:hibernate, snapshot} ->
+        Jidoka.Event.build(:turn_hibernated, [],
+          agent_id: "tilde",
+          request_id: async.request_id,
+          data: %{snapshot: serialize_snapshot(snapshot)}
+        )
+
+      {:error, reason} ->
+        failed_event(reason)
+
+      other ->
+        failed_event({:missing_terminal_event, other})
+    end
+  end
+
+  defp stream_opts(opts) do
+    [
+      stream_event_timeout_ms:
+        Keyword.get(opts, :stream_event_timeout_ms, Keyword.get(opts, :timeout, 30_000))
+    ]
+  end
 
   defp emit_operation_started(intent, payload, stream_opts) do
     request = operation_request(payload)

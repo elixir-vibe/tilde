@@ -263,7 +263,7 @@ defmodule Tilde.Session.AgentLoop do
       )
       |> emit_then(emit)
 
-    {:ok, task} = start_task(state.session, parent, ref, prompt.text)
+    {:ok, task} = start_task(state, parent, ref, prompt.text)
 
     put_agent_loop(state, State.start(state.agent_loop, prompt, task, ref, block_id))
   end
@@ -281,35 +281,46 @@ defmodule Tilde.Session.AgentLoop do
       |> emit_then(emit)
 
     runtime = %{runtime | block_id: block_id}
-    {:ok, task} = start_resume_task(state.session, parent, ref, runtime)
+    {:ok, task} = start_resume_task(state, parent, ref, runtime)
 
     state
     |> put_agent_loop(State.resume(state.agent_loop, runtime, task, ref, block_id))
     |> sync_runtime_metadata()
   end
 
-  defp start_task(%Session{} = session, parent, ref, prompt) when is_pid(parent) do
-    Task.start(fn -> stream_to_parent(session, parent, ref, prompt) end)
+  defp start_task(%{session: %Session{}} = state, parent, ref, prompt) when is_pid(parent) do
+    Task.start(fn -> stream_to_parent(state, parent, ref, prompt) end)
   end
 
-  defp start_resume_task(%Session{} = session, parent, ref, %AgentRuntime{} = runtime)
+  defp start_resume_task(%{session: %Session{}} = state, parent, ref, %AgentRuntime{} = runtime)
        when is_pid(parent) do
-    Task.start(fn -> resume_to_parent(session, parent, ref, runtime) end)
+    Task.start(fn -> resume_to_parent(state, parent, ref, runtime) end)
   end
 
-  defp stream_to_parent(%Session{} = session, parent, ref, prompt) do
+  defp stream_to_parent(%{session: %Session{} = session} = state, parent, ref, prompt) do
     deliver_stream(parent, ref, fn ->
-      LLM.stream(session, [prompt: prompt] ++ llm_opts(session))
+      LLM.stream(session, [prompt: prompt] ++ llm_opts(state))
     end)
   end
 
-  defp resume_to_parent(%Session{} = session, parent, ref, %AgentRuntime{} = runtime) do
+  defp resume_to_parent(
+         %{session: %Session{} = session} = state,
+         parent,
+         ref,
+         %AgentRuntime{} = runtime
+       ) do
     deliver_stream(parent, ref, fn ->
-      LLM.resume_checkpoint(session, runtime, llm_opts(session))
+      LLM.resume_checkpoint(session, runtime, llm_opts(state))
     end)
   end
 
-  defp llm_opts(%Session{metadata: metadata}) do
+  defp llm_opts(%{session: %Session{metadata: metadata}} = state) do
+    state
+    |> Map.get(:llm_opts, [])
+    |> Keyword.merge(session_llm_opts(metadata))
+  end
+
+  defp session_llm_opts(metadata) do
     case Map.get(metadata, :app_referer) do
       referer when is_binary(referer) and referer != "" -> [app_referer: referer]
       _other -> []
