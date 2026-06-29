@@ -220,10 +220,10 @@ LiveView DOM or TUI cells/ANSI
 
 ## Agent runtime
 
-ReqLLM, Jido, and Jido.AI are mandatory dependencies. Tilde should not compile a
-reduced model-free agent/runtime surface behind conditional `Code.ensure_loaded?`
-branches. Missing API keys or provider configuration are runtime errors surfaced
-as assistant events, not alternate compilation modes.
+Jidoka, ReqLLM, and Jido action tools are mandatory dependencies. Tilde should
+not compile a reduced model-free agent/runtime surface behind conditional
+`Code.ensure_loaded?` branches. Missing API keys or provider configuration are
+runtime errors surfaced as assistant events, not alternate compilation modes.
 
 Current state: `Tilde.Session.AgentLoop` owns assistant start, streaming,
 cancellation, tool projection, and queued prompt continuation. Runtime queuing is

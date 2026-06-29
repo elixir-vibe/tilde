@@ -44,7 +44,6 @@ defmodule Tilde.MixProject do
       {:quackdb, "~> 0.5.13"},
       {:jido, "~> 2.3"},
       {:jidoka, "~> 0.8.0-beta.1"},
-      {:jido_ai, "~> 2.2"},
       {:req_llm, "~> 1.16"},
       {:json_spec, "~> 1.1"},
       {:hammer, "~> 7.0", optional: true},

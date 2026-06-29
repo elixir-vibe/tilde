@@ -69,12 +69,6 @@ defmodule Mix.Tasks.Tilde.Demo do
       scale: :timer.seconds(30),
       limit: 3
     )
-
-    Application.put_env(
-      :jido_ai,
-      :react_token_secret,
-      String.duplicate("tilde_demo_react_secret", 4)
-    )
   end
 
   defp configure_endpoint(web_port, host, hmr?) do
