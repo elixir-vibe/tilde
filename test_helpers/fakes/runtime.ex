@@ -397,6 +397,45 @@ defmodule TildeTest.ThinkingLLMBackend do
   end
 end
 
+defmodule TildeTest.JidokaToolLLMBackend do
+  @behaviour Tilde.Runtime.LLM.Provider
+
+  @impl true
+  def cancel_checkpoint(token, _opts), do: {:ok, token}
+
+  @impl true
+  def resume_checkpoint(_session, _candidate, _opts), do: []
+
+  @impl true
+  def stream(session, opts) do
+    Tilde.Runtime.LLM.Provider.Jido.stream(
+      session,
+      Keyword.merge(opts,
+        llm: llm(),
+        tools: [Tilde.Tools.UtcNow],
+        max_model_turns: 3
+      )
+    )
+  end
+
+  defp llm do
+    test_pid = Application.fetch_env!(:tilde, :jidoka_tool_llm_test_pid)
+
+    fn _intent, _journal ->
+      case Process.get({__MODULE__, :turn}, :operation) do
+        :operation ->
+          Process.put({__MODULE__, :turn}, :final)
+          send(test_pid, :jidoka_tool_llm_operation_requested)
+          {:ok, Jidoka.Effect.LLMDecision.operation("utc_now", %{})}
+
+        :final ->
+          send(test_pid, :jidoka_tool_llm_final_requested)
+          {:ok, Jidoka.Effect.LLMDecision.final("Tool finished.")}
+      end
+    end
+  end
+end
+
 defmodule TildeTest.PostToolTerminalLLMBackend do
   @behaviour Tilde.Runtime.LLM.Provider
 

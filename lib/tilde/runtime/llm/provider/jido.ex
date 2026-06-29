@@ -261,13 +261,36 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   defp runtime_opts(opts) do
     [
       llm: Keyword.get_lazy(opts, :llm, fn -> jidoka_llm(opts) end),
-      operations:
-        JidoActions.operations(jido_actions(opts), context: Keyword.get(opts, :context, %{})),
+      operations: operation_capability(opts),
       checkpoint: Keyword.get(opts, :checkpoint, :none),
       timeout: Keyword.get(opts, :timeout, 30_000),
       max_model_turns: max_model_turns(opts),
       stream: true
     ]
+  end
+
+  defp operation_capability(opts) do
+    actions = jido_actions(opts)
+    delegate = JidoActions.operations(actions, context: Keyword.get(opts, :context, %{}))
+    stream_opts = [stream_to: self()]
+
+    fn
+      %Jidoka.Effect.Intent{kind: :operation, payload: payload} = intent, journal ->
+        emit_operation_started(intent, payload, stream_opts)
+
+        case delegate.(intent, journal) do
+          {:ok, result} = ok ->
+            emit_operation_completed(intent, payload, {:ok, result}, stream_opts)
+            ok
+
+          {:error, reason} = error ->
+            emit_operation_completed(intent, payload, {:error, reason}, stream_opts)
+            error
+        end
+
+      intent, journal ->
+        delegate.(intent, journal)
+    end
   end
 
   defp jidoka_llm(opts) do
@@ -282,6 +305,45 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   end
 
   defp stream_opts(opts), do: [stream_event_timeout_ms: Keyword.get(opts, :timeout, 30_000)]
+
+  defp emit_operation_started(intent, payload, stream_opts) do
+    request = operation_request(payload)
+
+    Jidoka.Event.build(
+      :effect_started,
+      [],
+      operation_event_attrs(intent, request, %{arguments: request.arguments})
+    )
+    |> Jidoka.Stream.emit(stream_opts)
+  end
+
+  defp emit_operation_completed(intent, payload, result, stream_opts) do
+    request = operation_request(payload)
+
+    Jidoka.Event.build(
+      :effect_completed,
+      [],
+      operation_event_attrs(intent, request, %{result: result})
+    )
+    |> Jidoka.Stream.emit(stream_opts)
+  end
+
+  defp operation_event_attrs(intent, request, data) do
+    [
+      agent_id: "tilde",
+      request_id: request.request_id,
+      loop_index: request.loop_index,
+      effect_id: intent.id,
+      effect_kind: :operation,
+      operation: request.name,
+      data: data
+    ]
+  end
+
+  defp operation_request(payload) do
+    {:ok, request} = Jidoka.Effect.OperationRequest.from_input(payload)
+    request
+  end
 
   defp max_model_turns(opts) do
     Keyword.get_lazy(opts, :max_model_turns, fn ->

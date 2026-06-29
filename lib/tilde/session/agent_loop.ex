@@ -106,27 +106,41 @@ defmodule Tilde.Session.AgentLoop do
         %Jidoka.Event{event: :effect_started, effect_kind: :operation, data: data} = event,
         emit
       ) do
-    id = event.effect_id || event_field(data, :tool_call_id)
-    name = event.operation || event_field(data, :tool_name, "tool")
-    args = event_field(data, :arguments, %{})
-    tool_event = ToolEvent.started(id: id, name: name, args: args)
-    emit_tool_started(state, tool_event, emit)
+    if operation_arguments?(data) do
+      id = event.effect_id || event_field(data, :tool_call_id)
+      name = event.operation || event_field(data, :tool_name, "tool")
+      args = event_field(data, :arguments, %{})
+      tool_event = ToolEvent.started(id: id, name: name, args: args)
+      emit_tool_started(state, tool_event, emit)
+    else
+      state
+    end
   end
 
   def handle_stream_event(
         state,
-        %Jidoka.Event{event: :effect_completed, effect_kind: :operation, data: data} = event,
+        %Jidoka.Event{event: event_name, effect_kind: :operation, data: data} = event,
         emit
-      ) do
-    id = event.effect_id || event_field(data, :tool_call_id)
-    raw_result = event_field(data, :result)
+      )
+      when event_name in [:effect_completed, :effect_failed] do
+    case operation_result(data) do
+      nil ->
+        state
 
-    tool_event =
-      ToolEvent.finished(id: id, status: tool_status(raw_result), output: tool_result(raw_result))
+      raw_result ->
+        id = event.effect_id || event_field(data, :tool_call_id)
 
-    state
-    |> update_session(&append_tool_result(&1, tool_event))
-    |> emit_then(emit)
+        tool_event =
+          ToolEvent.finished(
+            id: id,
+            status: tool_status(raw_result),
+            output: tool_result(raw_result)
+          )
+
+        state
+        |> update_session(&append_tool_result(&1, tool_event))
+        |> emit_then(emit)
+    end
   end
 
   def handle_stream_event(state, %Jidoka.Event{event: :turn_finished, data: data}, emit) do
@@ -183,6 +197,15 @@ defmodule Tilde.Session.AgentLoop do
   defp event_field(data, key, default \\ nil) when is_atom(key) do
     Map.get(data, key, Map.get(data, Atom.to_string(key), default))
   end
+
+  defp operation_arguments?(data) when is_map(data), do: event_field(data, :arguments) != nil
+  defp operation_arguments?(_data), do: false
+
+  defp operation_result(data) when is_map(data) do
+    event_field(data, :result) || event_field(data, :error) || event_field(data, :output)
+  end
+
+  defp operation_result(_data), do: nil
 
   defp tool_status({:ok, _result, _meta}), do: :success
   defp tool_status({:ok, _result}), do: :success

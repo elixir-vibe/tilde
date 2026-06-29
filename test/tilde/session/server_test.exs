@@ -619,6 +619,51 @@ defmodule Tilde.Session.ServerTest do
       end)
     end
 
+    test "session server projects Jidoka operation effects into tool transcript" do
+      previous_key = System.get_env("OPENROUTER_API_KEY")
+      System.put_env("OPENROUTER_API_KEY", "test-key")
+
+      try do
+        with_application_env(:llm_enabled, true, fn ->
+          with_application_env(:llm_backend, TildeTest.JidokaToolLLMBackend, fn ->
+            with_application_env(:jidoka_tool_llm_test_pid, self(), fn ->
+              name =
+                :"tilde_session_server_jidoka_tool_test_#{System.unique_integer([:positive])}"
+
+              assert {:ok, pid} =
+                       Tilde.Session.Server.start_link(
+                         name: name,
+                         session: Tilde.session(id: "jidoka_tool")
+                       )
+
+              assert %Session{} = Tilde.Session.Server.subscribe(name)
+              Tilde.Session.Server.append_event(name, Tilde.input_submitted("what time is it?"))
+
+              assert_receive :jidoka_tool_llm_operation_requested
+              assert_receive :jidoka_tool_llm_final_requested
+
+              session =
+                wait_until_session(name, fn session ->
+                  Enum.any?(session.transcript.blocks, &match?(%Block{kind: :tool}, &1)) and
+                    Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
+                end)
+
+              assert %Block{kind: :tool, name: "utc_now", args: %{}, status: :success} =
+                       Enum.find(session.transcript.blocks, &match?(%Block{kind: :tool}, &1))
+
+              assert Enum.any?(session.events, fn event ->
+                       event.type == :assistant_done and event.text == "Tool finished."
+                     end)
+
+              GenServer.stop(pid)
+            end)
+          end)
+        end)
+      after
+        restore_system_env("OPENROUTER_API_KEY", previous_key)
+      end
+    end
+
     test "session server projects thinking deltas through existing assistant delta lifecycle" do
       with_application_env(:llm_enabled, true, fn ->
         with_application_env(:llm_backend, TildeTest.ThinkingLLMBackend, fn ->
