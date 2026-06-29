@@ -2,7 +2,7 @@ defmodule Tilde.Session.AgentLoop do
   @moduledoc "Session-owned assistant loop: start, stream, cancel, and record semantic events."
 
   alias Tilde.Core.{AgentRuntime, Event, Session}
-  alias Tilde.Runtime.{LLM, RateLimit}
+  alias Tilde.Runtime.{LLM, Metadata, RateLimit}
   alias Tilde.Session.AgentLoop.{Prompt, State}
   alias Tilde.Tool.Event, as: ToolEvent
 
@@ -466,7 +466,7 @@ defmodule Tilde.Session.AgentLoop do
       })
     )
     |> reject_nil_values()
-    |> sanitize_runtime_metadata()
+    |> Metadata.sanitize()
   end
 
   defp runtime_snapshot(nil), do: %{}
@@ -477,48 +477,6 @@ defmodule Tilde.Session.AgentLoop do
     |> Map.take([:run_id, :request_id, :checkpoint_token, :iteration])
     |> reject_nil_values()
   end
-
-  defp sanitize_runtime_metadata(map) when is_map(map) do
-    map
-    |> Enum.reduce(%{}, fn {key, value}, acc ->
-      with sanitized_key when not is_nil(sanitized_key) <- sanitize_runtime_key(key),
-           sanitized_value when not is_nil(sanitized_value) <- sanitize_runtime_value(value) do
-        Map.put(acc, sanitized_key, sanitized_value)
-      else
-        _unsafe -> acc
-      end
-    end)
-  end
-
-  defp sanitize_runtime_key(key) when is_atom(key) or is_binary(key) or is_number(key), do: key
-  defp sanitize_runtime_key(%_struct{} = key), do: inspect(key)
-  defp sanitize_runtime_key(_key), do: nil
-
-  defp sanitize_runtime_value(value)
-       when is_pid(value) or is_reference(value) or is_function(value), do: nil
-
-  defp sanitize_runtime_value(value)
-       when is_binary(value) or is_number(value) or is_boolean(value), do: value
-
-  defp sanitize_runtime_value(value) when is_atom(value), do: value
-
-  defp sanitize_runtime_value(value) when is_list(value) do
-    value
-    |> Enum.map(&sanitize_runtime_value/1)
-    |> Enum.reject(&is_nil/1)
-  end
-
-  defp sanitize_runtime_value(%_struct{} = value), do: inspect(value)
-
-  defp sanitize_runtime_value(value) when is_map(value), do: sanitize_runtime_metadata(value)
-
-  defp sanitize_runtime_value(value) when is_tuple(value) do
-    value
-    |> Tuple.to_list()
-    |> sanitize_runtime_value()
-  end
-
-  defp sanitize_runtime_value(value), do: inspect(value)
 
   defp tool_metadata(%ToolEvent{} = event) do
     %{}
