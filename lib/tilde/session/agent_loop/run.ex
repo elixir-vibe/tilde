@@ -1,5 +1,5 @@
 defmodule Tilde.Session.AgentLoop.Run do
-  @moduledoc "Runtime identity for the active Jido ReAct loop."
+  @moduledoc "Runtime identity for the active Jidoka turn."
 
   alias Tilde.Session.AgentLoop.ResumeCandidate
 

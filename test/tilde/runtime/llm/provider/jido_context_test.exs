@@ -4,11 +4,44 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
   alias Tilde.Core.Session
   alias Tilde.Runtime.LLM.Provider.Jido
 
-  test "starts Jidoka turn with Tilde transcript as agent context" do
-    previous_key = System.get_env("OPENROUTER_API_KEY")
-    System.put_env("OPENROUTER_API_KEY", "test-key")
+  test "hibernates a Jidoka turn with serialized snapshot and resumes it" do
+    with_openrouter_key(fn ->
+      session =
+        Tilde.session(id: "jido-snapshot")
+        |> Session.append_event(Tilde.input_submitted("latest question"))
 
-    try do
+      events =
+        session
+        |> Jido.stream(
+          checkpoint: :before_each_effect,
+          llm: __MODULE__.FinalLLM.llm("resumed answer")
+        )
+        |> Enum.to_list()
+
+      assert %Jidoka.Event{event: :turn_hibernated, data: %{snapshot: snapshot}} =
+               hibernated = List.last(events)
+
+      assert String.starts_with?(snapshot, "jidoka:snapshot:v1:")
+      refute_received :jidoka_final_llm_called
+
+      candidate = %Tilde.Session.AgentLoop.ResumeCandidate{
+        session_id: session.id,
+        run_id: "tilde",
+        request_id: hibernated.request_id,
+        checkpoint_token: snapshot
+      }
+
+      assert [%Jidoka.Event{event: :turn_finished, data: %{result: "resumed answer"}}] =
+               session
+               |> Jido.resume_checkpoint(candidate,
+                 llm: __MODULE__.FinalLLM.llm("resumed answer")
+               )
+               |> Enum.filter(&(&1.event == :turn_finished))
+    end)
+  end
+
+  test "starts Jidoka turn with Tilde transcript as agent context" do
+    with_openrouter_key(fn ->
       with_application_env(:jido_context_test_pid, self(), fn ->
         session =
           Tilde.session(id: "jido-context")
@@ -32,12 +65,32 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
                  "latest question"
                ]
       end)
+    end)
+  end
+
+  defp system_prompt([%{role: :system, content: prompt} | _]), do: prompt
+
+  defp with_openrouter_key(fun) when is_function(fun, 0) do
+    previous_key = System.get_env("OPENROUTER_API_KEY")
+    System.put_env("OPENROUTER_API_KEY", "test-key")
+
+    try do
+      fun.()
     after
       restore_system_env("OPENROUTER_API_KEY", previous_key)
     end
   end
 
-  defp system_prompt([%{role: :system, content: prompt} | _]), do: prompt
+  defmodule FinalLLM do
+    def llm(content) do
+      caller = self()
+
+      fn _intent, _journal ->
+        send(caller, :jidoka_final_llm_called)
+        {:ok, Jidoka.Effect.LLMDecision.final(content)}
+      end
+    end
+  end
 
   defmodule CaptureAndStop do
     def llm do

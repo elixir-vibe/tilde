@@ -72,7 +72,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   def resume_checkpoint(%Session{} = _session, %ResumeCandidate{} = candidate, opts \\ []) do
     case ensure_openrouter_key() do
       :ok ->
-        resume_turn_stream(candidate.checkpoint_token, opts)
+        resume_turn_stream(candidate, opts)
 
       {:error, reason} ->
         [failed_event(reason)]
@@ -184,8 +184,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     end
   end
 
-  defp resume_turn_stream(snapshot_token, opts) do
-    case start_async_resume(snapshot_token, opts) do
+  defp resume_turn_stream(%ResumeCandidate{} = candidate, opts) do
+    case start_async_resume(candidate, opts) do
       {:ok, async} ->
         async
         |> Jidoka.stream(stream_opts(opts))
@@ -204,15 +204,13 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     end)
   end
 
-  defp start_async_resume(snapshot_token, opts) do
-    Jidoka.Chat.Request.start_fun(
-      snapshot_token,
-      "resume",
-      runtime_opts(opts),
-      fn prepared_opts ->
-        Jidoka.resume(snapshot_token, prepared_opts)
-      end
-    )
+  defp start_async_resume(%ResumeCandidate{} = candidate, opts) do
+    snapshot_token = candidate.checkpoint_token
+    runtime_opts = Keyword.put(runtime_opts(opts), :request_id, candidate.request_id)
+
+    Jidoka.Chat.Request.start_fun(snapshot_token, "resume", runtime_opts, fn prepared_opts ->
+      Jidoka.resume(snapshot_token, prepared_opts)
+    end)
   end
 
   defp jidoka_agent(opts) do
