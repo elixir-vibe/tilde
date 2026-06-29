@@ -21,7 +21,7 @@ defmodule Tilde.Runtime.LLM do
 
   @doc "Returns the configured LLM backend."
   @spec backend() :: module()
-  def backend, do: Application.get_env(:tilde, :llm_backend, Tilde.Runtime.LLM.Provider.Jidoka)
+  def backend, do: Application.get_env(:tilde, :llm_backend, Tilde.Runtime.LLM.Jidoka)
 
   @doc "Returns the configured model id."
   @spec model() :: String.t()
@@ -32,8 +32,7 @@ defmodule Tilde.Runtime.LLM do
   def enabled?, do: Application.get_env(:tilde, :llm_enabled, false)
 
   @doc "Streams assistant response events from the configured backend."
-  @spec stream(Session.t(), keyword()) ::
-          Enumerable.t(Tilde.Runtime.LLM.Provider.stream_event())
+  @spec stream(Session.t(), keyword()) :: Enumerable.t(Jidoka.Event.t())
   def stream(%Session{} = session, opts \\ []) do
     backend = Keyword.get(opts, :backend, backend())
     backend.stream(session, opts)
@@ -44,7 +43,7 @@ defmodule Tilde.Runtime.LLM do
 
   @doc "Resumes assistant response events from a checkpoint through the configured backend."
   @spec resume_checkpoint(Session.t(), AgentRuntime.t(), keyword()) ::
-          Enumerable.t(Tilde.Runtime.LLM.Provider.stream_event())
+          Enumerable.t(Jidoka.Event.t())
   def resume_checkpoint(%Session{} = session, %AgentRuntime{} = runtime, opts \\ []) do
     backend = Keyword.get(opts, :backend, backend())
     backend.resume_checkpoint(session, runtime, opts)

@@ -11,7 +11,7 @@ defmodule Tilde.DemoRuntimeTransportTest do
                data: %{error: :missing_openrouter_api_key}
              }
            ] =
-             Enum.to_list(Tilde.Runtime.LLM.Provider.Jidoka.stream(Tilde.session()))
+             Enum.to_list(Tilde.Runtime.LLM.Jidoka.stream(Tilde.session()))
 
     if previous, do: System.put_env("OPENROUTER_API_KEY", previous)
   end

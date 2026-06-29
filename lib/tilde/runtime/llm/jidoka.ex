@@ -1,12 +1,10 @@
-defmodule Tilde.Runtime.LLM.Provider.Jidoka do
+defmodule Tilde.Runtime.LLM.Jidoka do
   @moduledoc """
   Jidoka-backed LLM backend for Tilde.
 
   Tilde owns session/event projection; Jidoka owns model routing, turn execution,
   effect interpretation, and operation journaling.
   """
-
-  @behaviour Tilde.Runtime.LLM.Provider
 
   alias Jidoka.Agent
   alias Jidoka.Runtime.JidoActions
@@ -54,7 +52,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jidoka do
     UndefinedFunctionError
   ]
 
-  @impl true
+  @spec stream(Session.t(), keyword()) :: Enumerable.t(Jidoka.Event.t())
   def stream(%Session{} = session, opts \\ []) do
     case ensure_openrouter_key() do
       :ok ->
@@ -67,7 +65,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jidoka do
     exception in @runtime_errors -> [failed_event(exception)]
   end
 
-  @impl true
+  @spec resume_checkpoint(Session.t(), AgentRuntime.t(), keyword()) ::
+          Enumerable.t(Jidoka.Event.t())
   def resume_checkpoint(%Session{} = _session, %AgentRuntime{} = runtime, opts \\ []) do
     case ensure_openrouter_key() do
       :ok ->
@@ -94,7 +93,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jidoka do
     exception in @runtime_errors -> {:error, exception}
   end
 
-  @impl true
+  @spec cancel_checkpoint(String.t(), keyword()) :: {:ok, String.t()}
   def cancel_checkpoint(token, _opts \\ []) when is_binary(token) do
     {:ok, token}
   end

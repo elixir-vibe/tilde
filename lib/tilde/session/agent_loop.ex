@@ -54,8 +54,7 @@ defmodule Tilde.Session.AgentLoop do
     |> emit_then(emit)
   end
 
-  @spec handle_stream_event(server_state(), Tilde.Runtime.LLM.Provider.stream_event(), emit_fun()) ::
-          server_state()
+  @spec handle_stream_event(server_state(), Jidoka.Event.t(), emit_fun()) :: server_state()
   def handle_stream_event(state, %Jidoka.Event{event: :turn_started} = event, _emit) do
     state
     |> put_agent_loop(State.put_started_runtime(state.agent_loop, event))

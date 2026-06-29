@@ -1,8 +1,8 @@
-defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
+defmodule Tilde.Runtime.LLM.JidokaTest do
   use TildeTest.Case, async: false
 
   alias Tilde.Core.Session
-  alias Tilde.Runtime.LLM.Provider.Jidoka, as: Provider
+  alias Tilde.Runtime.LLM.Jidoka, as: Runtime
 
   test "hibernates a Jidoka turn with serialized snapshot and resumes it" do
     with_openrouter_key(fn ->
@@ -12,7 +12,7 @@ defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
 
       events =
         session
-        |> Provider.stream(
+        |> Runtime.stream(
           checkpoint: :before_each_effect,
           llm: __MODULE__.FinalLLM.llm("resumed answer")
         )
@@ -41,7 +41,7 @@ defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
                }
              ] =
                session
-               |> Provider.resume_checkpoint(runtime,
+               |> Runtime.resume_checkpoint(runtime,
                  llm: __MODULE__.FinalLLM.llm("resumed answer")
                )
                |> Enum.filter(&(&1.event == :turn_finished))
@@ -59,7 +59,7 @@ defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
 
         _events =
           session
-          |> Provider.stream(llm: __MODULE__.CaptureAndStop.llm())
+          |> Runtime.stream(llm: __MODULE__.CaptureAndStop.llm())
           |> Enum.to_list()
 
         assert_receive {:jidoka_messages, messages}

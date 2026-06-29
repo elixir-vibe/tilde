@@ -30,7 +30,7 @@ defmodule Tilde.Runtime.LLM.ResumeTest do
              }
            ] =
              session
-             |> Tilde.Runtime.LLM.Provider.Jidoka.resume_checkpoint(runtime)
+             |> Tilde.Runtime.LLM.Jidoka.resume_checkpoint(runtime)
              |> Enum.to_list()
 
     restore_system_env("OPENROUTER_API_KEY", previous)

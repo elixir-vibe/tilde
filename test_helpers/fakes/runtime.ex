@@ -154,17 +154,12 @@ defmodule TildeTest.RuntimeEvents do
 end
 
 defmodule TildeTest.LLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, runtime, _opts) do
     [TildeTest.RuntimeEvents.completed("resumed: #{runtime.checkpoint_token}")]
   end
 
-  @impl true
   def stream(session, opts) do
     prompt = Keyword.get(opts, :prompt) || Tilde.Runtime.LLM.latest_user_text(session)
     [TildeTest.RuntimeEvents.completed("echo: #{prompt}")]
@@ -172,15 +167,10 @@ defmodule TildeTest.LLMBackend do
 end
 
 defmodule TildeTest.CompactionSummaryLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: []
 
-  @impl true
   def stream(_session, _opts), do: []
 
   def summarize_compaction(blocks, opts) do
@@ -191,43 +181,28 @@ defmodule TildeTest.CompactionSummaryLLMBackend do
 end
 
 defmodule TildeTest.EmptyCompactionSummaryLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: []
 
-  @impl true
   def stream(_session, _opts), do: []
 
   def summarize_compaction(_blocks, _opts), do: {:ok, ""}
 end
 
 defmodule TildeTest.FailingLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: [TildeTest.RuntimeEvents.failed(:boom)]
 
-  @impl true
   def stream(_session, _opts), do: [TildeTest.RuntimeEvents.failed(:boom)]
 end
 
 defmodule TildeTest.BufferedDeltaLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
 
-  @impl true
   def stream(_session, _opts) do
     test_pid = Application.fetch_env!(:tilde, :buffered_delta_llm_test_pid)
     send(test_pid, {:buffered_delta_llm_started, self()})
@@ -257,17 +232,12 @@ defmodule TildeTest.BufferedDeltaLLMBackend do
 end
 
 defmodule TildeTest.StreamingLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts) do
     [TildeTest.RuntimeEvents.delta("resumed"), TildeTest.RuntimeEvents.completed("resumed")]
   end
 
-  @impl true
   def stream(_session, _opts) do
     [
       TildeTest.RuntimeEvents.delta("hel"),
@@ -278,15 +248,10 @@ defmodule TildeTest.StreamingLLMBackend do
 end
 
 defmodule TildeTest.BlockingMetadataLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
 
-  @impl true
   def stream(_session, _opts) do
     test_pid = Application.fetch_env!(:tilde, :metadata_llm_test_pid)
     send(test_pid, {:metadata_llm_started, self()})
@@ -329,15 +294,10 @@ defmodule TildeTest.BlockingMetadataLLMBackend do
 end
 
 defmodule TildeTest.MetadataLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
 
-  @impl true
   def stream(_session, _opts) do
     [
       TildeTest.RuntimeEvents.started(),
@@ -355,15 +315,10 @@ defmodule TildeTest.MetadataLLMBackend do
 end
 
 defmodule TildeTest.ThinkingLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
 
-  @impl true
   def stream(_session, _opts) do
     test_pid = Application.fetch_env!(:tilde, :thinking_llm_test_pid)
     send(test_pid, {:thinking_llm_started, self()})
@@ -398,17 +353,12 @@ defmodule TildeTest.ThinkingLLMBackend do
 end
 
 defmodule TildeTest.JidokaToolLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: []
 
-  @impl true
   def stream(session, opts) do
-    Tilde.Runtime.LLM.Provider.Jidoka.stream(
+    Tilde.Runtime.LLM.Jidoka.stream(
       session,
       Keyword.merge(opts,
         llm: llm(),
@@ -437,15 +387,10 @@ defmodule TildeTest.JidokaToolLLMBackend do
 end
 
 defmodule TildeTest.PostToolTerminalLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
 
-  @impl true
   def stream(_session, _opts) do
     [
       TildeTest.RuntimeEvents.delta("Before."),
@@ -460,15 +405,10 @@ defmodule TildeTest.PostToolTerminalLLMBackend do
 end
 
 defmodule TildeTest.MaxIterationsLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
 
-  @impl true
   def stream(_session, _opts) do
     [
       TildeTest.RuntimeEvents.delta("Let me inspect that:"),
@@ -480,17 +420,12 @@ defmodule TildeTest.MaxIterationsLLMBackend do
 end
 
 defmodule TildeTest.ToolStreamingLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts) do
     [TildeTest.RuntimeEvents.completed("resumed with tools")]
   end
 
-  @impl true
   def stream(_session, _opts) do
     [
       TildeTest.RuntimeEvents.tool_started("tool_utc", "utc_now", %{}),
@@ -504,43 +439,28 @@ defmodule TildeTest.ToolStreamingLLMBackend do
 end
 
 defmodule TildeTest.CancelledLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: [TildeTest.RuntimeEvents.cancelled()]
 
-  @impl true
   def stream(_session, _opts), do: [TildeTest.RuntimeEvents.cancelled()]
 end
 
 defmodule TildeTest.CrashingLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, _candidate, _opts), do: raise("boom")
 
-  @impl true
   def stream(_session, _opts), do: raise("boom")
 end
 
 defmodule TildeTest.BlockingLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
-  @impl true
   def resume_checkpoint(_session, runtime, _opts) do
     [TildeTest.RuntimeEvents.completed("resumed: #{runtime.checkpoint_token}")]
   end
 
-  @impl true
   def stream(session, opts) do
     prompt = Keyword.get(opts, :prompt) || Tilde.Runtime.LLM.latest_user_text(session)
     test_pid = Application.fetch_env!(:tilde, :blocking_llm_test_pid)
@@ -555,21 +475,16 @@ defmodule TildeTest.BlockingLLMBackend do
 end
 
 defmodule TildeTest.CancellableLLMBackend do
-  @behaviour Tilde.Runtime.LLM.Provider
-
-  @impl true
   def cancel_checkpoint(token, _opts) do
     test_pid = Application.fetch_env!(:tilde, :cancellable_llm_test_pid)
     send(test_pid, {:cancellable_llm_cancelled, token})
     {:ok, token}
   end
 
-  @impl true
   def resume_checkpoint(_session, runtime, _opts) do
     [TildeTest.RuntimeEvents.completed("resumed: #{runtime.checkpoint_token}")]
   end
 
-  @impl true
   def stream(_session, _opts) do
     test_pid = Application.fetch_env!(:tilde, :cancellable_llm_test_pid)
     {:ok, agent} = Agent.start_link(fn -> :running end)
