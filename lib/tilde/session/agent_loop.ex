@@ -2,7 +2,7 @@ defmodule Tilde.Session.AgentLoop do
   @moduledoc "Session-owned assistant loop: start, stream, cancel, and record semantic events."
 
   alias Tilde.Core.{AgentRuntime, Event, Session}
-  alias Tilde.Runtime.{LLM, Metadata, RateLimit}
+  alias Tilde.Runtime.{JidokaEvent, LLM, RateLimit}
   alias Tilde.Session.AgentLoop.{Prompt, State}
   alias Tilde.Tool.Event, as: ToolEvent
 
@@ -86,75 +86,53 @@ defmodule Tilde.Session.AgentLoop do
     |> maybe_start_pending(emit)
   end
 
-  def handle_stream_event(state, %Jidoka.Event{event: :llm_delta, data: data}, emit) do
-    chunk_type = event_field(data, :chunk_type, :content)
-    text = event_field(data, :delta, "")
-
-    cond do
-      chunk_type in [:content, "content"] and is_binary(text) and text != "" ->
-        append_delta(state, text, :content, emit)
-
-      chunk_type in [:thinking, "thinking"] and is_binary(text) and text != "" ->
-        append_delta(state, text, :thinking, emit)
-
-      true ->
-        state
+  def handle_stream_event(state, %Jidoka.Event{event: :llm_delta} = event, emit) do
+    case JidokaEvent.delta(event) do
+      {chunk_type, text} -> append_delta(state, text, chunk_type, emit)
+      nil -> state
     end
   end
 
   def handle_stream_event(
         state,
-        %Jidoka.Event{event: :effect_started, effect_kind: :operation, data: data} = event,
+        %Jidoka.Event{event: :effect_started, effect_kind: :operation} = event,
         emit
       ) do
-    if operation_arguments?(data) do
-      id = event.effect_id || event_field(data, :tool_call_id)
-      name = event.operation || event_field(data, :tool_name, "tool")
-      args = event_field(data, :arguments, %{})
-      tool_event = ToolEvent.started(id: id, name: name, args: args)
-      emit_tool_started(state, tool_event, emit)
-    else
-      state
+    case JidokaEvent.operation_started(event) do
+      %ToolEvent{} = tool_event -> emit_tool_started(state, tool_event, emit)
+      nil -> state
     end
   end
 
   def handle_stream_event(
         state,
-        %Jidoka.Event{event: event_name, effect_kind: :operation, data: data} = event,
+        %Jidoka.Event{event: event_name, effect_kind: :operation} = event,
         emit
       )
       when event_name in [:effect_completed, :effect_failed] do
-    case operation_result(data) do
-      nil ->
-        state
-
-      raw_result ->
-        id = event.effect_id || event_field(data, :tool_call_id)
-
-        tool_event =
-          ToolEvent.finished(
-            id: id,
-            status: tool_status(raw_result),
-            output: tool_result(raw_result)
-          )
-
+    case JidokaEvent.operation_finished(event) do
+      %ToolEvent{} = tool_event ->
         state
         |> update_session(&append_tool_result(&1, tool_event))
         |> emit_then(emit)
+
+      nil ->
+        state
     end
   end
 
-  def handle_stream_event(state, %Jidoka.Event{event: :turn_finished, data: data}, emit) do
-    text = data |> event_field(:result, "") |> to_string()
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_finished} = event, emit) do
+    text = JidokaEvent.terminal_text(event)
+    metadata = JidokaEvent.terminal_metadata(state.agent_loop.runtime, event)
 
     state
     |> update_session(fn session ->
       session
-      |> maybe_append_done(state.agent_loop.block_id, text, runtime_metadata(state, data))
+      |> maybe_append_done(state.agent_loop.block_id, text, metadata)
       |> Session.append_event(
         Tilde.assistant_turn_finished(
           block_id: state.agent_loop.block_id,
-          metadata: runtime_metadata(state, data)
+          metadata: metadata
         )
       )
     end)
@@ -163,8 +141,8 @@ defmodule Tilde.Session.AgentLoop do
     |> maybe_start_pending(emit)
   end
 
-  def handle_stream_event(state, %Jidoka.Event{event: :turn_failed, data: data}, emit) do
-    reason = event_field(data, :error, data)
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_failed} = event, emit) do
+    reason = JidokaEvent.failure_reason(event)
 
     state
     |> update_session(fn session ->
@@ -198,27 +176,6 @@ defmodule Tilde.Session.AgentLoop do
     )
     |> emit_then(emit)
   end
-
-  defp event_field(data, key, default \\ nil) when is_atom(key) do
-    Map.get(data, key, Map.get(data, Atom.to_string(key), default))
-  end
-
-  defp operation_arguments?(data) when is_map(data), do: event_field(data, :arguments) != nil
-  defp operation_arguments?(_data), do: false
-
-  defp operation_result(data) when is_map(data) do
-    event_field(data, :result) || event_field(data, :error) || event_field(data, :output)
-  end
-
-  defp operation_result(_data), do: nil
-
-  defp tool_status({:ok, _result, _meta}), do: :success
-  defp tool_status({:ok, _result}), do: :success
-  defp tool_status(_other), do: :error
-
-  defp tool_result({:ok, result, _meta}), do: result
-  defp tool_result({:ok, result}), do: result
-  defp tool_result(result), do: result
 
   @spec maybe_start_pending(server_state(), emit_fun()) :: server_state()
   def maybe_start_pending(state, emit) do
@@ -451,31 +408,6 @@ defmodule Tilde.Session.AgentLoop do
           )
         end
     end
-  end
-
-  defp runtime_metadata(state, event_data) do
-    state.agent_loop.runtime
-    |> runtime_snapshot()
-    |> Map.merge(
-      reject_nil_values(%{
-        usage: event_field(event_data, :usage),
-        termination_reason: event_field(event_data, :termination_reason),
-        thinking_content: event_field(event_data, :thinking_content),
-        reasoning_details: event_field(event_data, :reasoning_details),
-        jidoka: event_field(event_data, :jidoka)
-      })
-    )
-    |> reject_nil_values()
-    |> Metadata.sanitize()
-  end
-
-  defp runtime_snapshot(nil), do: %{}
-
-  defp runtime_snapshot(%AgentRuntime{} = runtime) do
-    runtime
-    |> AgentRuntime.dump()
-    |> Map.take([:run_id, :request_id, :checkpoint_token, :iteration])
-    |> reject_nil_values()
   end
 
   defp tool_metadata(%ToolEvent{} = event) do
