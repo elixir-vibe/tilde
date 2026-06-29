@@ -54,7 +54,7 @@ defmodule Tilde.Runtime.LLM.Jidoka do
 
   @spec stream(Session.t(), keyword()) :: Enumerable.t(Jidoka.Event.t())
   def stream(%Session{} = session, opts \\ []) do
-    case ensure_openrouter_key() do
+    case ensure_runtime_capability(opts) do
       :ok ->
         run_turn_stream(session, query(session, opts), opts)
 
@@ -68,7 +68,7 @@ defmodule Tilde.Runtime.LLM.Jidoka do
   @spec resume_checkpoint(Session.t(), AgentRuntime.t(), keyword()) ::
           Enumerable.t(Jidoka.Event.t())
   def resume_checkpoint(%Session{} = _session, %AgentRuntime{} = runtime, opts \\ []) do
-    case ensure_openrouter_key() do
+    case ensure_runtime_capability(opts) do
       :ok ->
         resume_turn_stream(runtime, opts)
 
@@ -484,6 +484,14 @@ defmodule Tilde.Runtime.LLM.Jidoka do
 
   defp query(%Session{} = session, opts) do
     Keyword.get(opts, :prompt) || LLM.latest_user_text(session) || LLM.prompt(session)
+  end
+
+  defp ensure_runtime_capability(opts) do
+    if Keyword.has_key?(opts, :llm) do
+      :ok
+    else
+      ensure_openrouter_key()
+    end
   end
 
   defp ensure_openrouter_key do

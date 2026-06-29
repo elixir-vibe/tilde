@@ -4,8 +4,8 @@ defmodule Tilde.Runtime.LLM.JidokaTest do
   alias Tilde.Core.Session
   alias Tilde.Runtime.LLM.Jidoka, as: Runtime
 
-  test "hibernates a Jidoka turn with serialized snapshot and resumes it" do
-    with_openrouter_key(fn ->
+  test "hibernates a Jidoka turn with serialized snapshot and resumes it without provider keys" do
+    without_openrouter_key(fn ->
       session =
         Tilde.session(id: "jidoka-snapshot")
         |> Session.append_event(Tilde.input_submitted("latest question"))
@@ -48,8 +48,8 @@ defmodule Tilde.Runtime.LLM.JidokaTest do
     end)
   end
 
-  test "starts Jidoka turn with Tilde transcript as agent context" do
-    with_openrouter_key(fn ->
+  test "starts Jidoka turn with Tilde transcript as agent context without provider keys" do
+    without_openrouter_key(fn ->
       with_application_env(:jidoka_context_test_pid, self(), fn ->
         session =
           Tilde.session(id: "jidoka-context")
@@ -78,9 +78,9 @@ defmodule Tilde.Runtime.LLM.JidokaTest do
 
   defp system_prompt([%{role: :system, content: prompt} | _]), do: prompt
 
-  defp with_openrouter_key(fun) when is_function(fun, 0) do
+  defp without_openrouter_key(fun) when is_function(fun, 0) do
     previous_key = System.get_env("OPENROUTER_API_KEY")
-    System.put_env("OPENROUTER_API_KEY", "test-key")
+    System.delete_env("OPENROUTER_API_KEY")
 
     try do
       fun.()
