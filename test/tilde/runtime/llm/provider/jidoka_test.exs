@@ -1,18 +1,18 @@
-defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
+defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
   use TildeTest.Case, async: false
 
   alias Tilde.Core.Session
-  alias Tilde.Runtime.LLM.Provider.Jido
+  alias Tilde.Runtime.LLM.Provider.Jidoka, as: Provider
 
   test "hibernates a Jidoka turn with serialized snapshot and resumes it" do
     with_openrouter_key(fn ->
       session =
-        Tilde.session(id: "jido-snapshot")
+        Tilde.session(id: "jidoka-snapshot")
         |> Session.append_event(Tilde.input_submitted("latest question"))
 
       events =
         session
-        |> Jido.stream(
+        |> Provider.stream(
           checkpoint: :before_each_effect,
           llm: __MODULE__.FinalLLM.llm("resumed answer")
         )
@@ -33,7 +33,7 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
 
       assert [%Jidoka.Event{event: :turn_finished, data: %{result: "resumed answer"}}] =
                session
-               |> Jido.resume_checkpoint(candidate,
+               |> Provider.resume_checkpoint(candidate,
                  llm: __MODULE__.FinalLLM.llm("resumed answer")
                )
                |> Enum.filter(&(&1.event == :turn_finished))
@@ -42,16 +42,16 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
 
   test "starts Jidoka turn with Tilde transcript as agent context" do
     with_openrouter_key(fn ->
-      with_application_env(:jido_context_test_pid, self(), fn ->
+      with_application_env(:jidoka_context_test_pid, self(), fn ->
         session =
-          Tilde.session(id: "jido-context")
+          Tilde.session(id: "jidoka-context")
           |> Session.append_event(Tilde.input_submitted("earlier question"))
           |> Session.append_event(Tilde.assistant_done("earlier answer"))
           |> Session.append_event(Tilde.input_submitted("latest question"))
 
         _events =
           session
-          |> Jido.stream(llm: __MODULE__.CaptureAndStop.llm())
+          |> Provider.stream(llm: __MODULE__.CaptureAndStop.llm())
           |> Enum.to_list()
 
         assert_receive {:jidoka_messages, messages}
@@ -96,7 +96,12 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
     def llm do
       fn intent, _journal ->
         messages = get_in(intent.payload, [:prompt, :messages])
-        send(Application.fetch_env!(:tilde, :jido_context_test_pid), {:jidoka_messages, messages})
+
+        send(
+          Application.fetch_env!(:tilde, :jidoka_context_test_pid),
+          {:jidoka_messages, messages}
+        )
+
         {:ok, Jidoka.Effect.LLMDecision.final("captured")}
       end
     end

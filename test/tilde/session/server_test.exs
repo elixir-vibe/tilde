@@ -575,7 +575,7 @@ defmodule Tilde.Session.ServerTest do
       end)
     end
 
-    test "session server projects Jido terminal metadata onto terminal assistant events" do
+    test "session server projects Jidoka terminal metadata onto terminal assistant events" do
       with_application_env(:llm_enabled, true, fn ->
         with_application_env(:llm_backend, TildeTest.BlockingMetadataLLMBackend, fn ->
           with_application_env(:metadata_llm_test_pid, self(), fn ->

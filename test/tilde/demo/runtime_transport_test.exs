@@ -1,7 +1,7 @@
 defmodule Tilde.DemoRuntimeTransportTest do
   use TildeTest.Case
 
-  test "jido LLM backend reports a missing OpenRouter key before calling the runtime" do
+  test "Jidoka LLM backend reports a missing OpenRouter key before calling the runtime" do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")
 
@@ -11,7 +11,7 @@ defmodule Tilde.DemoRuntimeTransportTest do
                data: %{error: :missing_openrouter_api_key}
              }
            ] =
-             Enum.to_list(Tilde.Runtime.LLM.Provider.Jido.stream(Tilde.session()))
+             Enum.to_list(Tilde.Runtime.LLM.Provider.Jidoka.stream(Tilde.session()))
 
     if previous, do: System.put_env("OPENROUTER_API_KEY", previous)
   end

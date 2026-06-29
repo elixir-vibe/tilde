@@ -408,7 +408,7 @@ defmodule TildeTest.JidokaToolLLMBackend do
 
   @impl true
   def stream(session, opts) do
-    Tilde.Runtime.LLM.Provider.Jido.stream(
+    Tilde.Runtime.LLM.Provider.Jidoka.stream(
       session,
       Keyword.merge(opts,
         llm: llm(),

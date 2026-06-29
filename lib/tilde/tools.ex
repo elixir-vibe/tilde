@@ -1,5 +1,5 @@
 defmodule Tilde.Tools do
-  @moduledoc "Tool sets available to Tilde's Jido-backed assistant runtime."
+  @moduledoc "Jido action tool sets available to Tilde's Jidoka-backed assistant runtime."
 
   @doc "Safe demo tools."
   @spec demo_tools() :: [module()]

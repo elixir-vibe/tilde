@@ -1,4 +1,4 @@
-defmodule Tilde.Runtime.LLM.Provider.Jido do
+defmodule Tilde.Runtime.LLM.Provider.Jidoka do
   @moduledoc """
   Jidoka-backed LLM backend for Tilde.
 
@@ -219,7 +219,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
       instructions: Keyword.get(opts, :system_prompt, @system_prompt),
       model: Keyword.get(opts, :model, LLM.model()),
       generation: generation(opts),
-      operations: JidoActions.operations_from_actions(jido_actions(opts)),
+      operations: JidoActions.operations_from_actions(operation_actions(opts)),
       runtime_defaults: %{
         provider: :tilde,
         max_model_turns: max_model_turns(opts),
@@ -270,7 +270,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   end
 
   defp operation_capability(opts) do
-    actions = jido_actions(opts)
+    actions = operation_actions(opts)
     delegate = JidoActions.operations(actions, context: Keyword.get(opts, :context, %{}))
     stream_opts = [stream_to: self()]
 
@@ -353,7 +353,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     end)
   end
 
-  defp jido_actions(opts), do: Keyword.get(opts, :tools, Tilde.Tools.coding_tools())
+  defp operation_actions(opts), do: Keyword.get(opts, :tools, Tilde.Tools.coding_tools())
 
   defp provider_options(opts) do
     [app_title: Keyword.get(opts, :app_title, "Tilde")]
@@ -462,6 +462,6 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   end
 
   defp failed_event(reason) do
-    Tilde.Runtime.LLM.Event.failed(reason, source: "tilde-jido-provider")
+    Tilde.Runtime.LLM.Event.failed(reason, source: "tilde-jidoka-provider")
   end
 end

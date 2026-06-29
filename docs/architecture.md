@@ -229,9 +229,9 @@ Current state: `Tilde.Session.AgentLoop` owns assistant start, streaming,
 cancellation, tool projection, and queued prompt continuation. Runtime queuing is
 explicit in session-server state through `pending_prompts`; the loop does not scan
 durable history to decide what to run next. It still uses one stream task per
-active loop; the Jido provider uses Jido.AI's ReAct runtime directly and returns
-canonical `Jido.AI.Runtime.Event` structs, so Tilde does not wrap Jido with a
-second agent process.
+active loop; the Jidoka provider runs `Jidoka.turn/3` / `Jidoka.resume/2` and
+streams canonical `Jidoka.Event` structs, while Tilde projects those runtime
+events into durable console events.
 
 Migration plan to a normal agent loop:
 
@@ -239,8 +239,8 @@ Migration plan to a normal agent loop:
    `prompt_ref` (`active_agent`, stream owner/ref, current tool context, and last
    submitted prompt).
 2. Move prompt submission into a single lifecycle entry point that records the
-   user event, starts/continues the agent loop, and wires ReqLLM/Jido callbacks for
-   deltas, thinking, tool preparing/started/finished, usage, completion, and
+   user event, starts/continues the agent loop, and wires Jidoka/ReqLLM callbacks
+   for deltas, thinking, operation started/finished, usage, completion, and
    errors.
 3. Keep the loop alive for tool/assistant iterations until the provider reports a
    terminal result, rather than treating every model call as a standalone response.

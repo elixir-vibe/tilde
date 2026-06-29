@@ -2,8 +2,8 @@ defmodule Tilde.Runtime.LLM do
   @moduledoc """
   Facade for model runtimes.
 
-  The default implementation uses Jido.AI over ReqLLM/OpenRouter, and callers
-  depend only on this small boundary.
+  The default implementation runs Jidoka turns with ReqLLM/OpenRouter and Jido
+  action tools; callers depend only on this small boundary.
   """
 
   alias Tilde.Core.{Block, Session}
@@ -22,7 +22,7 @@ defmodule Tilde.Runtime.LLM do
 
   @doc "Returns the configured LLM backend."
   @spec backend() :: module()
-  def backend, do: Application.get_env(:tilde, :llm_backend, Tilde.Runtime.LLM.Provider.Jido)
+  def backend, do: Application.get_env(:tilde, :llm_backend, Tilde.Runtime.LLM.Provider.Jidoka)
 
   @doc "Returns the configured model id."
   @spec model() :: String.t()
@@ -72,7 +72,7 @@ defmodule Tilde.Runtime.LLM do
       {:error, exception}
   end
 
-  @doc "Cancels a checkpointed ReAct run through the configured backend."
+  @doc "Cancels a checkpointed agent turn through the configured backend."
   @spec cancel_checkpoint(String.t(), keyword()) :: {:ok, String.t()} | {:error, term()}
   def cancel_checkpoint(token, opts \\ []) when is_binary(token) do
     backend = Keyword.get(opts, :backend, backend())
