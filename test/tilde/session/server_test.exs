@@ -649,53 +649,50 @@ defmodule Tilde.Session.ServerTest do
 
     test "session server projects thinking deltas through existing assistant delta lifecycle" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.ThinkingLLMBackend, fn ->
-          with_application_env(:thinking_llm_test_pid, self(), fn ->
-            name = :"tilde_session_server_thinking_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_thinking_test_#{System.unique_integer([:positive])}"
 
-            assert {:ok, pid} =
-                     Tilde.Session.Server.start_link(
-                       name: name,
-                       session: Tilde.session(id: "llm_thinking")
-                     )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_thinking"),
+                   llm_opts: [llm: thinking_llm(self())]
+                 )
 
-            assert %Session{} = Tilde.Session.Server.subscribe(name)
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("think"))
-            assert_receive {:thinking_llm_started, task}
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("think"))
+        assert_receive {:thinking_llm_started, task}
 
-            thinking =
-              wait_until_session(name, fn session ->
-                Enum.any?(session.assistant.chunks, &(&1.type == :thinking))
-              end)
-
-            assert_assistant_phase(thinking, :thinking)
-
-            assert [
-                     %Block{role: :user},
-                     %Block{role: :assistant, source: "", metadata: %{thinking: "thinking"}}
-                   ] =
-                     thinking.transcript.blocks
-
-            send(task, :release_thinking_llm)
-
-            streaming =
-              wait_until_session(name, fn session ->
-                Enum.any?(session.assistant.chunks, &(&1.type == :content))
-              end)
-
-            assert_assistant_phase(streaming, :streaming)
-
-            assert [
-                     %Block{role: :user},
-                     %Block{role: :assistant, source: "answer", metadata: %{thinking: "thinking"}}
-                   ] =
-                     streaming.transcript.blocks
-
-            send(task, :finish_thinking_llm)
-
-            GenServer.stop(pid)
+        thinking =
+          wait_until_session(name, fn session ->
+            Enum.any?(session.assistant.chunks, &(&1.type == :thinking))
           end)
-        end)
+
+        assert_assistant_phase(thinking, :thinking)
+
+        assert [
+                 %Block{role: :user},
+                 %Block{role: :assistant, source: "", metadata: %{thinking: "thinking"}}
+               ] =
+                 thinking.transcript.blocks
+
+        send(task, :release_thinking_llm)
+
+        streaming =
+          wait_until_session(name, fn session ->
+            Enum.any?(session.assistant.chunks, &(&1.type == :content))
+          end)
+
+        assert_assistant_phase(streaming, :streaming)
+
+        assert [
+                 %Block{role: :user},
+                 %Block{role: :assistant, source: "answer", metadata: %{thinking: "thinking"}}
+               ] =
+                 streaming.transcript.blocks
+
+        send(task, :finish_thinking_llm)
+
+        GenServer.stop(pid)
       end)
     end
 
@@ -1116,119 +1113,125 @@ defmodule Tilde.Session.ServerTest do
   describe "stream coalescing" do
     test "streams LLM deltas into one assistant block without exposing tiny intermediate chunks" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.StreamingLLMBackend, fn ->
-          name = :"tilde_session_server_llm_stream_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_llm_stream_test_#{System.unique_integer([:positive])}"
 
-          assert {:ok, pid} =
-                   Tilde.Session.Server.start_link(
-                     name: name,
-                     session: Tilde.session(id: "llm_stream")
-                   )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "llm_stream"),
+                   llm_opts: [llm: streaming_llm(["hel", "lo"], "hello", self())]
+                 )
 
-          assert %Session{} = Tilde.Session.Server.subscribe(name)
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
 
-          Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+        assert_receive {:streaming_llm_started, task}
 
-          assert_receive_phase("llm_stream", :waiting)
-          |> assert_assistant_waiting()
+        assert_receive_phase("llm_stream", :waiting)
+        |> assert_assistant_waiting()
 
-          assert_receive {:tilde_session_updated, "llm_stream",
-                          %Session{
-                            transcript: %{
-                              blocks: [
-                                %Block{role: :user},
-                                %Block{role: :assistant, source: "hello"}
-                              ]
-                            }
-                          } = streaming_session}
+        streaming_session =
+          wait_until_session(name, fn
+            %Session{
+              assistant: %{phase: :streaming},
+              transcript: %{
+                blocks: [%Block{role: :user}, %Block{role: :assistant, source: "hello"}]
+              }
+            } ->
+              true
 
-          assert_assistant_phase(streaming_session, :streaming)
+            _session ->
+              false
+          end)
 
-          refute_receive {:tilde_session_updated, "llm_stream",
-                          %Session{
-                            transcript: %{
-                              blocks: [
-                                %Block{role: :user},
-                                %Block{role: :assistant, source: "hel"}
-                              ]
-                            }
-                          }}
+        assert_assistant_phase(streaming_session, :streaming)
 
-          assert_receive {:tilde_session_updated, "llm_stream",
-                          %Session{
-                            transcript: %{
-                              blocks: [
-                                %Block{role: :user},
-                                %Block{role: :assistant, source: "hello"}
-                              ]
-                            }
-                          } = done_session}
+        refute_receive {:tilde_session_updated, "llm_stream",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "hel"}
+                            ]
+                          }
+                        }}
 
-          assert_assistant_phase(done_session, :done)
+        send(task, :finish_streaming_llm)
 
-          GenServer.stop(pid)
-        end)
+        done_session =
+          wait_until_session(name, fn
+            %Session{
+              assistant: %{phase: :done},
+              transcript: %{
+                blocks: [%Block{role: :user}, %Block{role: :assistant, source: "hello"}]
+              }
+            } ->
+              true
+
+            _session ->
+              false
+          end)
+
+        assert_assistant_phase(done_session, :done)
+
+        GenServer.stop(pid)
       end)
     end
 
     test "flushes buffered deltas even before completion" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.BufferedDeltaLLMBackend, fn ->
-          with_application_env(:buffered_delta_llm_test_pid, self(), fn ->
-            name =
-              :"tilde_session_server_buffered_delta_test_#{System.unique_integer([:positive])}"
+        name = :"tilde_session_server_buffered_delta_test_#{System.unique_integer([:positive])}"
 
-            assert {:ok, pid} =
-                     Tilde.Session.Server.start_link(
-                       name: name,
-                       session: Tilde.session(id: "buffered_delta")
-                     )
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "buffered_delta"),
+                   llm_opts: [llm: buffered_delta_llm(self())]
+                 )
 
-            assert %Session{} = Tilde.Session.Server.subscribe(name)
-            Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
-            assert_receive {:buffered_delta_llm_started, task}
+        assert %Session{} = Tilde.Session.Server.subscribe(name)
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
+        assert_receive {:buffered_delta_llm_started, task}
 
-            assert_receive_phase("buffered_delta", :waiting)
+        assert_receive_phase("buffered_delta", :waiting)
 
-            assert_receive {:tilde_session_updated, "buffered_delta",
-                            %Session{
-                              transcript: %{
-                                blocks: [
-                                  %Block{role: :user},
-                                  %Block{role: :assistant, source: "hello"}
-                                ]
-                              }
-                            } = streaming_session}
+        assert_receive {:tilde_session_updated, "buffered_delta",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "hello"}
+                            ]
+                          }
+                        } = streaming_session}
 
-            assert_assistant_phase(streaming_session, :streaming)
+        assert_assistant_phase(streaming_session, :streaming)
 
-            refute_receive {:tilde_session_updated, "buffered_delta",
-                            %Session{
-                              transcript: %{
-                                blocks: [
-                                  %Block{role: :user},
-                                  %Block{role: :assistant, source: "he"}
-                                ]
-                              }
-                            }}
+        refute_receive {:tilde_session_updated, "buffered_delta",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "he"}
+                            ]
+                          }
+                        }}
 
-            send(task, :finish_buffered_delta_llm)
+        send(task, :finish_buffered_delta_llm)
 
-            assert_receive {:tilde_session_updated, "buffered_delta",
-                            %Session{
-                              transcript: %{
-                                blocks: [
-                                  %Block{role: :user},
-                                  %Block{role: :assistant, source: "hello"}
-                                ]
-                              }
-                            } = done_session}
+        assert_receive {:tilde_session_updated, "buffered_delta",
+                        %Session{
+                          transcript: %{
+                            blocks: [
+                              %Block{role: :user},
+                              %Block{role: :assistant, source: "hello"}
+                            ]
+                          }
+                        } = done_session}
 
-            assert_assistant_phase(done_session, :done)
+        assert_assistant_phase(done_session, :done)
 
-            GenServer.stop(pid)
-          end)
-        end)
+        GenServer.stop(pid)
       end)
     end
   end
@@ -1272,6 +1275,89 @@ defmodule Tilde.Session.ServerTest do
 
   defp notify(nil, _message), do: :ok
   defp notify(pid, message) when is_pid(pid), do: send(pid, message)
+
+  defp streaming_llm(deltas, final, test_pid) do
+    fn intent, _journal, stream_opts ->
+      send(test_pid, {:streaming_llm_started, self()})
+
+      deltas
+      |> Enum.with_index()
+      |> Enum.each(fn {delta, seq} ->
+        emit_llm_delta(intent, stream_opts, :content, delta, seq)
+      end)
+
+      with :ok <- wait_for_message(:finish_streaming_llm) do
+        {:ok, Jidoka.Effect.LLMDecision.final(final)}
+      end
+    end
+  end
+
+  defp buffered_delta_llm(test_pid) do
+    fn intent, _journal, stream_opts ->
+      send(test_pid, {:buffered_delta_llm_started, self()})
+      emit_llm_delta(intent, stream_opts, :content, "he", 0)
+      emit_llm_delta(intent, stream_opts, :content, "llo", 1)
+
+      receive do
+        :finish_buffered_delta_llm -> {:ok, Jidoka.Effect.LLMDecision.final("hello")}
+      after
+        1_000 -> {:error, :timeout}
+      end
+    end
+  end
+
+  defp thinking_llm(test_pid) do
+    fn intent, _journal, stream_opts ->
+      send(test_pid, {:thinking_llm_started, self()})
+      emit_llm_delta(intent, stream_opts, :thinking, "thinking", 0)
+
+      continue_thinking_llm(intent, stream_opts)
+    end
+  end
+
+  defp continue_thinking_llm(intent, stream_opts) do
+    with :ok <- wait_for_message(:release_thinking_llm),
+         :ok <- emit_answer_delta(intent, stream_opts),
+         :ok <- wait_for_message(:finish_thinking_llm) do
+      {:ok, Jidoka.Effect.LLMDecision.final("answer")}
+    end
+  end
+
+  defp emit_answer_delta(intent, stream_opts) do
+    emit_llm_delta(intent, stream_opts, :content, "answer", 1)
+    :ok
+  end
+
+  defp wait_for_message(message) do
+    receive do
+      ^message -> :ok
+    after
+      1_000 -> {:error, :timeout}
+    end
+  end
+
+  defp emit_llm_delta(
+         %Jidoka.Effect.Intent{id: id, payload: payload},
+         stream_opts,
+         type,
+         delta,
+         seq
+       ) do
+    Jidoka.Event.new!(
+      event: :llm_delta,
+      seq: seq,
+      agent_id: event_payload_field(payload, :agent_id),
+      request_id: event_payload_field(payload, :request_id),
+      loop_index: event_payload_field(payload, :loop_index),
+      effect_id: id,
+      effect_kind: :llm,
+      data: %{chunk_type: type, delta: delta}
+    )
+    |> Jidoka.Stream.emit(stream_opts)
+  end
+
+  defp event_payload_field(payload, key),
+    do: Map.get(payload, key, Map.get(payload, to_string(key)))
 
   defp crashing_llm do
     fn _intent, _journal -> raise "boom" end

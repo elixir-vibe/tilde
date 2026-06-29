@@ -254,13 +254,27 @@ defmodule Tilde.Runtime.LLM.Jidoka do
 
   defp runtime_opts(opts) do
     [
-      llm: Keyword.get_lazy(opts, :llm, fn -> jidoka_llm(opts) end),
+      llm: llm_capability(opts),
       operations: operation_capability(opts),
       checkpoint: Keyword.get(opts, :checkpoint, :none),
       timeout: Keyword.get(opts, :timeout, 30_000),
       max_model_turns: max_model_turns(opts),
       stream: true
     ]
+  end
+
+  defp llm_capability(opts) do
+    case Keyword.get(opts, :llm) do
+      nil ->
+        jidoka_llm(opts)
+
+      llm when is_function(llm, 2) ->
+        llm
+
+      llm when is_function(llm, 3) ->
+        stream_opts = [stream_to: self()]
+        fn intent, journal -> llm.(intent, journal, stream_opts) end
+    end
   end
 
   defp operation_capability(opts) do

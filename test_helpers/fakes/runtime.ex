@@ -198,55 +198,6 @@ defmodule TildeTest.FailingLLMBackend do
   def stream(_session, _opts), do: [TildeTest.RuntimeEvents.failed(:boom)]
 end
 
-defmodule TildeTest.BufferedDeltaLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
-
-  def stream(_session, _opts) do
-    test_pid = Application.fetch_env!(:tilde, :buffered_delta_llm_test_pid)
-    send(test_pid, {:buffered_delta_llm_started, self()})
-
-    Stream.concat(
-      [
-        TildeTest.RuntimeEvents.delta("he"),
-        TildeTest.RuntimeEvents.delta("llo")
-      ],
-      Stream.resource(
-        fn -> :ok end,
-        fn
-          :ok ->
-            receive do
-              :finish_buffered_delta_llm -> {[TildeTest.RuntimeEvents.completed("hello")], :done}
-            after
-              1_000 -> {[TildeTest.RuntimeEvents.failed(:timeout)], :done}
-            end
-
-          :done ->
-            {:halt, :done}
-        end,
-        fn _state -> :ok end
-      )
-    )
-  end
-end
-
-defmodule TildeTest.StreamingLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts) do
-    [TildeTest.RuntimeEvents.delta("resumed"), TildeTest.RuntimeEvents.completed("resumed")]
-  end
-
-  def stream(_session, _opts) do
-    [
-      TildeTest.RuntimeEvents.delta("hel"),
-      TildeTest.RuntimeEvents.delta("lo"),
-      TildeTest.RuntimeEvents.completed("hello")
-    ]
-  end
-end
-
 defmodule TildeTest.BlockingMetadataLLMBackend do
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
@@ -311,44 +262,6 @@ defmodule TildeTest.MetadataLLMBackend do
         reasoning_details: [%{summary: "reasoned"}]
       })
     ]
-  end
-end
-
-defmodule TildeTest.ThinkingLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: stream(nil, [])
-
-  def stream(_session, _opts) do
-    test_pid = Application.fetch_env!(:tilde, :thinking_llm_test_pid)
-    send(test_pid, {:thinking_llm_started, self()})
-
-    Stream.concat(
-      [TildeTest.RuntimeEvents.thinking_delta("thinking")],
-      Stream.resource(
-        fn -> :ok end,
-        fn
-          :ok ->
-            receive do
-              :release_thinking_llm ->
-                {[TildeTest.RuntimeEvents.delta("answer")], :content}
-            after
-              1_000 -> {[TildeTest.RuntimeEvents.failed(:timeout)], :done}
-            end
-
-          :content ->
-            receive do
-              :finish_thinking_llm -> {[TildeTest.RuntimeEvents.completed("answer")], :done}
-            after
-              1_000 -> {[TildeTest.RuntimeEvents.failed(:timeout)], :done}
-            end
-
-          :done ->
-            {:halt, :done}
-        end,
-        fn _state -> :ok end
-      )
-    )
   end
 end
 
