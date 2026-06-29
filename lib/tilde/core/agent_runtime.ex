@@ -55,6 +55,12 @@ defmodule Tilde.Core.AgentRuntime do
     )
   end
 
+  @spec resumable?(t()) :: boolean()
+  def resumable?(%__MODULE__{} = runtime) do
+    runtime.active? and present?(runtime.run_id) and present?(runtime.request_id) and
+      present?(runtime.checkpoint_token)
+  end
+
   @spec dump(t()) :: map()
   def dump(%__MODULE__{} = runtime) do
     %{
@@ -90,4 +96,7 @@ defmodule Tilde.Core.AgentRuntime do
     do: field(run, :checkpoint_token, "checkpoint_token")
 
   defp run_field(run, :iteration) when is_map(run), do: field(run, :iteration, "iteration")
+
+  defp present?(value) when is_binary(value), do: String.trim(value) != ""
+  defp present?(_value), do: false
 end

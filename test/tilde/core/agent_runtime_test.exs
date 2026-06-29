@@ -28,6 +28,21 @@ defmodule Tilde.Core.AgentRuntimeTest do
            } = runtime
   end
 
+  test "detects resumable runtime metadata" do
+    runtime = %AgentRuntime{
+      active?: true,
+      run_id: "run",
+      request_id: "request",
+      checkpoint_token: "checkpoint"
+    }
+
+    assert AgentRuntime.resumable?(runtime)
+    refute AgentRuntime.resumable?(%{runtime | active?: false})
+    refute AgentRuntime.resumable?(%{runtime | run_id: nil})
+    refute AgentRuntime.resumable?(%{runtime | request_id: nil})
+    refute AgentRuntime.resumable?(%{runtime | checkpoint_token: ""})
+  end
+
   test "restores session metadata to canonical agent runtime dump" do
     session =
       Tilde.session(id: "metadata")

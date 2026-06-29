@@ -160,8 +160,8 @@ defmodule TildeTest.LLMBackend do
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
   @impl true
-  def resume_checkpoint(_session, candidate, _opts) do
-    [TildeTest.RuntimeEvents.completed("resumed: #{candidate.checkpoint_token}")]
+  def resume_checkpoint(_session, runtime, _opts) do
+    [TildeTest.RuntimeEvents.completed("resumed: #{runtime.checkpoint_token}")]
   end
 
   @impl true
@@ -536,8 +536,8 @@ defmodule TildeTest.BlockingLLMBackend do
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
   @impl true
-  def resume_checkpoint(_session, candidate, _opts) do
-    [TildeTest.RuntimeEvents.completed("resumed: #{candidate.checkpoint_token}")]
+  def resume_checkpoint(_session, runtime, _opts) do
+    [TildeTest.RuntimeEvents.completed("resumed: #{runtime.checkpoint_token}")]
   end
 
   @impl true
@@ -565,8 +565,8 @@ defmodule TildeTest.CancellableLLMBackend do
   end
 
   @impl true
-  def resume_checkpoint(_session, candidate, _opts) do
-    [TildeTest.RuntimeEvents.completed("resumed: #{candidate.checkpoint_token}")]
+  def resume_checkpoint(_session, runtime, _opts) do
+    [TildeTest.RuntimeEvents.completed("resumed: #{runtime.checkpoint_token}")]
   end
 
   @impl true

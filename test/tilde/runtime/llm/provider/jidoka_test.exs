@@ -24,8 +24,8 @@ defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
       assert String.starts_with?(snapshot, "jidoka:snapshot:v1:")
       refute_received :jidoka_final_llm_called
 
-      candidate = %Tilde.Session.AgentLoop.ResumeCandidate{
-        session_id: session.id,
+      runtime = %Tilde.Core.AgentRuntime{
+        active?: true,
         run_id: "tilde",
         request_id: hibernated.request_id,
         checkpoint_token: snapshot
@@ -41,7 +41,7 @@ defmodule Tilde.Runtime.LLM.Provider.JidokaTest do
                }
              ] =
                session
-               |> Provider.resume_checkpoint(candidate,
+               |> Provider.resume_checkpoint(runtime,
                  llm: __MODULE__.FinalLLM.llm("resumed answer")
                )
                |> Enum.filter(&(&1.event == :turn_finished))

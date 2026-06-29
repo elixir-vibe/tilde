@@ -2,7 +2,7 @@ defmodule Tilde.Session.AgentLoop.State do
   @moduledoc "Typed runtime state for the session-owned agent loop."
 
   alias Tilde.Core.AgentRuntime
-  alias Tilde.Session.AgentLoop.{Prompt, ResumeCandidate, Run}
+  alias Tilde.Session.AgentLoop.{Prompt, Run}
 
   defstruct active?: false,
             input_index: nil,
@@ -45,17 +45,17 @@ defmodule Tilde.Session.AgentLoop.State do
     }
   end
 
-  @spec resume(t(), ResumeCandidate.t(), pid(), reference(), String.t()) :: t()
-  def resume(%__MODULE__{} = state, %ResumeCandidate{} = candidate, task, ref, block_id)
+  @spec resume(t(), AgentRuntime.t(), pid(), reference(), String.t()) :: t()
+  def resume(%__MODULE__{} = state, %AgentRuntime{} = runtime, task, ref, block_id)
       when is_pid(task) do
     %{
       state
       | active?: true,
-        input_index: candidate.input_index,
+        input_index: runtime.input_index,
         task: task,
         ref: ref,
         block_id: block_id,
-        run: Run.from_resume_candidate(candidate)
+        run: Run.from_runtime(runtime)
     }
   end
 

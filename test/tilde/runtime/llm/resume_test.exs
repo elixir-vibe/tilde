@@ -3,15 +3,14 @@ defmodule Tilde.Runtime.LLM.ResumeTest do
 
   alias Tilde.Core.{AgentRuntime, Session}
   alias Tilde.Runtime.LLM
-  alias Tilde.Session.AgentLoop.ResumeCandidate
 
   test "facade delegates checkpoint resume to configured backend" do
     session = resume_session("resume-facade", "checkpoint-facade")
-    candidate = ResumeCandidate.from_session(session)
+    runtime = Session.agent_runtime(session)
 
     assert [%Jidoka.Event{event: :turn_finished, data: %{result: result}}] =
              session
-             |> LLM.resume_checkpoint(candidate, backend: TildeTest.LLMBackend)
+             |> LLM.resume_checkpoint(runtime, backend: TildeTest.LLMBackend)
              |> Enum.to_list()
 
     assert result == "resumed: checkpoint-facade"
@@ -22,7 +21,7 @@ defmodule Tilde.Runtime.LLM.ResumeTest do
     System.delete_env("OPENROUTER_API_KEY")
 
     session = resume_session("resume-jidoka", "checkpoint-jidoka")
-    candidate = ResumeCandidate.from_session(session)
+    runtime = Session.agent_runtime(session)
 
     assert [
              %Jidoka.Event{
@@ -31,7 +30,7 @@ defmodule Tilde.Runtime.LLM.ResumeTest do
              }
            ] =
              session
-             |> Tilde.Runtime.LLM.Provider.Jidoka.resume_checkpoint(candidate)
+             |> Tilde.Runtime.LLM.Provider.Jidoka.resume_checkpoint(runtime)
              |> Enum.to_list()
 
     restore_system_env("OPENROUTER_API_KEY", previous)

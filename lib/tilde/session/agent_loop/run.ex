@@ -1,7 +1,7 @@
 defmodule Tilde.Session.AgentLoop.Run do
   @moduledoc "Runtime identity for the active Jidoka turn."
 
-  alias Tilde.Session.AgentLoop.ResumeCandidate
+  alias Tilde.Core.AgentRuntime
 
   @enforce_keys [:run_id, :request_id]
   defstruct [:run_id, :request_id, :checkpoint_token, :iteration]
@@ -22,13 +22,13 @@ defmodule Tilde.Session.AgentLoop.Run do
     }
   end
 
-  @spec from_resume_candidate(ResumeCandidate.t()) :: t()
-  def from_resume_candidate(%ResumeCandidate{} = candidate) do
+  @spec from_runtime(AgentRuntime.t()) :: t()
+  def from_runtime(%AgentRuntime{} = runtime) do
     %__MODULE__{
-      run_id: candidate.run_id,
-      request_id: candidate.request_id,
-      checkpoint_token: candidate.checkpoint_token,
-      iteration: candidate.iteration
+      run_id: runtime.run_id,
+      request_id: runtime.request_id,
+      checkpoint_token: runtime.checkpoint_token,
+      iteration: runtime.iteration
     }
   end
 

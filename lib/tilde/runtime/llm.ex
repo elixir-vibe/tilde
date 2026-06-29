@@ -6,8 +6,7 @@ defmodule Tilde.Runtime.LLM do
   action tools; callers depend only on this small boundary.
   """
 
-  alias Tilde.Core.{Block, Session}
-  alias Tilde.Session.AgentLoop.ResumeCandidate
+  alias Tilde.Core.{AgentRuntime, Block, Session}
   alias Tilde.Session.Compaction
 
   @default_model "openrouter:~anthropic/claude-haiku-latest"
@@ -44,11 +43,11 @@ defmodule Tilde.Runtime.LLM do
   end
 
   @doc "Resumes assistant response events from a checkpoint through the configured backend."
-  @spec resume_checkpoint(Session.t(), ResumeCandidate.t(), keyword()) ::
+  @spec resume_checkpoint(Session.t(), AgentRuntime.t(), keyword()) ::
           Enumerable.t(Tilde.Runtime.LLM.Provider.stream_event())
-  def resume_checkpoint(%Session{} = session, %ResumeCandidate{} = candidate, opts \\ []) do
+  def resume_checkpoint(%Session{} = session, %AgentRuntime{} = runtime, opts \\ []) do
     backend = Keyword.get(opts, :backend, backend())
-    backend.resume_checkpoint(session, candidate, opts)
+    backend.resume_checkpoint(session, runtime, opts)
   rescue
     exception in UndefinedFunctionError ->
       [Tilde.Runtime.LLM.Event.failed({:llm_backend_unavailable, exception.module})]

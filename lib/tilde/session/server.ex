@@ -12,7 +12,6 @@ defmodule Tilde.Session.Server do
   alias Tilde.Command
   alias Tilde.Core.{Controller, Event, Session}
   alias Tilde.Session.AgentLoop
-  alias Tilde.Session.AgentLoop.ResumeCandidate
   alias Tilde.Session.AgentLoop.State, as: AgentLoopState
   alias Tilde.Session.Persistence
 
@@ -133,7 +132,7 @@ defmodule Tilde.Session.Server do
     snapshot = %{
       session: state.session,
       agent_loop: AgentLoopState.snapshot(state.agent_loop),
-      resume_candidate: ResumeCandidate.from_session(state.session)
+      resume_runtime: resumable_runtime(state.session)
     }
 
     {:reply, snapshot, state}
@@ -193,6 +192,14 @@ defmodule Tilde.Session.Server do
         previous = state.session
         state = state |> put_session(session) |> after_session_update(previous)
         {:reply, {:halt, state.session, outcomes}, state}
+    end
+  end
+
+  defp resumable_runtime(%Session{} = session) do
+    runtime = Session.agent_runtime(session)
+
+    if Tilde.Core.AgentRuntime.resumable?(runtime) and not Session.assistant_active?(session) do
+      runtime
     end
   end
 

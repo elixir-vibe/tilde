@@ -2,7 +2,6 @@ defmodule Tilde.Session.ServerTest do
   use TildeTest.Case
 
   alias Tilde.Core.AgentRuntime
-  alias Tilde.Session.AgentLoop.ResumeCandidate
   alias Tilde.Session.Server
 
   describe "commands" do
@@ -850,7 +849,7 @@ defmodule Tilde.Session.ServerTest do
   defp wait_until_session(name, _predicate, 0), do: Tilde.Session.Server.get_session(name)
 
   describe "dev snapshots" do
-    test "dev snapshot includes resume candidate for restored checkpoint metadata" do
+    test "dev snapshot includes resumable runtime for restored checkpoint metadata" do
       session =
         Tilde.session(id: "snapshot-resume")
         |> Session.put_agent_runtime(%AgentRuntime{
@@ -867,8 +866,7 @@ defmodule Tilde.Session.ServerTest do
       {:ok, server} = Server.start_link(session: session)
 
       assert %{
-               resume_candidate: %ResumeCandidate{
-                 session_id: "snapshot-resume",
+               resume_runtime: %AgentRuntime{
                  input_index: 4,
                  block_id: "msg_assistant_4",
                  run_id: "run-4",
@@ -879,7 +877,7 @@ defmodule Tilde.Session.ServerTest do
              } = Server.dev_snapshot(server)
     end
 
-    test "dev snapshot suppresses resume candidate while assistant is active" do
+    test "dev snapshot suppresses resumable runtime while assistant is active" do
       session =
         Tilde.session(id: "snapshot-active")
         |> Session.append_event(Tilde.assistant_turn_started(block_id: "msg_assistant_2"))
@@ -896,7 +894,7 @@ defmodule Tilde.Session.ServerTest do
 
       {:ok, server} = Server.start_link(session: session)
 
-      assert %{resume_candidate: nil} = Server.dev_snapshot(server)
+      assert %{resume_runtime: nil} = Server.dev_snapshot(server)
     end
   end
 

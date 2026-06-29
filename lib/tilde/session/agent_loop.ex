@@ -1,9 +1,9 @@
 defmodule Tilde.Session.AgentLoop do
   @moduledoc "Session-owned assistant loop: start, stream, cancel, and record semantic events."
 
-  alias Tilde.Core.{Event, Session}
+  alias Tilde.Core.{AgentRuntime, Event, Session}
   alias Tilde.Runtime.{LLM, RateLimit}
-  alias Tilde.Session.AgentLoop.{Prompt, ResumeCandidate, Run, State}
+  alias Tilde.Session.AgentLoop.{Prompt, Run, State}
   alias Tilde.Tool.Event, as: ToolEvent
 
   @type server_state :: map()
@@ -11,9 +11,11 @@ defmodule Tilde.Session.AgentLoop do
 
   @spec maybe_resume(server_state(), emit_fun()) :: server_state()
   def maybe_resume(%{session: %Session{} = session} = state, emit) do
+    runtime = Session.agent_runtime(session)
+
     with true <- LLM.enabled?(),
-         %ResumeCandidate{} = candidate <- ResumeCandidate.from_session(session) do
-      resume(state, candidate, emit)
+         true <- resumable_runtime?(session, runtime) do
+      resume(state, runtime, emit)
     else
       _other -> state
     end
@@ -180,6 +182,10 @@ defmodule Tilde.Session.AgentLoop do
 
   def handle_stream_event(state, _event, _emit), do: state
 
+  defp resumable_runtime?(%Session{} = session, %AgentRuntime{} = runtime) do
+    AgentRuntime.resumable?(runtime) and not Session.assistant_active?(session)
+  end
+
   defp append_delta(state, text, chunk_type, emit) do
     state
     |> update_session(
@@ -263,10 +269,10 @@ defmodule Tilde.Session.AgentLoop do
     put_agent_loop(state, State.start(state.agent_loop, prompt, task, ref, block_id))
   end
 
-  defp resume(state, %ResumeCandidate{} = candidate, emit) do
+  defp resume(state, %AgentRuntime{} = runtime, emit) do
     parent = self()
     ref = make_ref()
-    block_id = candidate.block_id || assistant_block_id(state.session)
+    block_id = runtime.block_id || assistant_block_id(state.session)
 
     state =
       state
@@ -275,11 +281,11 @@ defmodule Tilde.Session.AgentLoop do
       )
       |> emit_then(emit)
 
-    candidate = %{candidate | block_id: block_id}
-    {:ok, task} = start_resume_task(state.session, parent, ref, candidate)
+    runtime = %{runtime | block_id: block_id}
+    {:ok, task} = start_resume_task(state.session, parent, ref, runtime)
 
     state
-    |> put_agent_loop(State.resume(state.agent_loop, candidate, task, ref, block_id))
+    |> put_agent_loop(State.resume(state.agent_loop, runtime, task, ref, block_id))
     |> sync_runtime_metadata()
   end
 
@@ -287,9 +293,9 @@ defmodule Tilde.Session.AgentLoop do
     Task.start(fn -> stream_to_parent(session, parent, ref, prompt) end)
   end
 
-  defp start_resume_task(%Session{} = session, parent, ref, %ResumeCandidate{} = candidate)
+  defp start_resume_task(%Session{} = session, parent, ref, %AgentRuntime{} = runtime)
        when is_pid(parent) do
-    Task.start(fn -> resume_to_parent(session, parent, ref, candidate) end)
+    Task.start(fn -> resume_to_parent(session, parent, ref, runtime) end)
   end
 
   defp stream_to_parent(%Session{} = session, parent, ref, prompt) do
@@ -298,9 +304,9 @@ defmodule Tilde.Session.AgentLoop do
     end)
   end
 
-  defp resume_to_parent(%Session{} = session, parent, ref, %ResumeCandidate{} = candidate) do
+  defp resume_to_parent(%Session{} = session, parent, ref, %AgentRuntime{} = runtime) do
     deliver_stream(parent, ref, fn ->
-      LLM.resume_checkpoint(session, candidate, llm_opts(session))
+      LLM.resume_checkpoint(session, runtime, llm_opts(session))
     end)
   end
 
