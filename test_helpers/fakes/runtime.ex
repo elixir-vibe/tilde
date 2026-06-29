@@ -190,14 +190,6 @@ defmodule TildeTest.EmptyCompactionSummaryLLMBackend do
   def summarize_compaction(_blocks, _opts), do: {:ok, ""}
 end
 
-defmodule TildeTest.FailingLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: [TildeTest.RuntimeEvents.failed(:boom)]
-
-  def stream(_session, _opts), do: [TildeTest.RuntimeEvents.failed(:boom)]
-end
-
 defmodule TildeTest.BlockingMetadataLLMBackend do
   def cancel_checkpoint(token, _opts), do: {:ok, token}
 
@@ -296,20 +288,4 @@ defmodule TildeTest.MaxIterationsLLMBackend do
       })
     ]
   end
-end
-
-defmodule TildeTest.CancelledLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: [TildeTest.RuntimeEvents.cancelled()]
-
-  def stream(_session, _opts), do: [TildeTest.RuntimeEvents.cancelled()]
-end
-
-defmodule TildeTest.CrashingLLMBackend do
-  def cancel_checkpoint(token, _opts), do: {:ok, token}
-
-  def resume_checkpoint(_session, _candidate, _opts), do: raise("boom")
-
-  def stream(_session, _opts), do: raise("boom")
 end

@@ -933,26 +933,29 @@ defmodule Tilde.Session.ServerTest do
 
     test "persists boot-time checkpoint resume events and cleared metadata without historical duplicates" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.LLMBackend, fn ->
-          with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
-            with_application_env(:storage_test_pid, self(), fn ->
-              session_id = "boot-resume-storage"
-              {:ok, _server} = Server.start_link(session: resumable_session(session_id))
+        with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
+          with_application_env(:storage_test_pid, self(), fn ->
+            session_id = "boot-resume-storage"
 
-              types = collect_append_types(session_id, :assistant_turn_finished)
+            {:ok, _server} =
+              Server.start_link(
+                session: resumable_session(session_id),
+                llm_opts: [llm: final_llm("resumed from snapshot")]
+              )
 
-              assert :assistant_turn_started in types
-              assert :assistant_done in types
-              assert :assistant_turn_finished in types
-              refute :input_submitted in types
+            types = collect_append_types(session_id, :assistant_turn_finished)
 
-              cleared =
-                wait_for_agent_loop_metadata(session_id, fn metadata ->
-                  match?(%{agent_loop: %{active?: false, checkpoint_token: nil}}, metadata)
-                end)
+            assert :assistant_turn_started in types
+            assert :assistant_done in types
+            assert :assistant_turn_finished in types
+            refute :input_submitted in types
 
-              assert cleared.agent_loop.active? == false
-            end)
+            cleared =
+              wait_for_agent_loop_metadata(session_id, fn metadata ->
+                match?(%{agent_loop: %{active?: false, checkpoint_token: nil}}, metadata)
+              end)
+
+            assert cleared.agent_loop.active? == false
           end)
         end)
       end)
@@ -960,52 +963,59 @@ defmodule Tilde.Session.ServerTest do
 
     test "persists boot-time checkpoint resume failure and cleared metadata" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.FailingLLMBackend, fn ->
-          with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
-            with_application_env(:storage_test_pid, self(), fn ->
-              session_id = "boot-resume-failure-storage"
-              {:ok, _server} = Server.start_link(session: resumable_session(session_id))
+        with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
+          with_application_env(:storage_test_pid, self(), fn ->
+            session_id = "boot-resume-failure-storage"
 
-              types = collect_append_types(session_id, :assistant_turn_error)
+            {:ok, _server} =
+              Server.start_link(
+                session: resumable_session(session_id),
+                llm_opts: [llm: error_llm(:boom), stream_event_timeout_ms: 10]
+              )
 
-              assert :assistant_turn_started in types
-              assert :assistant_done in types
-              assert :assistant_turn_error in types
-              refute :input_submitted in types
+            types = collect_append_types(session_id, :assistant_turn_error)
 
-              cleared =
-                wait_for_agent_loop_metadata(session_id, fn metadata ->
-                  match?(%{agent_loop: %{active?: false, checkpoint_token: nil}}, metadata)
-                end)
+            assert :assistant_turn_started in types
+            assert :assistant_done in types
+            assert :assistant_turn_error in types
+            refute :input_submitted in types
 
-              assert cleared.agent_loop.active? == false
-            end)
+            cleared =
+              wait_for_agent_loop_metadata(session_id, fn metadata ->
+                match?(%{agent_loop: %{active?: false, checkpoint_token: nil}}, metadata)
+              end)
+
+            assert cleared.agent_loop.active? == false
           end)
         end)
       end)
     end
 
-    test "persists boot-time checkpoint resume cancellation and cleared metadata" do
+    test "persists boot-time checkpoint resume cancellation failure and cleared metadata" do
       with_application_env(:llm_enabled, true, fn ->
-        with_application_env(:llm_backend, TildeTest.CancelledLLMBackend, fn ->
-          with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
-            with_application_env(:storage_test_pid, self(), fn ->
-              session_id = "boot-resume-cancel-storage"
-              {:ok, _server} = Server.start_link(session: resumable_session(session_id))
+        with_application_env(:storage_adapter, TildeTest.StorageAdapter, fn ->
+          with_application_env(:storage_test_pid, self(), fn ->
+            session_id = "boot-resume-cancel-storage"
 
-              types = collect_append_types(session_id, :assistant_turn_cancelled)
+            {:ok, _server} =
+              Server.start_link(
+                session: resumable_session(session_id),
+                llm_opts: [llm: error_llm(:cancelled), stream_event_timeout_ms: 10]
+              )
 
-              assert :assistant_turn_started in types
-              assert :assistant_turn_cancelled in types
-              refute :input_submitted in types
+            types = collect_append_types(session_id, :assistant_turn_error)
 
-              cleared =
-                wait_for_agent_loop_metadata(session_id, fn metadata ->
-                  match?(%{agent_loop: %{active?: false, checkpoint_token: nil}}, metadata)
-                end)
+            assert :assistant_turn_started in types
+            assert :assistant_done in types
+            assert :assistant_turn_error in types
+            refute :input_submitted in types
 
-              assert cleared.agent_loop.active? == false
-            end)
+            cleared =
+              wait_for_agent_loop_metadata(session_id, fn metadata ->
+                match?(%{agent_loop: %{active?: false, checkpoint_token: nil}}, metadata)
+              end)
+
+            assert cleared.agent_loop.active? == false
           end)
         end)
       end)
@@ -1057,18 +1067,37 @@ defmodule Tilde.Session.ServerTest do
     end
 
     defp resumable_session(session_id) do
-      Tilde.session(id: session_id)
-      |> Session.append_event(Tilde.input_submitted("historical prompt"))
-      |> Session.put_agent_runtime(%Tilde.Core.AgentRuntime{
+      session =
+        Tilde.session(id: session_id)
+        |> Session.append_event(Tilde.input_submitted("historical prompt"))
+
+      {snapshot, request_id} = hibernated_snapshot(session)
+
+      Session.put_agent_runtime(session, %Tilde.Core.AgentRuntime{
         active?: true,
         input_index: 1,
         block_id: "msg_assistant_2",
         queue_length: 0,
-        run_id: "run",
-        request_id: "request",
-        checkpoint_token: "checkpoint-boot",
+        run_id: "tilde",
+        request_id: request_id,
+        checkpoint_token: snapshot,
         iteration: 0
       })
+    end
+
+    defp hibernated_snapshot(session) do
+      events =
+        session
+        |> Tilde.Runtime.LLM.Jidoka.stream(
+          checkpoint: :before_each_effect,
+          llm: final_llm("ignored before resume")
+        )
+        |> Enum.to_list()
+
+      assert %Jidoka.Event{event: :turn_hibernated, data: %{snapshot: snapshot}} =
+               hibernated = List.last(events)
+
+      {snapshot, hibernated.request_id}
     end
 
     defp collect_append_types(session_id, until_type, acc \\ []) do
