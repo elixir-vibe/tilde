@@ -227,12 +227,15 @@ backends. Missing API keys or model configuration are runtime errors surfaced as
 assistant events, not alternate compilation modes.
 
 Current state: `Tilde.Session.AgentLoop` owns assistant start, streaming,
-cancellation, tool projection, and queued prompt continuation. Runtime queuing is
-explicit in session-server state through `pending_prompts`; the loop does not scan
-durable history to decide what to run next. It uses one stream task per active
-loop; `Tilde.Runtime.LLM.Jidoka` runs `Jidoka.turn/3` / `Jidoka.resume/2` and
-streams canonical `Jidoka.Event` structs, while Tilde projects those runtime
-events into durable console events.
+cancellation, semantic event append, and queued prompt continuation. Runtime
+queuing is explicit in session-server state through `pending_prompts`; the loop
+does not scan durable history to decide what to run next. It uses one stream task
+per active loop; `Tilde.Runtime.LLM.Jidoka` runs `Jidoka.turn/3` /
+`Jidoka.resume/2` and streams canonical `Jidoka.Event` structs.
+`Tilde.Runtime.JidokaEvent` is the projection boundary that interprets those
+runtime events as deltas, tool lifecycle values, failure reasons, terminal text,
+and terminal metadata. `Tilde.Runtime.Metadata` sanitizes runtime-originated
+metadata before it enters durable console events.
 
 Runtime loop rules:
 
@@ -241,17 +244,22 @@ Runtime loop rules:
    started/finished, usage, completion, and errors.
 2. Runtime progress is represented as Jidoka events until a terminal turn result,
    hibernation checkpoint, or failure is observed.
-3. Tilde projects runtime transitions back into `Tilde.Core.Event` only:
-   assistant lifecycle events, assistant deltas, tool events, status/usage events,
-   checkpoint metadata, and final assistant messages.
-4. Cancellation stops the active agent task, asks Jidoka to cancel a checkpoint
+3. Tilde projects runtime transitions through `Tilde.Runtime.JidokaEvent` and
+   then back into `Tilde.Core.Event` only: assistant lifecycle events, assistant
+   deltas, tool events, status/usage events, checkpoint metadata, and final
+   assistant messages.
+4. Runtime metadata crossing into durable events is sanitized through
+   `Tilde.Runtime.Metadata`; pids, references, functions, and raw structs must not
+   be persisted.
+5. Cancellation stops the active agent task, asks Jidoka to cancel a checkpoint
    when one exists, emits semantic cancellation/error lifecycle events, and clears
    runtime state without losing durable transcript events.
-5. Index/session transport neutrality is preserved: Live, SSH, and TUI submit
+6. Index/session transport neutrality is preserved: Live, SSH, and TUI submit
    `Tilde.Core.Interaction` values and receive semantic session updates; none of
    them own agent-loop behavior.
-6. Regression coverage must include multi-step tool loops, multiple queued user
-   prompts, cancellation, runtime errors, and resume/listing behavior.
+7. Regression coverage must include multi-step tool loops, multiple queued user
+   prompts, cancellation, runtime errors, projection/sanitization, and
+   resume/listing behavior.
 
 ## Test support
 

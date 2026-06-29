@@ -67,23 +67,21 @@ defmodule Tilde.Session.AgentLoop do
     |> sync_runtime_metadata()
   end
 
-  def handle_stream_event(state, %Jidoka.Event{event: :turn_failed, data: data}, emit)
-      when data in [
-             %{reason: :cancelled},
-             %{"reason" => "cancelled"},
-             %{error: :cancelled},
-             %{"error" => "cancelled"}
-           ] do
-    state
-    |> update_session(
-      &Session.append_event(
-        &1,
-        Tilde.assistant_turn_cancelled(block_id: state.agent_loop.block_id)
+  def handle_stream_event(state, %Jidoka.Event{event: :turn_failed} = event, emit) do
+    if JidokaEvent.cancelled?(event) do
+      state
+      |> update_session(
+        &Session.append_event(
+          &1,
+          Tilde.assistant_turn_cancelled(block_id: state.agent_loop.block_id)
+        )
       )
-    )
-    |> clear_runtime()
-    |> emit_then(emit)
-    |> maybe_start_pending(emit)
+      |> clear_runtime()
+      |> emit_then(emit)
+      |> maybe_start_pending(emit)
+    else
+      append_runtime_failure(state, event, emit)
+    end
   end
 
   def handle_stream_event(state, %Jidoka.Event{event: :llm_delta} = event, emit) do
@@ -141,7 +139,9 @@ defmodule Tilde.Session.AgentLoop do
     |> maybe_start_pending(emit)
   end
 
-  def handle_stream_event(state, %Jidoka.Event{event: :turn_failed} = event, emit) do
+  def handle_stream_event(state, _event, _emit), do: state
+
+  defp append_runtime_failure(state, %Jidoka.Event{} = event, emit) do
     reason = JidokaEvent.failure_reason(event)
 
     state
@@ -156,8 +156,6 @@ defmodule Tilde.Session.AgentLoop do
     |> emit_then(emit)
     |> maybe_start_pending(emit)
   end
-
-  def handle_stream_event(state, _event, _emit), do: state
 
   defp resumable_runtime?(%Session{} = session, %AgentRuntime{} = runtime) do
     AgentRuntime.resumable?(runtime) and not Session.assistant_active?(session)

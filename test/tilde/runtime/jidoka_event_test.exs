@@ -38,8 +38,10 @@ defmodule Tilde.Runtime.JidokaEventTest do
              |> JidokaEvent.operation_finished()
   end
 
-  test "projects terminal text and failure reasons" do
+  test "projects terminal text, cancellation, and failure reasons" do
     assert JidokaEvent.terminal_text(TildeTest.RuntimeEvents.completed("answer")) == "answer"
+    assert JidokaEvent.cancelled?(TildeTest.RuntimeEvents.failed(:cancelled))
+    refute JidokaEvent.cancelled?(TildeTest.RuntimeEvents.failed(:boom))
     assert JidokaEvent.failure_reason(TildeTest.RuntimeEvents.failed(:boom)) == :boom
   end
 

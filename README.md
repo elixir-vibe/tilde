@@ -36,6 +36,9 @@ Initial modules:
 - `Tilde.Core.Widget` — non-transcript UI regions such as above/below input and footer
 - `Tilde.Core.Choice` — semantic choice/approval state
 - `Tilde.Transport.Live.*` — LiveView components in the same package
+- `Tilde.Runtime.LLM` / `Tilde.Runtime.LLM.Jidoka` — Jidoka-backed assistant runtime facade and adapter
+- `Tilde.Runtime.JidokaEvent` — projection boundary from canonical Jidoka events into Tilde runtime values
+- `Tilde.Runtime.Metadata` — sanitizer for runtime-originated metadata before it enters durable Tilde events
 - `Tilde.Runtime.Markdown` — behaviour-backed Markdown rendering facade
 - `Tilde.Runtime.Markdown.Provider` / `Tilde.Runtime.Markdown.Provider.MDEx` — Markdown backend behaviour and MDEx implementation
 - `Tilde.Transport.Live.Markdown` — LiveView Markdown renderer with plain-text fallback
@@ -293,11 +296,13 @@ Tilde keeps its semantic session/event model as the source of truth and delegate
 agent/runtime orchestration to Jidoka. Jidoka, ReqLLM, and Jido action tools are
 required dependencies, not optional compilation paths or swappable Tilde runtime
 backends. `Tilde.Runtime.LLM` is a small facade over `Tilde.Runtime.LLM.Jidoka`,
-which runs `Jidoka.turn/3` / `Jidoka.resume/2` with ReqLLM/OpenRouter and projects
-canonical `Jidoka.Event` structs back into Tilde semantic events. The runtime
-includes a safe demo tool, `Tilde.Tools.UtcNow`, whose Jido tool lifecycle is
-projected back into Tilde semantic tool events. The demo enables automatic
-assistant replies; set `OPENROUTER_API_KEY` to use the configured model:
+which runs `Jidoka.turn/3` / `Jidoka.resume/2` with ReqLLM/OpenRouter.
+`Tilde.Runtime.JidokaEvent` is the projection boundary for canonical
+`Jidoka.Event` structs, and `Tilde.Runtime.Metadata` sanitizes runtime-originated
+metadata before it enters durable Tilde events. The runtime includes a safe demo
+tool, `Tilde.Tools.UtcNow`, whose Jido tool lifecycle is projected back into
+Tilde semantic tool events. The demo enables automatic assistant replies; set
+`OPENROUTER_API_KEY` to use the configured model:
 
 ```elixir
 config :tilde,

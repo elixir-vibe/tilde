@@ -73,6 +73,19 @@ defmodule Tilde.Runtime.JidokaEvent do
     data |> field(:result, "") |> to_string()
   end
 
+  @doc "Returns true when a Jidoka turn-failed event represents cancellation."
+  @spec cancelled?(Jidoka.Event.t()) :: boolean()
+  def cancelled?(%Jidoka.Event{event: :turn_failed, data: data}) do
+    data in [
+      %{reason: :cancelled},
+      %{"reason" => "cancelled"},
+      %{error: :cancelled},
+      %{"error" => "cancelled"}
+    ]
+  end
+
+  def cancelled?(%Jidoka.Event{}), do: false
+
   @doc "Returns the public failure reason from a Jidoka turn-failed event."
   @spec failure_reason(Jidoka.Event.t()) :: term()
   def failure_reason(%Jidoka.Event{event: :turn_failed, data: data}) do
