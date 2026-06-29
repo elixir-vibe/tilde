@@ -43,7 +43,7 @@ defmodule Tilde.MixProject do
       {:ecto_sql, "~> 3.13"},
       {:quackdb, "~> 0.5.13"},
       {:jido, "~> 2.3"},
-      {:jidoka, "~> 0.8.0-beta.1"},
+      {:jidoka, path: "../../agentjido/jidoka", override: true},
       {:req_llm, "~> 1.16"},
       {:json_spec, "~> 1.1"},
       {:hammer, "~> 7.0", optional: true},

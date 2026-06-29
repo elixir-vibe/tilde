@@ -75,22 +75,11 @@ defmodule Tilde.Runtime.JidokaEvent do
 
   @doc "Returns true when a Jidoka turn-failed event represents cancellation."
   @spec cancelled?(Jidoka.Event.t()) :: boolean()
-  def cancelled?(%Jidoka.Event{event: :turn_failed, data: data}) do
-    data in [
-      %{reason: :cancelled},
-      %{"reason" => "cancelled"},
-      %{error: :cancelled},
-      %{"error" => "cancelled"}
-    ]
-  end
-
-  def cancelled?(%Jidoka.Event{}), do: false
+  def cancelled?(%Jidoka.Event{} = event), do: Jidoka.Event.cancelled?(event)
 
   @doc "Returns the public failure reason from a Jidoka turn-failed event."
   @spec failure_reason(Jidoka.Event.t()) :: term()
-  def failure_reason(%Jidoka.Event{event: :turn_failed, data: data}) do
-    field(data, :error, data)
-  end
+  def failure_reason(%Jidoka.Event{} = event), do: Jidoka.Event.failure_reason(event)
 
   @doc "Returns sanitized terminal metadata for a Jidoka turn-finished event."
   @spec terminal_metadata(AgentRuntime.t() | nil, Jidoka.Event.t()) :: map()

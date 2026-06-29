@@ -1,5 +1,11 @@
 ExUnit.start()
 
+Application.put_env(
+  :jidoka,
+  :snapshot_signing_secret,
+  "tilde-test-snapshot-signing-secret-00000000"
+)
+
 unless System.get_env("TILDE_QUACKDB_INTEGRATION") in ["1", "true"] do
   ExUnit.configure(exclude: [quackdb_integration: true])
 end

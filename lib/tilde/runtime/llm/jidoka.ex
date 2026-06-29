@@ -269,11 +269,11 @@ defmodule Tilde.Runtime.LLM.Jidoka do
         jidoka_llm(opts)
 
       llm when is_function(llm, 2) ->
-        llm
+        fn intent, journal, _context -> llm.(intent, journal) end
 
       llm when is_function(llm, 3) ->
         stream_opts = [stream_to: self()]
-        fn intent, journal -> llm.(intent, journal, stream_opts) end
+        fn intent, journal, _context -> llm.(intent, journal, stream_opts) end
     end
   end
 
@@ -283,10 +283,10 @@ defmodule Tilde.Runtime.LLM.Jidoka do
     stream_opts = [stream_to: self()]
 
     fn
-      %Jidoka.Effect.Intent{kind: :operation, payload: payload} = intent, journal ->
+      %Jidoka.Effect.Intent{kind: :operation, payload: payload} = intent, journal, context ->
         emit_operation_started(intent, payload, stream_opts)
 
-        case delegate.(intent, journal) do
+        case delegate.(intent, journal, context) do
           {:ok, result} = ok ->
             emit_operation_completed(intent, payload, {:ok, result}, stream_opts)
             ok
@@ -296,8 +296,8 @@ defmodule Tilde.Runtime.LLM.Jidoka do
             error
         end
 
-      intent, journal ->
-        delegate.(intent, journal)
+      intent, journal, context ->
+        delegate.(intent, journal, context)
     end
   end
 

@@ -533,7 +533,7 @@ defmodule Tilde.Session.ServerTest do
       end)
     end
 
-    test "session server maps cancelled Jidoka LLM capability failures to error assistant turns" do
+    test "session server maps cancelled Jidoka LLM capability failures to cancelled assistant turns" do
       with_application_env(:llm_enabled, true, fn ->
         name =
           :"tilde_session_server_llm_runtime_cancel_test_#{System.unique_integer([:positive])}"
@@ -549,7 +549,7 @@ defmodule Tilde.Session.ServerTest do
         Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
 
         assert_receive_phase("llm_runtime_cancel", :waiting)
-        assert_receive_phase("llm_runtime_cancel", :error)
+        assert_receive_phase("llm_runtime_cancel", :cancelled)
 
         GenServer.stop(pid)
       end)
@@ -1251,7 +1251,7 @@ defmodule Tilde.Session.ServerTest do
 
         assert %Session{} = Tilde.Session.Server.subscribe(name)
         Tilde.Session.Server.append_event(name, Tilde.input_submitted("hello"))
-        assert_receive {:buffered_delta_llm_started, task}
+        assert_receive {:buffered_delta_llm_started, task}, 1_000
 
         assert_receive_phase("buffered_delta", :waiting)
 
@@ -1308,20 +1308,19 @@ defmodule Tilde.Session.ServerTest do
 
   defp operation_then_final_llm(operation, arguments, final, opts \\ []) do
     notify = Keyword.get(opts, :notify)
-    key = {__MODULE__, make_ref()}
+    state = llm_sequence_state()
 
     fn _intent, _journal ->
-      next_llm_decision(key, operation, arguments, final, notify)
+      next_llm_decision(state, operation, arguments, final, notify)
     end
   end
 
   defp before_tool_after_tool_llm(before_text, operation, arguments, after_text) do
-    key = {__MODULE__, make_ref()}
+    state = llm_sequence_state()
 
     fn intent, _journal, stream_opts ->
-      case Process.get(key, :operation) do
+      case next_llm_sequence_step(state) do
         :operation ->
-          Process.put(key, :final)
           emit_llm_delta(intent, stream_opts, :content, before_text, 0)
           {:ok, Jidoka.Effect.LLMDecision.operation(operation, arguments)}
 
@@ -1332,15 +1331,14 @@ defmodule Tilde.Session.ServerTest do
     end
   end
 
-  defp next_llm_decision(key, operation, arguments, final, notify) do
-    case Process.get(key, :operation) do
-      :operation -> operation_llm_decision(key, operation, arguments, notify)
+  defp next_llm_decision(state, operation, arguments, final, notify) do
+    case next_llm_sequence_step(state) do
+      :operation -> operation_llm_decision(operation, arguments, notify)
       :final -> final_llm_decision(final, notify)
     end
   end
 
-  defp operation_llm_decision(key, operation, arguments, notify) do
-    Process.put(key, :final)
+  defp operation_llm_decision(operation, arguments, notify) do
     notify(notify, :jidoka_tool_llm_operation_requested)
     {:ok, Jidoka.Effect.LLMDecision.operation(operation, arguments)}
   end
@@ -1348,6 +1346,18 @@ defmodule Tilde.Session.ServerTest do
   defp final_llm_decision(final, notify) do
     notify(notify, :jidoka_tool_llm_final_requested)
     {:ok, Jidoka.Effect.LLMDecision.final(final)}
+  end
+
+  defp llm_sequence_state do
+    {:ok, state} = Agent.start_link(fn -> :operation end)
+    state
+  end
+
+  defp next_llm_sequence_step(state) do
+    Agent.get_and_update(state, fn
+      :operation -> {:operation, :final}
+      :final -> {:final, :final}
+    end)
   end
 
   defp notify(nil, _message), do: :ok
