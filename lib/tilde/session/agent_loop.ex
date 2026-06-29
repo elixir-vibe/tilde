@@ -481,12 +481,18 @@ defmodule Tilde.Session.AgentLoop do
   defp sanitize_runtime_metadata(map) when is_map(map) do
     map
     |> Enum.reduce(%{}, fn {key, value}, acc ->
-      case sanitize_runtime_value(value) do
-        nil -> acc
-        sanitized -> Map.put(acc, key, sanitized)
+      with sanitized_key when not is_nil(sanitized_key) <- sanitize_runtime_key(key),
+           sanitized_value when not is_nil(sanitized_value) <- sanitize_runtime_value(value) do
+        Map.put(acc, sanitized_key, sanitized_value)
+      else
+        _unsafe -> acc
       end
     end)
   end
+
+  defp sanitize_runtime_key(key) when is_atom(key) or is_binary(key) or is_number(key), do: key
+  defp sanitize_runtime_key(%_struct{} = key), do: inspect(key)
+  defp sanitize_runtime_key(_key), do: nil
 
   defp sanitize_runtime_value(value)
        when is_pid(value) or is_reference(value) or is_function(value), do: nil
@@ -501,6 +507,8 @@ defmodule Tilde.Session.AgentLoop do
     |> Enum.map(&sanitize_runtime_value/1)
     |> Enum.reject(&is_nil/1)
   end
+
+  defp sanitize_runtime_value(%_struct{} = value), do: inspect(value)
 
   defp sanitize_runtime_value(value) when is_map(value), do: sanitize_runtime_metadata(value)
 

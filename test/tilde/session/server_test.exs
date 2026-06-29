@@ -619,7 +619,8 @@ defmodule Tilde.Session.ServerTest do
         assert [%{summary: "reasoned"}] = finished.metadata.reasoning_details
         assert finished.metadata.jidoka.metadata.usage == %{input_tokens: 21, output_tokens: 8}
         assert finished.metadata.jidoka.metadata.termination_reason == :final_answer
-        refute contains_process_identifier?(finished.metadata)
+        assert is_binary(finished.metadata.jidoka.metadata.generated_at)
+        refute contains_runtime_value?(finished.metadata)
 
         assert Session.agent_runtime(session).active? == false
 
@@ -666,7 +667,7 @@ defmodule Tilde.Session.ServerTest do
         assert finished.metadata.jidoka.journal.operation_count == 1
         assert finished.metadata.jidoka.journal.operation_statuses == [:ok]
         assert [%{operation: "utc_now"}] = finished.metadata.jidoka.operations
-        refute contains_process_identifier?(finished.metadata.jidoka)
+        refute contains_runtime_value?(finished.metadata.jidoka)
 
         GenServer.stop(pid)
       end)
@@ -1071,7 +1072,7 @@ defmodule Tilde.Session.ServerTest do
             runtime = Tilde.Core.AgentRuntime.load(checkpoint.agent_loop)
             assert String.starts_with?(runtime.checkpoint_token, "jidoka:snapshot:v1:")
 
-            refute contains_process_identifier?(checkpoint)
+            refute contains_runtime_value?(checkpoint)
 
             Server.apply_interaction(server, %Tilde.Core.Interaction{type: :interrupt})
 
@@ -1085,7 +1086,7 @@ defmodule Tilde.Session.ServerTest do
 
             assert cleared.agent_loop.active? == false
             assert cleared.agent_loop.run_id == nil
-            refute contains_process_identifier?(cleared)
+            refute contains_runtime_value?(cleared)
           end)
         end)
       end)
@@ -1150,20 +1151,23 @@ defmodule Tilde.Session.ServerTest do
       end
     end
 
-    defp contains_process_identifier?(pid) when is_pid(pid), do: true
-    defp contains_process_identifier?(reference) when is_reference(reference), do: true
+    defp contains_runtime_value?(pid) when is_pid(pid), do: true
+    defp contains_runtime_value?(reference) when is_reference(reference), do: true
+    defp contains_runtime_value?(function) when is_function(function), do: true
+    defp contains_runtime_value?(%_struct{}), do: true
+    defp contains_runtime_value?(%{__struct__: _module}), do: true
 
-    defp contains_process_identifier?(map) when is_map(map) do
+    defp contains_runtime_value?(map) when is_map(map) do
       Enum.any?(map, fn {key, value} ->
-        contains_process_identifier?(key) or contains_process_identifier?(value)
+        contains_runtime_value?(key) or contains_runtime_value?(value)
       end)
     end
 
-    defp contains_process_identifier?(list) when is_list(list) do
-      Enum.any?(list, &contains_process_identifier?/1)
+    defp contains_runtime_value?(list) when is_list(list) do
+      Enum.any?(list, &contains_runtime_value?/1)
     end
 
-    defp contains_process_identifier?(_value), do: false
+    defp contains_runtime_value?(_value), do: false
   end
 
   describe "stream coalescing" do
@@ -1361,7 +1365,13 @@ defmodule Tilde.Session.ServerTest do
                usage: %{input_tokens: 21, output_tokens: 8},
                termination_reason: :final_answer,
                thinking_content: "I should answer tersely.",
-               reasoning_details: [%{summary: "reasoned", dropped: self()}]
+               reasoning_details: [%{summary: "reasoned", dropped: self()}],
+               generated_at: DateTime.utc_now(),
+               callback: fn -> :unsafe end,
+               nested: %{
+                 volatile_ref: make_ref(),
+                 volatile_key: %{self() => "task pid key"}
+               }
              }
            )}
       after
