@@ -39,22 +39,6 @@ defmodule Tilde.Core.AgentRuntime do
   @spec clear() :: t()
   def clear, do: new()
 
-  @spec from_agent_loop(map()) :: t()
-  def from_agent_loop(agent_loop) when is_map(agent_loop) do
-    run = Map.get(agent_loop, :run, Map.get(agent_loop, "run"))
-
-    new(
-      active?: field(agent_loop, :active?, "active?", false),
-      input_index: field(agent_loop, :input_index, "input_index"),
-      block_id: field(agent_loop, :block_id, "block_id"),
-      queue_length: field(agent_loop, :queue_length, "queue_length", 0),
-      run_id: run_field(run, :run_id),
-      request_id: run_field(run, :request_id),
-      checkpoint_token: run_field(run, :checkpoint_token),
-      iteration: run_field(run, :iteration)
-    )
-  end
-
   @spec resumable?(t()) :: boolean()
   def resumable?(%__MODULE__{} = runtime) do
     runtime.active? and present?(runtime.run_id) and present?(runtime.request_id) and
@@ -86,16 +70,6 @@ defmodule Tilde.Core.AgentRuntime do
     attrs = Map.new(attrs)
     Map.get(attrs, atom_key, Map.get(attrs, string_key, default))
   end
-
-  defp run_field(nil, _key), do: nil
-
-  defp run_field(run, :run_id) when is_map(run), do: field(run, :run_id, "run_id")
-  defp run_field(run, :request_id) when is_map(run), do: field(run, :request_id, "request_id")
-
-  defp run_field(run, :checkpoint_token) when is_map(run),
-    do: field(run, :checkpoint_token, "checkpoint_token")
-
-  defp run_field(run, :iteration) when is_map(run), do: field(run, :iteration, "iteration")
 
   defp present?(value) when is_binary(value), do: String.trim(value) != ""
   defp present?(_value), do: false

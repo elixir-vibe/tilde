@@ -2,14 +2,14 @@ defmodule Tilde.Session.AgentLoop.State do
   @moduledoc "Typed runtime state for the session-owned agent loop."
 
   alias Tilde.Core.AgentRuntime
-  alias Tilde.Session.AgentLoop.{Prompt, Run}
+  alias Tilde.Session.AgentLoop.Prompt
 
   defstruct active?: false,
             input_index: nil,
             task: nil,
             ref: nil,
             block_id: nil,
-            run: nil,
+            runtime: nil,
             queue: []
 
   @type t :: %__MODULE__{
@@ -18,7 +18,7 @@ defmodule Tilde.Session.AgentLoop.State do
           task: pid() | nil,
           ref: reference() | nil,
           block_id: String.t() | nil,
-          run: Run.t() | nil,
+          runtime: AgentRuntime.t() | nil,
           queue: [Prompt.t()]
         }
 
@@ -41,7 +41,7 @@ defmodule Tilde.Session.AgentLoop.State do
         task: task,
         ref: ref,
         block_id: block_id,
-        run: nil
+        runtime: nil
     }
   end
 
@@ -55,21 +55,23 @@ defmodule Tilde.Session.AgentLoop.State do
         task: task,
         ref: ref,
         block_id: block_id,
-        run: Run.from_runtime(runtime)
+        runtime: runtime
     }
   end
 
   @spec clear_active(t()) :: t()
   def clear_active(%__MODULE__{} = state) do
-    %{state | active?: false, input_index: nil, task: nil, ref: nil, block_id: nil, run: nil}
+    %{state | active?: false, input_index: nil, task: nil, ref: nil, block_id: nil, runtime: nil}
   end
 
-  @spec put_run(t(), Run.t() | nil) :: t()
-  def put_run(%__MODULE__{} = state, run), do: %{state | run: run}
+  @spec put_started_runtime(t(), Jidoka.Event.t()) :: t()
+  def put_started_runtime(%__MODULE__{} = state, %Jidoka.Event{} = event) do
+    %{state | runtime: runtime_from_event(event)}
+  end
 
   @spec put_checkpoint(t(), Jidoka.Event.t()) :: t()
-  def put_checkpoint(%__MODULE__{} = state, event) do
-    %{state | run: Run.put_checkpoint(state.run, event)}
+  def put_checkpoint(%__MODULE__{} = state, %Jidoka.Event{} = event) do
+    %{state | runtime: checkpoint_runtime(state.runtime, event)}
   end
 
   @spec enqueue(t(), Prompt.t()) :: t()
@@ -97,13 +99,49 @@ defmodule Tilde.Session.AgentLoop.State do
 
   @spec runtime(t()) :: AgentRuntime.t()
   def runtime(%__MODULE__{} = state) do
-    AgentRuntime.from_agent_loop(%{
+    AgentRuntime.new(%{
       active?: state.active?,
       input_index: state.input_index,
       block_id: state.block_id,
       queue_length: length(state.queue),
-      run: Run.snapshot(state.run)
+      run_id: runtime_field(state.runtime, :run_id),
+      request_id: runtime_field(state.runtime, :request_id),
+      checkpoint_token: runtime_field(state.runtime, :checkpoint_token),
+      iteration: runtime_field(state.runtime, :iteration)
     })
+  end
+
+  defp checkpoint_runtime(nil, %Jidoka.Event{} = event) do
+    event
+    |> runtime_from_event()
+    |> checkpoint_runtime(event)
+  end
+
+  defp checkpoint_runtime(%AgentRuntime{} = runtime, %Jidoka.Event{
+         data: data,
+         loop_index: loop_index
+       }) do
+    %{
+      runtime
+      | checkpoint_token: field(data, :token) || field(data, :snapshot),
+        iteration: loop_index
+    }
+  end
+
+  defp runtime_from_event(%Jidoka.Event{} = event) do
+    AgentRuntime.new(
+      active?: true,
+      run_id: event.agent_id || event.request_id || event.effect_id,
+      request_id: event.request_id,
+      iteration: event.loop_index
+    )
+  end
+
+  defp runtime_field(%AgentRuntime{} = runtime, field), do: Map.get(runtime, field)
+  defp runtime_field(nil, _field), do: nil
+
+  defp field(data, key) when is_atom(key) and is_map(data) do
+    Map.get(data, key, Map.get(data, Atom.to_string(key)))
   end
 
   defp alive?(pid) when is_pid(pid), do: Process.alive?(pid)

@@ -3,7 +3,7 @@ defmodule Tilde.Session.AgentLoop do
 
   alias Tilde.Core.{AgentRuntime, Event, Session}
   alias Tilde.Runtime.{LLM, RateLimit}
-  alias Tilde.Session.AgentLoop.{Prompt, Run, State}
+  alias Tilde.Session.AgentLoop.{Prompt, State}
   alias Tilde.Tool.Event, as: ToolEvent
 
   @type server_state :: map()
@@ -40,7 +40,7 @@ defmodule Tilde.Session.AgentLoop do
 
   @spec cancel(server_state(), emit_fun()) :: server_state()
   def cancel(state, emit) do
-    cancel_checkpoint(state.agent_loop.run)
+    cancel_checkpoint(state.agent_loop.runtime)
     cancel_task(state.agent_loop.task)
 
     state
@@ -58,7 +58,7 @@ defmodule Tilde.Session.AgentLoop do
           server_state()
   def handle_stream_event(state, %Jidoka.Event{event: :turn_started} = event, _emit) do
     state
-    |> put_agent_loop(State.put_run(state.agent_loop, Run.from_event(event)))
+    |> put_agent_loop(State.put_started_runtime(state.agent_loop, event))
     |> sync_runtime_metadata()
   end
 
@@ -345,7 +345,7 @@ defmodule Tilde.Session.AgentLoop do
     Tilde.Runtime.LLM.Event.failed(reason, source: "tilde-agent-loop")
   end
 
-  defp cancel_checkpoint(%Run{checkpoint_token: token}) when is_binary(token) do
+  defp cancel_checkpoint(%AgentRuntime{checkpoint_token: token}) when is_binary(token) do
     _result = LLM.cancel_checkpoint(token)
     :ok
   end
@@ -444,12 +444,8 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp runtime_metadata(state, event_data) do
-    state.agent_loop.run
-    |> Run.snapshot()
-    |> case do
-      nil -> %{}
-      snapshot -> snapshot
-    end
+    state.agent_loop.runtime
+    |> runtime_snapshot()
     |> Map.merge(
       reject_nil_values(%{
         usage: event_field(event_data, :usage),
@@ -461,6 +457,15 @@ defmodule Tilde.Session.AgentLoop do
     )
     |> reject_nil_values()
     |> sanitize_runtime_metadata()
+  end
+
+  defp runtime_snapshot(nil), do: %{}
+
+  defp runtime_snapshot(%AgentRuntime{} = runtime) do
+    runtime
+    |> AgentRuntime.dump()
+    |> Map.take([:run_id, :request_id, :checkpoint_token, :iteration])
+    |> reject_nil_values()
   end
 
   defp sanitize_runtime_metadata(map) when is_map(map) do
