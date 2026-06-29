@@ -4,7 +4,7 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
   alias Tilde.Core.Session
   alias Tilde.Runtime.LLM.Provider.Jido
 
-  test "starts standalone ReAct with Tilde transcript as Jido context" do
+  test "starts Jidoka turn with Tilde transcript as agent context" do
     previous_key = System.get_env("OPENROUTER_API_KEY")
     System.put_env("OPENROUTER_API_KEY", "test-key")
 
@@ -18,10 +18,10 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
 
         _events =
           session
-          |> Jido.stream(request_transformer: __MODULE__.CaptureAndStop)
+          |> Jido.stream(llm: __MODULE__.CaptureAndStop.llm())
           |> Enum.to_list()
 
-        assert_receive {:jido_messages, messages}
+        assert_receive {:jidoka_messages, messages}
 
         assert Enum.map(messages, & &1.role) == [:system, :user, :assistant, :user]
 
@@ -40,9 +40,12 @@ defmodule Tilde.Runtime.LLM.Provider.JidoContextTest do
   defp system_prompt([%{role: :system, content: prompt} | _]), do: prompt
 
   defmodule CaptureAndStop do
-    def transform_request(%{messages: messages}, _state, _config, _runtime_context) do
-      send(Application.fetch_env!(:tilde, :jido_context_test_pid), {:jido_messages, messages})
-      {:error, :captured}
+    def llm do
+      fn intent, _journal ->
+        messages = get_in(intent.payload, [:prompt, :messages])
+        send(Application.fetch_env!(:tilde, :jido_context_test_pid), {:jidoka_messages, messages})
+        {:ok, Jidoka.Effect.LLMDecision.final("captured")}
+      end
     end
   end
 end

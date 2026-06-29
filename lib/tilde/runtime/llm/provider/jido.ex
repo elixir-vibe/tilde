@@ -1,18 +1,16 @@
 defmodule Tilde.Runtime.LLM.Provider.Jido do
   @moduledoc """
-  Jido.AI ReAct-backed LLM backend for Tilde.
+  Jidoka-backed LLM backend for Tilde.
 
-  This provider currently uses Jido.AI's ReAct runtime internally and emits
-  Jidoka runtime events at the Tilde agent-loop boundary.
-  Tilde owns session/event projection; Jido owns model routing, ReAct iteration,
-  and tool execution until the internals are fully replaced by Jidoka.
+  Tilde owns session/event projection; Jidoka owns model routing, turn execution,
+  effect interpretation, and operation journaling.
   """
 
   @behaviour Tilde.Runtime.LLM.Provider
 
-  alias Jido.AI.Context, as: AIContext
-  alias Jido.AI.Reasoning.ReAct.State, as: ReActState
-  alias Jido.AI.Runtime.Event, as: JidoRuntimeEvent
+  alias Jidoka.Agent
+  alias Jidoka.Runtime.JidoActions
+  alias Jidoka.Runtime.ReqLLM, as: JidokaReqLLM
   alias Tilde.Core.{Block, Session}
   alias Tilde.Runtime.LLM
   alias Tilde.Session.AgentLoop.ResumeCandidate
@@ -40,7 +38,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   - If no real next step is explicit in the transcript, write "Not specified" rather than inventing one.
   """
 
-  @default_max_iterations 1_000_000
+  @default_max_model_turns 1_000_000
 
   @runtime_errors [
     RuntimeError,
@@ -61,12 +59,7 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   def stream(%Session{} = session, opts \\ []) do
     case ensure_openrouter_key() do
       :ok ->
-        config = Jido.AI.Reasoning.ReAct.build_config(react_config(opts))
-        query = query(session, opts)
-
-        query
-        |> Jido.AI.Reasoning.ReAct.stream(config, react_opts(session, query, config))
-        |> adapt_react_events()
+        run_turn_stream(session, query(session, opts), opts)
 
       {:error, reason} ->
         [failed_event(reason)]
@@ -76,15 +69,10 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   end
 
   @impl true
-  def resume_checkpoint(%Session{} = session, %ResumeCandidate{} = candidate, opts \\ []) do
+  def resume_checkpoint(%Session{} = _session, %ResumeCandidate{} = candidate, opts \\ []) do
     case ensure_openrouter_key() do
       :ok ->
-        candidate.checkpoint_token
-        |> Jido.AI.Reasoning.ReAct.continue(react_config(opts), resume_opts(session))
-        |> case do
-          {:ok, %{events: events}} -> events |> adapt_react_events() |> Enum.to_list()
-          {:error, reason} -> [failed_event(reason)]
-        end
+        resume_turn_stream(candidate.checkpoint_token, opts)
 
       {:error, reason} ->
         [failed_event(reason)]
@@ -108,10 +96,8 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   end
 
   @impl true
-  def cancel_checkpoint(token, opts \\ []) when is_binary(token) do
-    Jido.AI.Reasoning.ReAct.cancel(token, react_config(opts), :user_aborted)
-  rescue
-    exception in @runtime_errors -> {:error, exception}
+  def cancel_checkpoint(token, _opts \\ []) when is_binary(token) do
+    {:ok, token}
   end
 
   defp generate_compaction_summary(messages, opts) do
@@ -186,49 +172,128 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
     end
   end
 
-  defp react_config(opts) do
-    [
-      model: Keyword.get(opts, :model, LLM.model()),
-      system_prompt: Keyword.get(opts, :system_prompt, @system_prompt),
-      tools: Keyword.get(opts, :tools, Tilde.Tools.coding_tools()),
-      max_iterations: max_iterations(opts),
-      max_tokens: Keyword.get(opts, :max_tokens, 800),
-      streaming: true,
-      timeout_ms: Keyword.get(opts, :timeout, 30_000),
-      llm_opts: llm_opts(opts),
-      request_transformer: Keyword.get(opts, :request_transformer)
-    ]
+  defp run_turn_stream(%Session{} = session, query, opts) do
+    with {:ok, agent} <- jidoka_agent(opts),
+         {:ok, request} <- turn_request(session, query, opts),
+         {:ok, async} <- start_async_turn(agent, request, opts) do
+      async
+      |> Jidoka.stream(stream_opts(opts))
+      |> Stream.map(&enrich_terminal_event(&1, async, opts))
+    else
+      {:error, reason} -> [failed_event(reason)]
+    end
   end
 
-  defp resume_opts(%Session{} = session), do: [context: %{session_id: session.id}]
+  defp resume_turn_stream(snapshot_token, opts) do
+    case start_async_resume(snapshot_token, opts) do
+      {:ok, async} ->
+        async
+        |> Jidoka.stream(stream_opts(opts))
+        |> Stream.map(&enrich_terminal_event(&1, async, opts))
 
-  defp react_opts(%Session{} = session, query, config) do
-    [
-      context: %{session_id: session.id},
-      state: react_state(session, query, config.system_prompt)
-    ]
+      {:error, reason} ->
+        [failed_event(reason)]
+    end
   end
 
-  defp react_state(%Session{} = session, query, system_prompt) do
-    state = ReActState.new(query, system_prompt)
+  defp start_async_turn(agent, request, opts) do
+    runtime_opts = Keyword.put(runtime_opts(opts), :request_id, request.request_id)
 
-    context =
-      AIContext.new(system_prompt: system_prompt)
-      |> AIContext.append_messages(history_messages(session))
-      |> AIContext.append_user(query)
-
-    %{state | context: context}
-  end
-
-  defp max_iterations(opts) do
-    Keyword.get_lazy(opts, :max_iterations, fn ->
-      Application.get_env(:tilde, :llm_max_iterations, @default_max_iterations)
+    Jidoka.Chat.Request.start_fun(agent, request.input, runtime_opts, fn prepared_opts ->
+      Jidoka.turn(agent, request, prepared_opts)
     end)
   end
 
-  defp llm_opts(opts) do
-    [provider_options: provider_options(opts)]
+  defp start_async_resume(snapshot_token, opts) do
+    Jidoka.Chat.Request.start_fun(
+      snapshot_token,
+      "resume",
+      runtime_opts(opts),
+      fn prepared_opts ->
+        Jidoka.resume(snapshot_token, prepared_opts)
+      end
+    )
   end
+
+  defp jidoka_agent(opts) do
+    Jidoka.agent(
+      id: Keyword.get(opts, :agent_id, "tilde"),
+      instructions: Keyword.get(opts, :system_prompt, @system_prompt),
+      model: Keyword.get(opts, :model, LLM.model()),
+      generation: generation(opts),
+      operations: JidoActions.operations_from_actions(jido_actions(opts)),
+      runtime_defaults: %{
+        provider: :tilde,
+        max_model_turns: max_model_turns(opts),
+        timeout_ms: Keyword.get(opts, :timeout, 30_000)
+      }
+    )
+  end
+
+  defp turn_request(%Session{} = session, query, opts) do
+    attrs = [
+      input: query,
+      context: %{session_id: session.id},
+      agent_state: Agent.State.new!(messages: history_messages(session))
+    ]
+
+    attrs =
+      case Keyword.get(opts, :request_id) do
+        request_id when is_binary(request_id) and request_id != "" ->
+          Keyword.put(attrs, :request_id, request_id)
+
+        _request_id ->
+          attrs
+      end
+
+    Jidoka.Turn.Request.from_input(attrs)
+  end
+
+  defp generation(opts) do
+    %{
+      params: %{
+        max_tokens: Keyword.get(opts, :max_tokens, 800),
+        temperature: Keyword.get(opts, :temperature, 0.0),
+        timeout: Keyword.get(opts, :timeout, 30_000)
+      },
+      provider_options: provider_options(opts) |> Map.new()
+    }
+  end
+
+  defp runtime_opts(opts) do
+    [
+      llm: Keyword.get_lazy(opts, :llm, fn -> jidoka_llm(opts) end),
+      operations:
+        JidoActions.operations(jido_actions(opts), context: Keyword.get(opts, :context, %{})),
+      checkpoint: Keyword.get(opts, :checkpoint, :none),
+      timeout: Keyword.get(opts, :timeout, 30_000),
+      max_model_turns: max_model_turns(opts),
+      stream: true
+    ]
+  end
+
+  defp jidoka_llm(opts) do
+    JidokaReqLLM.llm(
+      model: Keyword.get(opts, :model, LLM.model()),
+      max_tokens: Keyword.get(opts, :max_tokens, 800),
+      temperature: Keyword.get(opts, :temperature, 0.0),
+      timeout: Keyword.get(opts, :timeout, 30_000),
+      provider_options: provider_options(opts),
+      stream: true
+    )
+  end
+
+  defp stream_opts(opts), do: [stream_event_timeout_ms: Keyword.get(opts, :timeout, 30_000)]
+
+  defp max_model_turns(opts) do
+    Keyword.get_lazy(opts, :max_model_turns, fn ->
+      Keyword.get_lazy(opts, :max_iterations, fn ->
+        Application.get_env(:tilde, :llm_max_iterations, @default_max_model_turns)
+      end)
+    end)
+  end
+
+  defp jido_actions(opts), do: Keyword.get(opts, :tools, Tilde.Tools.coding_tools())
 
   defp provider_options(opts) do
     [app_title: Keyword.get(opts, :app_title, "Tilde")]
@@ -245,83 +310,49 @@ defmodule Tilde.Runtime.LLM.Provider.Jido do
   defp maybe_put_app_referer(options, app_referer),
     do: Keyword.put(options, :app_referer, app_referer)
 
-  # Temporary private bridge while this provider still runs Jido.AI ReAct
-  # internally. The boundary above this provider is already Jidoka.Event.
-  defp adapt_react_events(events) do
-    Stream.flat_map(events, &adapt_react_event/1)
+  defp enrich_terminal_event(%Jidoka.Event{event: :turn_finished} = event, async, opts) do
+    case Jidoka.await(async, timeout: Keyword.get(opts, :timeout, 30_000)) do
+      {:ok, %Jidoka.Turn.Result{} = result} ->
+        put_event_data(event, %{result: result.content})
+
+      {:ok, _session, content} when is_binary(content) ->
+        put_event_data(event, %{result: content})
+
+      {:ok, content} when is_binary(content) ->
+        put_event_data(event, %{result: content})
+
+      {:error, reason} ->
+        failed_event(reason)
+
+      _other ->
+        event
+    end
   end
 
-  defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{kind: :input_injected}), do: []
+  defp enrich_terminal_event(%Jidoka.Event{event: :turn_hibernated} = event, async, opts) do
+    case Jidoka.await(async, timeout: Keyword.get(opts, :timeout, 30_000)) do
+      {:hibernate, snapshot} ->
+        put_event_data(event, %{snapshot: serialize_snapshot(snapshot)})
 
-  defp adapt_react_event(%Jido.AI.Reasoning.ReAct.Event{} = event) do
-    [event |> Map.from_struct() |> JidoRuntimeEvent.new() |> jidoka_event()]
+      {:hibernate, _session, snapshot} ->
+        put_event_data(event, %{snapshot: serialize_snapshot(snapshot)})
+
+      _other ->
+        event
+    end
   end
 
-  defp adapt_react_event(%JidoRuntimeEvent{} = event), do: [jidoka_event(event)]
-  defp adapt_react_event(%Jidoka.Event{} = event), do: [event]
+  defp enrich_terminal_event(%Jidoka.Event{} = event, _async, _opts), do: event
 
-  defp jidoka_event(%JidoRuntimeEvent{kind: :request_started} = event) do
-    Jidoka.Event.build(:turn_started, [], jidoka_attrs(event))
+  defp put_event_data(%Jidoka.Event{data: data} = event, extra) when is_map(data) do
+    %Jidoka.Event{event | data: Map.merge(data, extra)}
   end
 
-  defp jidoka_event(%JidoRuntimeEvent{kind: :checkpoint, data: data} = event) do
-    Jidoka.Event.build(:turn_hibernated, [], jidoka_attrs(event, data: data))
-  end
-
-  defp jidoka_event(%JidoRuntimeEvent{kind: :request_cancelled} = event) do
-    Jidoka.Event.build(:turn_failed, [], jidoka_attrs(event, data: %{reason: :cancelled}))
-  end
-
-  defp jidoka_event(%JidoRuntimeEvent{kind: :llm_delta, data: data} = event) do
-    Jidoka.Event.build(:llm_delta, [], jidoka_attrs(event, effect_kind: :llm, data: data))
-  end
-
-  defp jidoka_event(%JidoRuntimeEvent{kind: :tool_started, data: data} = event) do
-    Jidoka.Event.build(
-      :effect_started,
-      [],
-      jidoka_attrs(event,
-        effect_id: event.tool_call_id,
-        effect_kind: :operation,
-        operation: event.tool_name,
-        data: data
-      )
-    )
-  end
-
-  defp jidoka_event(%JidoRuntimeEvent{kind: :tool_completed, data: data} = event) do
-    Jidoka.Event.build(
-      :effect_completed,
-      [],
-      jidoka_attrs(event,
-        effect_id: event.tool_call_id,
-        effect_kind: :operation,
-        operation: event.tool_name,
-        data: data
-      )
-    )
-  end
-
-  defp jidoka_event(%JidoRuntimeEvent{kind: :request_completed, data: data} = event) do
-    Jidoka.Event.build(:turn_finished, [], jidoka_attrs(event, data: data))
-  end
-
-  defp jidoka_event(%JidoRuntimeEvent{kind: :request_failed, data: data} = event) do
-    Jidoka.Event.build(:turn_failed, [], jidoka_attrs(event, data: data))
-  end
-
-  defp jidoka_event(%JidoRuntimeEvent{} = event) do
-    Jidoka.Event.build(:effect_completed, [], jidoka_attrs(event, data: event.data || %{}))
-  end
-
-  defp jidoka_attrs(event, attrs \\ []) do
-    [
-      seq: event.seq || 0,
-      agent_id: event.run_id || "tilde-jido-provider",
-      request_id: event.request_id || event.run_id || "tilde-jido-provider",
-      loop_index: event.iteration || 0
-    ]
-    |> Keyword.merge(attrs)
+  defp serialize_snapshot(snapshot) do
+    case Jidoka.Runtime.AgentSnapshot.serialize(snapshot) do
+      {:ok, token} -> token
+      _other -> snapshot
+    end
   end
 
   defp history_messages(%Session{} = session) do
