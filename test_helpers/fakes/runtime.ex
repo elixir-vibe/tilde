@@ -136,7 +136,7 @@ defmodule TildeTest.RuntimeEvents do
   end
 
   def failed(reason) do
-    event(:turn_failed, %{error: reason})
+    event(:turn_failed, %{reason: reason})
   end
 
   defp event(kind, data, opts \\ []) do
