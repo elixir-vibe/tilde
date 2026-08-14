@@ -20,21 +20,16 @@ defmodule Tilde.Demo.Live do
   import Tilde.Transport.Live.Workspace
   import Tilde.Transport.Live.WorkspaceFile
 
-  alias Tilde.Core.Index
   alias Tilde.Core.Interaction
-  alias Tilde.Core.Palette
-  alias Tilde.Core.Review
   alias Tilde.Core.Session
   alias Tilde.Core.Shortcuts
-  alias Tilde.Core.Workspace
-  alias Tilde.Runtime.WorkspaceFiles
-  alias Tilde.Runtime.WorkspaceReview
+  alias Tilde.Index
   alias Tilde.Session.Loader, as: SessionLoader
   alias Tilde.Session.Registry, as: SessionRegistry
-  alias Tilde.Session.ReviewState
   alias Tilde.Session.Server, as: SessionServer
   alias Tilde.Transport.Live.Interaction, as: LiveInteraction
   alias Tilde.Transport.Live.Outcome, as: LiveOutcome
+  alias Tilde.Workbench
 
   @impl true
   def mount(%{"session_id" => _session_id} = params, _session, socket) do
@@ -54,26 +49,17 @@ defmodule Tilde.Demo.Live do
         SessionServer.get_session(server)
       end
 
-    workspace = WorkspaceFiles.workspace(session)
+    workbench = Workbench.new(session)
 
     {:ok,
      socket
      |> assign(
        mode: :session,
        session_server: server,
-       session: session,
-       workspace: workspace,
-       workspace_mode: :chat,
-       workspace_view: :files,
-       open_file: nil,
-       active_symbol_line: nil,
-       review: WorkspaceReview.review(workspace, session),
-       review_open?: true,
-       active_review_comment_id: nil,
-       palette: Palette.new(),
        index: nil,
        running?: false
      )
+     |> assign(Workbench.to_map(workbench))
      |> assign_devtools()}
   end
 
@@ -169,86 +155,66 @@ defmodule Tilde.Demo.Live do
   end
 
   def handle_event("tilde:workspace:open_file", %{"path" => path}, socket) do
-    {:noreply, open_workspace_file(socket, path)}
+    {:noreply, apply_workbench_action(socket, {:open_file, path})}
   end
 
   def handle_event("tilde:session:chat", _params, socket) do
-    {:noreply, assign(socket, workspace_mode: :chat, open_file: nil, active_symbol_line: nil)}
+    {:noreply, apply_workbench_action(socket, :show_chat)}
   end
 
   def handle_event("tilde:workspace:show", params, socket) do
-    {:noreply,
-     socket
-     |> assign(workspace_mode: :workspace)
-     |> assign_workspace_view(params)}
+    {:noreply, apply_workbench_action(socket, {:show_workspace, workspace_view(params)})}
   end
 
   def handle_event("tilde:workspace:view_files", _params, socket) do
-    {:noreply, assign(socket, workspace_view: :files)}
+    {:noreply, apply_workbench_action(socket, {:set_workspace_view, :files})}
   end
 
   def handle_event("tilde:workspace:view_symbols", _params, socket) do
-    {:noreply, assign(socket, workspace_view: :symbols)}
+    {:noreply, apply_workbench_action(socket, {:set_workspace_view, :symbols})}
   end
 
   def handle_event("tilde:review:jump_comment", %{"comment-id" => comment_id}, socket) do
-    {:noreply, jump_review_comment(socket, comment_id)}
+    {:noreply, apply_workbench_action(socket, {:jump_review_comment, comment_id})}
   end
 
   def handle_event("tilde:review:focus", _params, socket) do
-    {:noreply, focus_review(socket)}
+    {:noreply, apply_workbench_action(socket, :focus_review)}
   end
 
   def handle_event("tilde:review:resolve_comment", %{"comment-id" => comment_id}, socket) do
-    {:noreply, update_review_comment(socket, comment_id, :resolved)}
+    {:noreply, apply_workbench_action(socket, {:set_review_status, comment_id, :resolved})}
   end
 
   def handle_event("tilde:review:reopen_comment", %{"comment-id" => comment_id}, socket) do
-    {:noreply, update_review_comment(socket, comment_id, :open)}
+    {:noreply, apply_workbench_action(socket, {:set_review_status, comment_id, :open})}
   end
 
   def handle_event("tilde:palette:change", %{"query" => query}, socket) do
-    {:noreply,
-     assign(socket,
-       palette:
-         Palette.query(
-           socket.assigns.palette,
-           socket.assigns.workspace,
-           socket.assigns.open_file,
-           query
-         )
-     )}
+    {:noreply, apply_workbench_action(socket, {:query_palette, query})}
   end
 
   def handle_event("tilde:palette:mode", %{"mode" => mode}, socket) do
-    {:noreply,
-     assign(socket,
-       palette:
-         Palette.switch_mode(
-           socket.assigns.palette,
-           mode,
-           socket.assigns.workspace,
-           socket.assigns.open_file
-         )
-     )}
+    {:noreply, apply_workbench_action(socket, {:switch_palette_mode, mode})}
   end
 
-  def handle_event("tilde:palette:accept", params, socket) do
-    {:noreply, accept_palette(socket, params)}
-  end
-
-  def handle_event("tilde:palette:select", params, socket) do
+  def handle_event(event, params, socket)
+      when event in ["tilde:palette:accept", "tilde:palette:select"] do
     {:noreply, accept_palette(socket, params)}
   end
 
   def handle_event("tilde:shortcut", %{"key" => key}, socket) do
-    {:noreply, apply_shortcut(socket, key)}
+    {:noreply,
+     apply_workbench_action(socket, {:shortcut, key},
+       page_size: 20,
+       scroll_field: :active_symbol_line
+     )}
   end
 
   def handle_event("tilde:shortcut", _params, socket), do: {:noreply, socket}
 
   def handle_event("tilde:buffer:jump_symbol", %{"line" => line}, socket) do
-    {:noreply, assign(socket, workspace_mode: :file, active_symbol_line: parse_line(line))}
+    {:noreply, apply_workbench_action(socket, {:jump_symbol, line})}
   end
 
   def handle_event(event, params, %{assigns: %{mode: :index, index: %Index{} = index}} = socket) do
@@ -373,17 +339,8 @@ defmodule Tilde.Demo.Live do
   end
 
   defp assign_session(socket, %Session{} = session) do
-    workspace =
-      session
-      |> WorkspaceFiles.workspace()
-      |> Workspace.preserve_navigation(socket.assigns[:workspace])
-
-    assign(socket,
-      session: session,
-      workspace: workspace,
-      review: WorkspaceReview.review(workspace, session),
-      palette: Palette.refresh(socket.assigns[:palette], workspace, socket.assigns[:open_file])
-    )
+    workbench = socket.assigns |> Workbench.from_map() |> Workbench.refresh(session)
+    assign(socket, Workbench.to_map(workbench))
   end
 
   defp inspectable(%{session: %Session{}, session_server: server}) when not is_nil(server) do
@@ -416,221 +373,43 @@ defmodule Tilde.Demo.Live do
 
   defp toggle_dev(socket, _key), do: socket
 
-  defp apply_shortcut(socket, key) when is_binary(key) do
+  defp apply_workbench_action(socket, action, opts \\ []) do
+    {workbench, effects} =
+      socket.assigns
+      |> Workbench.from_map()
+      |> Workbench.apply_action(action, opts)
+
     socket
-    |> shortcut_scope()
-    |> Shortcuts.match(key)
-    |> apply_shortcut_id(socket)
+    |> assign(Workbench.to_map(workbench))
+    |> apply_workbench_effects(effects)
   end
 
-  defp apply_shortcut(socket, _key), do: socket
+  defp apply_workbench_effects(socket, effects) do
+    Enum.reduce(effects, socket, fn
+      {:persist_review, review}, socket ->
+        session =
+          SessionServer.update_session(
+            socket.assigns.session_server,
+            &Tilde.Session.ReviewState.put(&1, review)
+          )
 
-  defp apply_shortcut_id("tilde.workspace.view_files", socket),
-    do: assign(socket, workspace_view: :files)
-
-  defp apply_shortcut_id("tilde.workspace.view_symbols", socket),
-    do: assign(socket, workspace_view: :symbols)
-
-  defp apply_shortcut_id("tilde.session.chat", socket),
-    do: assign(socket, workspace_mode: :chat, open_file: nil, active_symbol_line: nil)
-
-  defp apply_shortcut_id("tilde.review.focus", socket), do: focus_review(socket)
-
-  defp apply_shortcut_id("tilde.review.next", socket), do: focus_adjacent_review(socket, :next)
-
-  defp apply_shortcut_id("tilde.review.previous", socket),
-    do: focus_adjacent_review(socket, :previous)
-
-  defp apply_shortcut_id("tilde.file.page_up", socket), do: scroll_open_file(socket, :up)
-
-  defp apply_shortcut_id("tilde.file.page_down", socket), do: scroll_open_file(socket, :down)
-
-  defp apply_shortcut_id("tilde.workspace.focus_previous", socket),
-    do: focus_workspace_file(socket, :previous)
-
-  defp apply_shortcut_id("tilde.workspace.focus_next", socket),
-    do: focus_workspace_file(socket, :next)
-
-  defp apply_shortcut_id("tilde.workspace.open_focused", socket),
-    do: open_focused_workspace_file(socket)
-
-  defp apply_shortcut_id("tilde.palette.open", socket), do: open_palette(socket)
-
-  defp apply_shortcut_id("tilde.palette.mode_files", socket),
-    do: switch_palette_mode(socket, :files)
-
-  defp apply_shortcut_id("tilde.palette.mode_symbols", socket),
-    do: switch_palette_mode(socket, :symbols)
-
-  defp apply_shortcut_id("tilde.palette.close", socket), do: close_palette(socket)
-
-  defp apply_shortcut_id("tilde.palette.previous", socket),
-    do: update(socket, :palette, &Palette.move(&1, :previous))
-
-  defp apply_shortcut_id("tilde.palette.next", socket),
-    do: update(socket, :palette, &Palette.move(&1, :next))
-
-  defp apply_shortcut_id("tilde.palette.accept", socket), do: accept_palette(socket, %{})
-  defp apply_shortcut_id(_shortcut, socket), do: socket
-
-  defp open_palette(socket) do
-    assign(socket,
-      palette: Palette.open_files(socket.assigns.workspace, socket.assigns.palette.query)
-    )
+        assign_session(socket, session)
+    end)
   end
 
-  defp close_palette(socket),
-    do: assign(socket, palette: %{socket.assigns.palette | open?: false})
-
-  defp switch_palette_mode(socket, mode) do
-    assign(socket,
-      palette:
-        Palette.switch_mode(
-          socket.assigns.palette,
-          mode,
-          socket.assigns.workspace,
-          socket.assigns.open_file
-        )
-    )
+  defp accept_palette(socket, %{"index" => index}) do
+    socket
+    |> apply_workbench_action({:select_palette, index})
+    |> apply_workbench_action(:accept_palette)
   end
 
-  defp accept_palette(socket, params) do
-    palette = select_palette_index(socket.assigns.palette, params)
-
-    case Palette.selected_item(palette) do
-      %{action: %{type: :open_file, path: path}} ->
-        open_workspace_file(assign(socket, palette: palette), path)
-
-      %{action: %{type: :jump_symbol, line: line}} ->
-        assign(socket,
-          palette: %{palette | open?: false},
-          workspace_mode: :file,
-          workspace_view: :symbols,
-          active_symbol_line: line
-        )
-
-      _item ->
-        assign(socket, palette: palette)
-    end
-  end
-
-  defp select_palette_index(%Palette{} = palette, %{"index" => index}) do
-    case Integer.parse(index) do
-      {index, ""} -> %{palette | selected_index: max(index, 0)}
-      _other -> palette
-    end
-  end
-
-  defp select_palette_index(%Palette{} = palette, _params), do: palette
-
-  defp open_workspace_file(socket, path) when is_binary(path) do
-    workspace = %{socket.assigns.workspace | selected_path: path, focused_path: path}
-    open_file = WorkspaceFiles.open_file(workspace, path)
-
-    assign(socket,
-      workspace: workspace,
-      palette: %{socket.assigns.palette | open?: false},
-      workspace_mode: :file,
-      workspace_view: :symbols,
-      open_file: open_file,
-      active_symbol_line: nil,
-      active_review_comment_id: nil
-    )
-  end
-
-  defp jump_review_comment(socket, comment_id) do
-    case Review.find_comment(socket.assigns.review, comment_id) do
-      %{path: path, line: line, id: id} ->
-        open_workspace_file_at_line(socket, path, line, id)
-
-      nil ->
-        socket
-    end
-  end
-
-  defp focus_review(socket) do
-    socket.assigns.review
-    |> Review.focused_comment_id(socket.assigns.active_review_comment_id)
-    |> case do
-      nil -> assign(socket, review_open?: true)
-      comment_id -> socket |> assign(review_open?: true) |> jump_review_comment(comment_id)
-    end
-  end
-
-  defp focus_adjacent_review(socket, direction) do
-    socket.assigns.review
-    |> Review.adjacent_comment_id(socket.assigns.active_review_comment_id, direction)
-    |> case do
-      nil -> assign(socket, review_open?: true)
-      comment_id -> socket |> assign(review_open?: true) |> jump_review_comment(comment_id)
-    end
-  end
-
-  defp scroll_open_file(%{assigns: %{open_file: %{line_count: line_count}}} = socket, direction)
-       when line_count > 0 do
-    current_line = socket.assigns.active_symbol_line || 1
-    page_size = 20
-
-    line =
-      case direction do
-        :up -> max(current_line - page_size, 1)
-        :down -> min(current_line + page_size, line_count)
-      end
-
-    assign(socket, workspace_mode: :file, active_symbol_line: line)
-  end
-
-  defp scroll_open_file(socket, _direction), do: socket
-
-  defp update_review_comment(socket, comment_id, :resolved) do
-    persist_review(socket, Review.resolve_comment(socket.assigns.review, comment_id))
-  end
-
-  defp update_review_comment(socket, comment_id, :open) do
-    persist_review(socket, Review.reopen_comment(socket.assigns.review, comment_id))
-  end
-
-  defp persist_review(socket, %Review{} = review) do
-    session =
-      SessionServer.update_session(socket.assigns.session_server, &ReviewState.put(&1, review))
-
-    assign(socket, session: session, review: ReviewState.load(review, session))
-  end
-
-  defp open_workspace_file_at_line(socket, path, line, comment_id) do
-    workspace = %{socket.assigns.workspace | selected_path: path, focused_path: path}
-    open_file = WorkspaceFiles.open_file(workspace, path)
-
-    assign(socket,
-      workspace: workspace,
-      palette: %{socket.assigns.palette | open?: false},
-      workspace_mode: :file,
-      workspace_view: :files,
-      open_file: open_file,
-      active_symbol_line: line,
-      active_review_comment_id: comment_id
-    )
-  end
-
-  defp focus_workspace_file(socket, direction) do
-    assign(socket, workspace: Workspace.focus_file(socket.assigns.workspace, direction))
-  end
-
-  defp open_focused_workspace_file(socket) do
-    focused_path = socket.assigns.workspace.focused_path
-
-    if focused_path in Workspace.visible_file_paths(socket.assigns.workspace) do
-      open_workspace_file(socket, focused_path)
-    else
-      socket
-    end
-  end
+  defp accept_palette(socket, _params),
+    do: apply_workbench_action(socket, :accept_palette)
 
   defp shortcut_scope(%{assigns: assigns}), do: shortcut_scope(assigns)
-  defp shortcut_scope(%{palette: %Palette{open?: true}}), do: :palette
-  defp shortcut_scope(%{workspace_mode: :file}), do: :buffer
-  defp shortcut_scope(%{workspace_mode: :workspace}), do: :workspace
-  defp shortcut_scope(_assigns), do: :chat
+
+  defp shortcut_scope(assigns) when is_map(assigns),
+    do: assigns |> Workbench.from_map() |> Workbench.shortcut_scope()
 
   defp chat_actions do
     [workspace_mobile_action(:files)]
@@ -678,28 +457,14 @@ defmodule Tilde.Demo.Live do
     %{event: event, label: label, kind: :mobile, values: values}
   end
 
-  defp assign_workspace_view(socket, %{"view" => "files"}),
-    do: assign(socket, workspace_view: :files)
-
-  defp assign_workspace_view(socket, %{"view" => "symbols"}),
-    do: assign(socket, workspace_view: :symbols)
-
-  defp assign_workspace_view(socket, _params), do: socket
+  defp workspace_view(%{"view" => "symbols"}), do: :symbols
+  defp workspace_view(_params), do: :files
 
   defp open_file_path(%{path: path}) when is_binary(path), do: path
   defp open_file_path(_open_file), do: nil
 
   defp symbols(%{symbols: symbols}) when is_list(symbols), do: symbols
   defp symbols(_open_file), do: []
-
-  defp parse_line(line) when is_binary(line) do
-    case Integer.parse(line) do
-      {line, ""} -> line
-      _ -> nil
-    end
-  end
-
-  defp parse_line(_line), do: nil
 
   defp footer_commands do
     labels = ["/help", "/showcase", "/new"]

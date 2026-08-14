@@ -59,7 +59,8 @@ defmodule Tilde.Session.Compaction do
   @doc "Returns the latest compaction event in the session, if any."
   @spec latest_event(Session.t()) :: Event.t() | nil
   def latest_event(%Session{} = session) do
-    session.events
+    session
+    |> Session.events()
     |> Enum.reverse()
     |> Enum.find(&(&1.type == :context_compacted))
   end

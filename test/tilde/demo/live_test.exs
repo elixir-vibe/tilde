@@ -4,7 +4,7 @@ defmodule Tilde.Demo.LiveTest do
   test "index footer renders the same shared clickable commands as session footer" do
     html =
       render_component(&Tilde.Transport.Live.WidgetRenderer.widgets/1,
-        widgets: Tilde.Index.View.widgets(Tilde.Core.Index.new())
+        widgets: Tilde.Index.View.widgets(Tilde.Index.new())
       )
 
     assert html =~ ~s|role="navigation"|

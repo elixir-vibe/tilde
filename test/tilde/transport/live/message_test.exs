@@ -3,7 +3,11 @@ defmodule Tilde.Transport.Live.MessageTest do
 
   test "renders markdown source with MDEx" do
     block = Block.message("msg_1", :assistant, "**bold** and `code`")
-    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
+
+    html =
+      render_component(&Tilde.Transport.Live.ViewRenderer.cell/1,
+        cell: Tilde.Viewable.to_view(block)
+      )
 
     assert html =~ "markdown"
     assert html =~ "<strong>bold</strong>"
@@ -23,7 +27,10 @@ defmodule Tilde.Transport.Live.MessageTest do
         ]
       )
 
-    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
+    html =
+      render_component(&Tilde.Transport.Live.ViewRenderer.cell/1,
+        cell: Tilde.Viewable.to_view(block)
+      )
 
     assert html =~ "<strong>"
     assert html =~ "bold"

@@ -72,7 +72,7 @@ defmodule TildeTest.Driver do
   @spec assert_suggestion(state(), String.t(), keyword()) :: state()
   def assert_suggestion(state, label, opts \\ []) do
     selected? = Keyword.get(opts, :selected?)
-    suggest = session(state) |> Tilde.Core.Session.command_suggestions()
+    suggest = session(state) |> Tilde.Session.Suggestions.command_suggestions()
 
     assert %Tilde.Core.Suggest{} = suggest
     index = Enum.find_index(suggest.items, &(&1.label == label))
@@ -132,7 +132,7 @@ defmodule TildeTest.Driver do
   @doc "Refutes that command suggestions are visible."
   @spec refute_suggestions(state()) :: state()
   def refute_suggestions(state) do
-    assert is_nil(session(state) |> Tilde.Core.Session.command_suggestions())
+    assert is_nil(session(state) |> Tilde.Session.Suggestions.command_suggestions())
     state
   end
 

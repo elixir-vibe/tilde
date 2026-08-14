@@ -1,5 +1,5 @@
 defmodule Tilde.Storage.Schema.EventRow do
-  @moduledoc "Database row that stores one canonical `Tilde.Core.Event`."
+  @moduledoc "Database row storing one canonical event at its explicit session sequence."
 
   use Ecto.Schema
 

@@ -9,7 +9,10 @@ defmodule Tilde.Transport.Live.ReadToolTest do
       |> Block.finish_tool(:success, result)
       |> Block.update_display(%{expanded?: true})
 
-    html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
+    html =
+      render_component(&Tilde.Transport.Live.ViewRenderer.cell/1,
+        cell: Tilde.Viewable.to_view(tool)
+      )
 
     assert html =~ ~s|class="lumis"|
     assert html =~ ~s|class="language-elixir"|

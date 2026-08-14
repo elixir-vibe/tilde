@@ -51,12 +51,11 @@ defmodule Tilde.Storage.QuackDB do
   @impl true
   def append_event(%Tilde.Core.Session{} = session, %Tilde.Core.Event{} = event) do
     Repo.transaction(fn ->
-      :ok = ensure_session(session)
-      event_index = next_event_index(session.id)
+      event_index = event_sequence!(event)
       now = now()
       occurred_at = event.at || now
 
-      Repo.insert_all(EventRow, [event_row(session.id, event_index, event, occurred_at, now)])
+      Repo.insert_all(EventRow, [event_row(session.id, event, occurred_at, now)])
 
       blocks = block_rows(session.id, event_index, event, occurred_at)
 
@@ -81,11 +80,11 @@ defmodule Tilde.Storage.QuackDB do
         from(event in EventRow,
           where: event.session_id == ^session_id,
           order_by: [asc: event.event_index],
-          select: event.payload
+          select: %{event_index: event.event_index, payload: event.payload}
         )
       )
 
-    {:ok, Enum.map(events, &EventCodec.load!/1)}
+    {:ok, Enum.map(events, &load_event/1)}
   rescue
     error in @storage_errors -> {:error, error}
   end
@@ -106,7 +105,7 @@ defmodule Tilde.Storage.QuackDB do
   @impl true
   def save_state(%Tilde.Core.Session{} = session) do
     now = now()
-    suggest = Tilde.Core.Session.command_suggestions(session)
+    suggest = Tilde.Session.Suggestions.command_suggestions(session)
     metadata = stringify_keys(session.metadata)
 
     Repo.insert_all(
@@ -190,21 +189,38 @@ defmodule Tilde.Storage.QuackDB do
     error in @storage_errors -> {:error, error}
   end
 
-  defp next_event_index(session_id) do
-    query = from(event in EventRow, where: event.session_id == ^session_id)
-    (Repo.aggregate(query, :max, :event_index) || -1) + 1
-  end
-
-  defp event_row(session_id, event_index, %Tilde.Core.Event{} = event, occurred_at, inserted_at) do
+  defp event_row(session_id, %Tilde.Core.Event{} = event, occurred_at, inserted_at) do
     %{
       id: event.id,
       session_id: session_id,
-      event_index: event_index,
+      event_index: event_sequence!(event),
       event_type: Atom.to_string(event.type),
       payload: EventCodec.dump(event),
       occurred_at: occurred_at,
       inserted_at: inserted_at
     }
+  end
+
+  defp event_sequence!(%Tilde.Core.Event{sequence: sequence})
+       when is_integer(sequence) and sequence >= 0,
+       do: sequence
+
+  defp event_sequence!(%Tilde.Core.Event{}) do
+    raise ArgumentError, "cannot persist an event without an explicit session sequence"
+  end
+
+  defp load_event(%{event_index: event_index, payload: payload}) do
+    case EventCodec.load!(payload) do
+      %Tilde.Core.Event{sequence: nil} = event ->
+        %{event | sequence: event_index}
+
+      %Tilde.Core.Event{sequence: ^event_index} = event ->
+        event
+
+      %Tilde.Core.Event{sequence: payload_sequence} ->
+        raise ArgumentError,
+              "stored event sequence #{payload_sequence} does not match row sequence #{event_index}"
+    end
   end
 
   defp block_rows(session_id, event_index, %Tilde.Core.Event{} = event, occurred_at) do

@@ -2,7 +2,7 @@ defmodule Tilde.Session.ServerTest do
   use TildeTest.Case
 
   alias Tilde.Core.AgentRuntime
-  alias Tilde.Session.Server
+  alias Tilde.Session.{Controller, Server, Suggestions}
 
   describe "commands" do
     test "command suggestions complete on tab and submit executable commands on enter" do
@@ -12,7 +12,11 @@ defmodule Tilde.Session.ServerTest do
       assert Enum.map(items, & &1.label) == ["/compact"]
       assert Tilde.Command.completion("/co") == "/compact"
 
-      session = Session.append_event(Tilde.session(), Tilde.input_changed("/"))
+      session =
+        Tilde.session()
+        |> Session.append_event(Tilde.input_changed("/"))
+        |> Suggestions.refresh()
+
       assert [suggest_widget] = Session.widgets(session, :above_input)
       assert %Tilde.Core.Suggest{selected_index: 0} = suggest_widget.content
 
@@ -22,19 +26,21 @@ defmodule Tilde.Session.ServerTest do
       assert html =~ "selected"
       assert html =~ "phx-click=\"tilde:complete_input\""
 
-      assert {:cont, selected} = Tilde.Core.Controller.apply_key(session, :down)
-      assert %Tilde.Core.Suggest{selected_index: 1} = Session.command_suggestions(selected)
+      assert {:cont, selected} = Controller.apply_key(session, :down)
+      assert %Tilde.Core.Suggest{selected_index: 1} = Suggestions.command_suggestions(selected)
 
-      assert {:cont, completed} = Tilde.Core.Controller.apply_key(selected, :tab)
+      assert {:cont, completed} = Controller.apply_key(selected, :tab)
 
       assert completed.input.value ==
-               Tilde.Command.completion(Session.command_suggestions(selected))
+               Tilde.Command.completion(Suggestions.command_suggestions(selected))
 
-      assert {:cont, submitted} = Tilde.Core.Controller.apply_key(selected, :enter)
+      assert {:cont, submitted} = Controller.apply_key(selected, :enter)
 
       assert submitted.input.value == ""
       assert [%Block{source: submitted_command}] = submitted.transcript.blocks
-      assert submitted_command == Tilde.Command.completion(Session.command_suggestions(selected))
+
+      assert submitted_command ==
+               Tilde.Command.completion(Suggestions.command_suggestions(selected))
     end
 
     test "compact command appends visible summary without deleting raw history" do
@@ -61,10 +67,10 @@ defmodule Tilde.Session.ServerTest do
           )
         )
 
-      assert length(compacted.events) == length(session.events) + 1
+      assert compacted.event_count == session.event_count + 1
 
       assert %Tilde.Core.Event{type: :context_compacted, metadata: metadata} =
-               List.last(compacted.events)
+               Session.latest_event(compacted)
 
       assert metadata.custom_instructions == "focus on decisions"
       assert metadata.first_kept_block_id
@@ -114,20 +120,27 @@ defmodule Tilde.Session.ServerTest do
     end
 
     test "command suggestions complete argument-taking commands instead of executing them" do
-      session = Session.append_event(Tilde.session(), Tilde.input_changed("/"))
+      session =
+        Tilde.session()
+        |> Session.append_event(Tilde.input_changed("/"))
+        |> Suggestions.refresh()
 
-      assert {:cont, selected} = Tilde.Core.Controller.apply_key(session, :down)
-      assert {:cont, selected} = Tilde.Core.Controller.apply_key(selected, :down)
-      assert Tilde.Core.Suggest.selected(Session.command_suggestions(selected)).label == "/new"
+      assert {:cont, selected} = Controller.apply_key(session, :down)
+      assert {:cont, selected} = Controller.apply_key(selected, :down)
 
-      assert {:cont, completed} = Tilde.Core.Controller.apply_key(selected, :enter)
+      assert Tilde.Core.Suggest.selected(Suggestions.command_suggestions(selected)).label ==
+               "/new"
+
+      assert {:cont, completed} = Controller.apply_key(selected, :enter)
 
       assert completed.input.value == "/new "
       assert completed.transcript.blocks == []
-      assert %Tilde.Core.Suggest{id: "new-session-hints"} = Session.command_suggestions(completed)
 
-      assert {:cont, with_name} = Tilde.Core.Controller.apply_key(completed, {:text, "demo"})
-      assert {:cont, submitted} = Tilde.Core.Controller.apply_key(with_name, :enter)
+      assert %Tilde.Core.Suggest{id: "new-session-hints"} =
+               Suggestions.command_suggestions(completed)
+
+      assert {:cont, with_name} = Controller.apply_key(completed, {:text, "demo"})
+      assert {:cont, submitted} = Controller.apply_key(with_name, :enter)
 
       assert submitted.input.value == ""
       assert [%Block{source: "/new demo"}] = submitted.transcript.blocks
@@ -166,10 +179,15 @@ defmodule Tilde.Session.ServerTest do
       assert {:ok, pid} =
                Tilde.Session.Server.ensure_started(name, session: Tilde.session(id: id))
 
-      session = Session.append_event(Tilde.session(), Tilde.input_changed("/attach #{id}"))
-      assert %Tilde.Core.Suggest{id: "session-suggestions"} = Session.command_suggestions(session)
+      session =
+        Tilde.session()
+        |> Session.append_event(Tilde.input_changed("/attach #{id}"))
+        |> Suggestions.refresh()
 
-      assert {:cont, submitted} = Tilde.Core.Controller.apply_key(session, :enter)
+      assert %Tilde.Core.Suggest{id: "session-suggestions"} =
+               Suggestions.command_suggestions(session)
+
+      assert {:cont, submitted} = Controller.apply_key(session, :enter)
 
       assert submitted.input.value == ""
 
@@ -581,6 +599,76 @@ defmodule Tilde.Session.ServerTest do
       end)
     end
 
+    test "session server records an unexpected supervised agent task exit" do
+      with_application_env(:llm_enabled, true, fn ->
+        name = :"tilde_session_server_task_exit_test_#{System.unique_integer([:positive])}"
+        existing_tasks = Task.Supervisor.children(Tilde.Session.TaskSupervisor)
+
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "agent_task_exit"),
+                   llm_opts: [llm: blocking_llm(self())]
+                 )
+
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("crash"))
+        assert_receive {:blocking_llm_started, capability, "crash"}
+        task = wait_for_supervised_task(existing_tasks)
+        Process.exit(task, :kill)
+
+        session =
+          wait_until_session(name, fn session ->
+            session |> Session.events() |> Enum.any?(&(&1.type == :assistant_turn_error))
+          end)
+
+        assert %Tilde.Core.Event{result: {:agent_task_exit, :killed}} =
+                 session
+                 |> Session.events()
+                 |> Enum.find(&(&1.type == :assistant_turn_error))
+
+        send(capability, :release_blocking_llm)
+        assert Process.alive?(pid)
+        assert Session.agent_runtime(session).active? == false
+        GenServer.stop(pid)
+      end)
+    end
+
+    test "session server times out and terminates a supervised agent task" do
+      with_application_env(:llm_enabled, true, fn ->
+        name = :"tilde_session_server_task_timeout_test_#{System.unique_integer([:positive])}"
+        existing_tasks = Task.Supervisor.children(Tilde.Session.TaskSupervisor)
+
+        assert {:ok, pid} =
+                 Tilde.Session.Server.start_link(
+                   name: name,
+                   session: Tilde.session(id: "agent_task_timeout"),
+                   llm_opts: [llm: blocking_llm(self())],
+                   agent_task_timeout_ms: 200
+                 )
+
+        Tilde.Session.Server.append_event(name, Tilde.input_submitted("wait"))
+        assert_receive {:blocking_llm_started, capability, "wait"}
+        task = wait_for_supervised_task(existing_tasks)
+        task_ref = Process.monitor(task)
+        assert_receive {:DOWN, ^task_ref, :process, ^task, :killed}, 1_000
+
+        session =
+          wait_until_session(name, fn session ->
+            session |> Session.events() |> Enum.any?(&(&1.type == :assistant_turn_error))
+          end)
+
+        assert %Tilde.Core.Event{result: {:agent_task_exit, :timeout}} =
+                 session
+                 |> Session.events()
+                 |> Enum.find(&(&1.type == :assistant_turn_error))
+
+        send(capability, :release_blocking_llm)
+        assert Process.alive?(pid)
+        assert Session.agent_runtime(session).active? == false
+        GenServer.stop(pid)
+      end)
+    end
+
     test "session server projects Jidoka terminal metadata onto terminal assistant events" do
       with_application_env(:llm_enabled, true, fn ->
         name = :"tilde_session_server_llm_metadata_test_#{System.unique_integer([:positive])}"
@@ -608,10 +696,14 @@ defmodule Tilde.Session.ServerTest do
 
         session =
           wait_until_session(name, fn session ->
-            Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
+            session |> Session.events() |> Enum.any?(&(&1.type == :assistant_turn_finished))
           end)
 
-        finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
+        finished =
+          session
+          |> Session.events()
+          |> Enum.find(&(&1.type == :assistant_turn_finished))
+
         refute Map.has_key?(finished.metadata, :model)
         assert finished.metadata.usage == %{input_tokens: 21, output_tokens: 8}
         assert finished.metadata.termination_reason == :final_answer
@@ -653,17 +745,25 @@ defmodule Tilde.Session.ServerTest do
         session =
           wait_until_session(name, fn session ->
             Enum.any?(session.transcript.blocks, &match?(%Block{kind: :tool}, &1)) and
-              Enum.any?(session.events, &(&1.type == :assistant_turn_finished))
+              session
+              |> Session.events()
+              |> Enum.any?(&(&1.type == :assistant_turn_finished))
           end)
 
         assert %Block{kind: :tool, name: "utc_now", args: %{}, status: :success} =
                  Enum.find(session.transcript.blocks, &match?(%Block{kind: :tool}, &1))
 
-        assert Enum.any?(session.events, fn event ->
+        assert session
+               |> Session.events()
+               |> Enum.any?(fn event ->
                  event.type == :assistant_done and event.text == "Tool finished."
                end)
 
-        finished = Enum.find(session.events, &(&1.type == :assistant_turn_finished))
+        finished =
+          session
+          |> Session.events()
+          |> Enum.find(&(&1.type == :assistant_turn_finished))
+
         assert finished.metadata.jidoka.journal.operation_count == 1
         assert finished.metadata.jidoka.journal.operation_statuses == [:ok]
         assert [%{operation: "utc_now"}] = finished.metadata.jidoka.operations
@@ -852,6 +952,22 @@ defmodule Tilde.Session.ServerTest do
   defp wait_until_agent_loop(name, _predicate, 0),
     do: Tilde.Session.Server.dev_snapshot(name).agent_loop
 
+  defp wait_for_supervised_task(existing_tasks, attempts \\ 20)
+
+  defp wait_for_supervised_task(existing_tasks, attempts) when attempts > 0 do
+    case Task.Supervisor.children(Tilde.Session.TaskSupervisor) -- existing_tasks do
+      [task | _rest] ->
+        task
+
+      [] ->
+        Process.sleep(10)
+        wait_for_supervised_task(existing_tasks, attempts - 1)
+    end
+  end
+
+  defp wait_for_supervised_task(_existing_tasks, 0),
+    do: flunk("timed out waiting for supervised agent task")
+
   describe "dev snapshots" do
     test "dev snapshot includes resumable runtime for restored checkpoint metadata" do
       session =
@@ -917,7 +1033,7 @@ defmodule Tilde.Session.ServerTest do
         Tilde.Session.Server.append_event(name, Tilde.assistant_done("two"))
         updated = Tilde.Session.Server.append_event(name, Tilde.input_submitted("three"))
 
-        assert Enum.map(updated.events, & &1.text) == ["one", "two", "three"]
+        assert updated |> Session.events() |> Enum.map(& &1.text) == ["one", "two", "three"]
         assert Enum.map(updated.transcript.blocks, & &1.source) == ["one", "two", "three"]
 
         GenServer.stop(pid)
@@ -937,6 +1053,7 @@ defmodule Tilde.Session.ServerTest do
           assert_receive {:storage_save_state, "stored-session", "draft"}
           refute_receive {:storage_append_event, "stored-session", :input_changed, "draft"}
           assert_receive {:storage_append_event, "stored-session", :input_submitted, "hello"}
+          assert_receive {:storage_append_sequence, "stored-session", 1}
           assert_receive {:storage_save_state, "stored-session", ""}
         end)
       end)
@@ -951,6 +1068,8 @@ defmodule Tilde.Session.ServerTest do
 
           assert_receive {:storage_append_event, "command-session", :input_submitted, "/help"}
           assert_receive {:storage_append_event, "command-session", :assistant_done, help_text}
+          assert_receive {:storage_append_sequence, "command-session", 0}
+          assert_receive {:storage_append_sequence, "command-session", 1}
           assert help_text =~ "/help"
           refute_receive {:storage_append_event, "command-session", :assistant_done, ^help_text}
         end)

@@ -11,7 +11,7 @@ defmodule Tilde.Command.Builtin.Session do
   def run(_command, %Session{} = session, _opts) do
     text = """
     Session: #{session.id}
-    Events: #{length(session.events)}
+    Events: #{session.event_count}
     Blocks: #{length(session.transcript.blocks)}
     """
 

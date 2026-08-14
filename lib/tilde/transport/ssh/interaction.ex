@@ -1,7 +1,8 @@
 defmodule Tilde.Transport.SSH.Interaction do
   @moduledoc "Translates decoded SSH/TUI keys into core interactions."
 
-  alias Tilde.Core.{Index, Input, Interaction}
+  alias Tilde.Core.{Input, Interaction}
+  alias Tilde.Index
 
   @type translated :: Interaction.t() | :halt | nil
 

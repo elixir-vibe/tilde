@@ -1,4 +1,4 @@
-defmodule Tilde.Core.Index do
+defmodule Tilde.Index do
   @moduledoc "Semantic console index state and behavior."
 
   alias Tilde.Command
@@ -235,7 +235,7 @@ defmodule Tilde.Core.Index do
   defp command_submission_outcome(%Command{} = command, input) do
     command
     |> Command.run(Tilde.session(id: "index"), [])
-    |> Outcome.from_command_effects()
+    |> Command.effects_to_outcomes()
     |> Enum.find(&match?(%Outcome{type: :open_session}, &1))
     |> case do
       %Outcome{payload: %{id: id}} -> Outcome.open_session(id, submit: input)

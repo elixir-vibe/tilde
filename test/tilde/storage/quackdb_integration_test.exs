@@ -2,6 +2,7 @@ defmodule Tilde.Storage.QuackDBIntegrationTest do
   use TildeTest.Case, async: false
 
   alias Tilde.Core.Session
+  alias Tilde.Session.Persistence
   alias Tilde.Storage
   alias Tilde.Storage.Setup
 
@@ -10,20 +11,29 @@ defmodule Tilde.Storage.QuackDBIntegrationTest do
   test "persists, searches, summarizes, and resumes sessions through QuackDB" do
     with_quackdb_repo(fn ->
       with_application_env(:storage_adapter, Tilde.Storage.QuackDB, fn ->
+        draft_id = "quackdb-draft-#{System.unique_integer([:positive])}"
+        empty = Tilde.session(id: draft_id)
+        draft_only = Session.append_event(empty, Tilde.input_changed("unsent draft"))
+
+        assert :ok = Persistence.persist(empty, draft_only)
+        assert {:ok, restored_draft} = Storage.load_session(draft_id)
+        assert restored_draft.input.value == "unsent draft"
+
         session_id = "quackdb-#{System.unique_integer([:positive])}"
         base = Tilde.session(id: session_id)
         submitted = Tilde.input_submitted("find ducks")
+        persisted = Session.append_event(base, submitted)
 
-        assert :ok = Storage.append_event(base, submitted)
+        assert :ok = Persistence.persist(base, persisted)
 
-        draft =
-          base
-          |> Session.append_event(submitted)
-          |> Session.append_event(Tilde.input_changed("next draft"))
+        draft = Session.append_event(persisted, Tilde.input_changed("next draft"))
+        sequenced = Session.append_event(draft, Tilde.status_changed("temporary", nil))
 
-        assert :ok = Storage.save_state(draft)
+        assert :ok = Persistence.persist(persisted, sequenced)
 
         assert {:ok, loaded} = Storage.load_session(session_id)
+        assert loaded |> Session.events() |> Enum.map(& &1.sequence) == [0, 2]
+        assert loaded.next_event_sequence == 3
         assert latest_user_sources(loaded) == ["find ducks"]
         assert loaded.input.value == "next draft"
 

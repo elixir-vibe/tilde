@@ -85,14 +85,19 @@ defmodule TildeTest.Driver.SSH do
     %{state | output: state.output <> collect_output("")}
   end
 
-  defp collect_output(acc) do
+  defp collect_output(acc, attempts \\ 40)
+
+  defp collect_output(acc, attempts) do
     receive do
-      {:ssh_cm, _connection, {:data, _channel, _type, data}} -> collect_output(acc <> data)
-      {:ssh_cm, _connection, {:exit_status, _channel, _status}} -> collect_output(acc)
-      {:ssh_cm, _connection, {:eof, _channel}} -> collect_output(acc)
+      {:ssh_cm, _connection, {:data, _channel, _type, data}} -> collect_output(acc <> data, 2)
+      {:ssh_cm, _connection, {:exit_status, _channel, _status}} -> collect_output(acc, attempts)
+      {:ssh_cm, _connection, {:eof, _channel}} -> collect_output(acc, attempts)
       {:ssh_cm, _connection, {:closed, _channel}} -> acc
     after
-      100 -> acc
+      50 ->
+        if attempts > 1,
+          do: collect_output(acc, attempts - 1),
+          else: acc
     end
   end
 

@@ -38,9 +38,11 @@ defmodule TildeTest.Case do
     previous = Application.get_env(:tilde, key)
     Application.put_env(:tilde, key, value)
 
-    result = fun.()
-    restore_application_env(key, previous)
-    result
+    try do
+      fun.()
+    after
+      restore_application_env(key, previous)
+    end
   end
 
   def asset_css(path) do

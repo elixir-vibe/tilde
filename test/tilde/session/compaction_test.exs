@@ -11,7 +11,7 @@ defmodule Tilde.Session.CompactionTest do
     assert result.summary =~ "## Context Compaction"
     assert result.summary =~ "User: one"
     assert result.first_kept_block_id == Enum.at(session.transcript.blocks, 4).id
-    assert [_one, _two, _three, _four, _five, _six] = session.events
+    assert [_one, _two, _three, _four, _five, _six] = Session.events(session)
     assert [_one, _two, _three, _four, _five, _six] = session.transcript.blocks
   end
 

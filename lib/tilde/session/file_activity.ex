@@ -13,8 +13,8 @@ defmodule Tilde.Session.FileActivity do
 
   @doc "Returns file activity for files read or modified by the session."
   @spec from_session(Session.t()) :: t()
-  def from_session(%Session{events: events}) do
-    Enum.reduce(events, %{}, &apply_event/2)
+  def from_session(%Session{} = session) do
+    session |> Session.events() |> Enum.reduce(%{}, &apply_event/2)
   end
 
   defp apply_event(%Event{type: :tool_started, name: name, args: args}, activity)

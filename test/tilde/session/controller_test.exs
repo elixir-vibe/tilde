@@ -1,7 +1,8 @@
-defmodule Tilde.Core.ControllerInteractionTest do
+defmodule Tilde.Session.ControllerInteractionTest do
   use TildeTest.Case, async: true
 
-  alias Tilde.Core.{Controller, Display, Interaction, Session}
+  alias Tilde.Core.{Display, Interaction, Session}
+  alias Tilde.Session.{Controller, Suggestions}
 
   test "session interactions edit suggestions and submit commands" do
     session = Tilde.session()
@@ -9,7 +10,7 @@ defmodule Tilde.Core.ControllerInteractionTest do
     result = Controller.apply_interaction(session, Interaction.input_changed("/"))
 
     assert_interaction_cont(result)
-    assert Session.command_suggestions(elem(result, 1))
+    assert Suggestions.command_suggestions(elem(result, 1))
 
     result = Controller.apply_interaction(elem(result, 1), Interaction.new(:suggest_accept))
 

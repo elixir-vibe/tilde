@@ -1,7 +1,8 @@
-defmodule Tilde.Core.IndexTest do
+defmodule Tilde.IndexTest do
   use TildeTest.Case
 
-  alias Tilde.Core.{Index, Interaction}
+  alias Tilde.Core.Interaction
+  alias Tilde.Index
 
   test "index footer uses shared clickable command specs" do
     footer =

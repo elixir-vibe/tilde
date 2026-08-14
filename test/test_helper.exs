@@ -6,9 +6,14 @@ Application.put_env(
   "tilde-test-snapshot-signing-secret-00000000"
 )
 
-unless System.get_env("TILDE_QUACKDB_INTEGRATION") in ["1", "true"] do
-  ExUnit.configure(exclude: [quackdb_integration: true])
-end
+excluded_tags =
+  if System.get_env("TILDE_QUACKDB_INTEGRATION") in ["1", "true"] do
+    [browser: true]
+  else
+    [browser: true, quackdb_integration: true]
+  end
+
+ExUnit.configure(exclude: excluded_tags)
 
 for support <- [
       "../test_helpers/assertions/session.ex",

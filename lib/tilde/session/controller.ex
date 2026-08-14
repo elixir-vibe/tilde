@@ -1,4 +1,4 @@
-defmodule Tilde.Core.Controller do
+defmodule Tilde.Session.Controller do
   @moduledoc """
   Transport-independent TUI input controller.
 
@@ -9,6 +9,7 @@ defmodule Tilde.Core.Controller do
   alias Tilde.Command
   alias Tilde.Core.{Input, Interaction, Keys, Session, Suggest}
   alias Tilde.Core.Interaction.Outcome
+  alias Tilde.Session.Suggestions
 
   @type result :: {:cont, Session.t()} | {:halt, Session.t()}
   @type interaction_result ::
@@ -68,19 +69,19 @@ defmodule Tilde.Core.Controller do
   end
 
   def apply_interaction(%Session{} = session, %Interaction{type: :suggest_next}) do
-    continue(Session.select_next_suggestion(session))
+    continue(Suggestions.select_next(session))
   end
 
   def apply_interaction(%Session{} = session, %Interaction{type: :suggest_previous}) do
-    continue(Session.select_previous_suggestion(session))
+    continue(Suggestions.select_previous(session))
   end
 
   def apply_interaction(%Session{} = session, %Interaction{type: :suggest_cancel}) do
-    continue(Session.cancel_suggestions(session))
+    continue(Suggestions.cancel(session))
   end
 
   def apply_interaction(%Session{} = session, %Interaction{type: :suggest_accept}) do
-    case Session.accept_suggestion(session) do
+    case Suggestions.accept(session) do
       {:ok, session} -> continue(session, [Outcome.complete_input(session.input.value)])
       :error -> continue(session)
     end
@@ -89,7 +90,7 @@ defmodule Tilde.Core.Controller do
   def apply_interaction(%Session{} = session, %Interaction{type: :suggest_submit}) do
     submitted_input = selected_suggestion_completion(session)
 
-    case Session.submit_suggestion(session) do
+    case Suggestions.submit(session) do
       {:ok, session} -> continue(session, submitted_suggestion_effects(submitted_input, session))
       :error -> continue(session)
     end
@@ -132,15 +133,15 @@ defmodule Tilde.Core.Controller do
   end
 
   def apply_key(%Session{} = session, key) when key in [:suggest_next, :down] do
-    {:cont, Session.select_next_suggestion(session)}
+    {:cont, Suggestions.select_next(session)}
   end
 
   def apply_key(%Session{} = session, key) when key in [:suggest_previous, :up, :backtab] do
-    {:cont, Session.select_previous_suggestion(session)}
+    {:cont, Suggestions.select_previous(session)}
   end
 
   def apply_key(%Session{} = session, key) when key in [:tab, :suggest_accept] do
-    case Session.accept_suggestion(session) do
+    case Suggestions.accept(session) do
       {:ok, session} -> {:cont, session}
       :error -> {:cont, session}
     end
@@ -151,8 +152,8 @@ defmodule Tilde.Core.Controller do
   end
 
   def apply_key(%Session{} = session, :cancel) do
-    if Session.command_suggestions(session) do
-      {:cont, Session.cancel_suggestions(session)}
+    if Suggestions.command_suggestions(session) do
+      {:cont, Suggestions.cancel(session)}
     else
       change_input(session, Input.clear(session.input))
     end
@@ -165,7 +166,7 @@ defmodule Tilde.Core.Controller do
   end
 
   def apply_key(%Session{} = session, :enter) do
-    case Session.submit_suggestion(session) do
+    case Suggestions.submit(session) do
       {:ok, session} ->
         {:cont, session}
 
@@ -186,11 +187,11 @@ defmodule Tilde.Core.Controller do
 
   defp change_input(%Session{} = session, %Input{} = input) do
     event = Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})
-    {:cont, Session.append_event(session, event)}
+    {:cont, session |> Session.append_event(event) |> Suggestions.refresh()}
   end
 
   defp selected_suggestion_completion(%Session{} = session) do
-    case Session.command_suggestions(session) do
+    case Suggestions.command_suggestions(session) do
       %Suggest{} = suggest -> Suggest.accept(suggest)
       nil -> nil
     end
@@ -208,7 +209,7 @@ defmodule Tilde.Core.Controller do
 
   defp command_effects(input, %Session{} = session) do
     case Command.parse(input) do
-      {:ok, command} -> command |> Command.run(session, []) |> Outcome.from_command_effects()
+      {:ok, command} -> command |> Command.run(session, []) |> Command.effects_to_outcomes()
       :error -> []
     end
   end

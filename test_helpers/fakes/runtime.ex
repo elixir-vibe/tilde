@@ -24,6 +24,7 @@ defmodule TildeTest.StorageAdapter do
   @impl true
   def append_event(session, event) do
     notify({:storage_append_event, session.id, event.type, event.text})
+    notify({:storage_append_sequence, session.id, event.sequence})
     :ok
   end
 

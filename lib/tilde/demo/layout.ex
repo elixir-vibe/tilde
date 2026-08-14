@@ -8,8 +8,8 @@ defmodule Tilde.Demo.Layout do
   def root(assigns) do
     assigns =
       assigns
-      |> assign(:app_css, Volt.static_path(Tilde.Demo.Endpoint, "/assets/css/app.css"))
-      |> assign(:app_js, Volt.static_path(Tilde.Demo.Endpoint, "/assets/js/app.js"))
+      |> assign(:app_css, Tilde.Demo.Assets.stylesheet_path())
+      |> assign(:app_js, Tilde.Demo.Assets.javascript_path())
 
     ~H"""
     <!DOCTYPE html>

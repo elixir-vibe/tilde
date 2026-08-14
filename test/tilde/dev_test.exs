@@ -26,7 +26,7 @@ defmodule Tilde.DevTest do
 
     assert raw =~ "%Tilde.Core.Session{"
     assert raw =~ "id: \"inspect-me\""
-    assert raw =~ "events:"
+    assert raw =~ "event_log:"
     assert raw =~ "transcript:"
   end
 end

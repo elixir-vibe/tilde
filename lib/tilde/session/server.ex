@@ -10,8 +10,8 @@ defmodule Tilde.Session.Server do
   use GenServer
 
   alias Tilde.Command
-  alias Tilde.Core.{Controller, Event, Session}
-  alias Tilde.Session.AgentLoop
+  alias Tilde.Core.{Event, Session}
+  alias Tilde.Session.{AgentLoop, Controller}
   alias Tilde.Session.AgentLoop.State, as: AgentLoopState
   alias Tilde.Session.Persistence
 
@@ -21,48 +21,59 @@ defmodule Tilde.Session.Server do
             subscribers: %{},
             agent_loop: AgentLoopState.new(),
             stream_buffers: %{},
-            llm_opts: []
+            llm_opts: [],
+            agent_task_timeout_ms: :infinity
 
   @type t :: %__MODULE__{
           session: Session.t(),
           subscribers: %{reference() => pid()},
           agent_loop: AgentLoopState.t(),
           stream_buffers: map(),
-          llm_opts: keyword()
+          llm_opts: keyword(),
+          agent_task_timeout_ms: timeout()
         }
 
   @type name :: GenServer.name() | pid()
   @type update_message :: {:tilde_session_updated, String.t(), Session.t()}
 
-  @doc "Starts a session server."
+  @doc "Returns a temporary child specification for a dynamically owned session."
+  @spec child_spec(keyword()) :: Supervisor.child_spec()
+  def child_spec(opts) do
+    %{
+      id: {__MODULE__, Keyword.get(opts, :name, __MODULE__)},
+      start: {__MODULE__, :start_link, [opts]},
+      restart: :temporary,
+      shutdown: 5_000,
+      type: :worker
+    }
+  end
+
+  @doc "Starts a session server. Prefer `ensure_started/2` outside supervision tests."
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
     session = Keyword.get_lazy(opts, :session, &Tilde.session/0)
     name = Keyword.get(opts, :name, __MODULE__)
     llm_opts = Keyword.get(opts, :llm_opts, [])
-    GenServer.start_link(__MODULE__, {session, llm_opts}, name: name)
+    agent_task_timeout_ms = Keyword.get(opts, :agent_task_timeout_ms, :infinity)
+    GenServer.start_link(__MODULE__, {session, llm_opts, agent_task_timeout_ms}, name: name)
   end
 
-  @doc "Ensures a named server exists and returns `{:ok, pid}`."
+  @doc "Ensures a named server exists under `Tilde.Session.DynamicSupervisor`."
   @spec ensure_started(name(), keyword()) :: {:ok, pid()} | {:error, term()}
   def ensure_started(name \\ __MODULE__, opts \\ []) do
-    case GenServer.whereis(name) do
-      nil -> start_unlinked(Keyword.put(opts, :name, name))
-      pid -> {:ok, pid}
+    with {:ok, _supervisor} <- Tilde.Session.Supervisor.ensure_started() do
+      case GenServer.whereis(name) do
+        nil -> start_supervised(Keyword.put(opts, :name, name))
+        pid -> {:ok, pid}
+      end
     end
   end
 
-  defp start_unlinked(opts) do
-    case start_link(opts) do
-      {:ok, pid} ->
-        Process.unlink(pid)
-        {:ok, pid}
-
-      {:error, {:already_started, pid}} ->
-        {:ok, pid}
-
-      {:error, reason} ->
-        {:error, reason}
+  defp start_supervised(opts) do
+    case DynamicSupervisor.start_child(Tilde.Session.DynamicSupervisor, {__MODULE__, opts}) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, pid}} -> {:ok, pid}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -102,26 +113,42 @@ defmodule Tilde.Session.Server do
     GenServer.call(server, {:update_session, fun})
   end
 
-  @doc "Applies a decoded TUI key through `Tilde.Core.Controller` on the default server."
+  @doc "Applies a decoded TUI key through `Tilde.Session.Controller` on the default server."
   @spec apply_key(Tilde.Core.Keys.key()) :: Controller.result()
   def apply_key(key), do: apply_key(__MODULE__, key)
 
-  @doc "Applies a decoded TUI key through `Tilde.Core.Controller`."
+  @doc "Applies a decoded TUI key through `Tilde.Session.Controller`."
   @spec apply_key(name(), Tilde.Core.Keys.key()) :: Controller.result()
   def apply_key(server, key) do
     GenServer.call(server, {:apply_key, key})
   end
 
-  @doc "Applies a transport-neutral interaction through `Tilde.Core.Controller`."
+  @doc "Applies a transport-neutral interaction through `Tilde.Session.Controller`."
   @spec apply_interaction(name(), Tilde.Core.Interaction.t()) :: Controller.interaction_result()
   def apply_interaction(server, interaction) do
     GenServer.call(server, {:apply_interaction, interaction})
   end
 
   @impl true
-  def init({%Session{} = session, llm_opts}) when is_list(llm_opts) do
+  def init({%Session{} = session, llm_opts, :infinity}) when is_list(llm_opts) do
+    init_state(session, llm_opts, :infinity)
+  end
+
+  def init({%Session{} = session, llm_opts, agent_task_timeout_ms})
+      when is_list(llm_opts) and is_integer(agent_task_timeout_ms) and
+             agent_task_timeout_ms > 0 do
+    init_state(session, llm_opts, agent_task_timeout_ms)
+  end
+
+  defp init_state(session, llm_opts, agent_task_timeout_ms) do
+    Process.flag(:trap_exit, true)
+
     state =
-      %__MODULE__{session: session, llm_opts: llm_opts}
+      %__MODULE__{
+        session: session,
+        llm_opts: llm_opts,
+        agent_task_timeout_ms: agent_task_timeout_ms
+      }
       |> AgentLoop.maybe_resume(&broadcast/1)
 
     Persistence.persist_if_changed(session, state.session)
@@ -236,8 +263,49 @@ defmodule Tilde.Session.Server do
     end
   end
 
+  def handle_info({:tilde_agent_timeout, ref, task}, state) do
+    if AgentLoopState.matches_task?(state.agent_loop, task, ref) do
+      Process.exit(task, :kill)
+      previous = state.session
+
+      state =
+        state
+        |> flush_stream_buffer(ref)
+        |> AgentLoop.handle_task_exit(task, :timeout, &broadcast/1)
+
+      Persistence.persist(previous, state.session)
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
+  end
+
+  def handle_info({:EXIT, task, reason}, state) do
+    if AgentLoopState.matches_task?(state.agent_loop, task) do
+      previous = state.session
+      ref = state.agent_loop.ref
+
+      state =
+        state
+        |> flush_stream_buffer(ref)
+        |> AgentLoop.handle_task_exit(task, reason, &broadcast/1)
+
+      Persistence.persist(previous, state.session)
+      {:noreply, state}
+    else
+      {:noreply, state}
+    end
+  end
+
   def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
     {:noreply, update_in(state.subscribers, &Map.delete(&1, ref))}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    AgentLoop.shutdown(state)
+    Enum.each(state.stream_buffers, fn {_ref, buffer} -> cancel_stream_timer(buffer.timer) end)
+    :ok
   end
 
   defp after_session_update(%__MODULE__{} = state, %Session{} = previous) do
@@ -257,7 +325,7 @@ defmodule Tilde.Session.Server do
   end
 
   defp apply_command_if_submitted(%__MODULE__{} = state) do
-    with %Event{type: :input_submitted, text: text} <- List.last(state.session.events),
+    with %Event{type: :input_submitted, text: text} <- Session.latest_event(state.session),
          {:ok, command} <- Command.parse(text) do
       effects = Command.run(command, state.session, [])
 

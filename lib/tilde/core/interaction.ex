@@ -66,17 +66,6 @@ defmodule Tilde.Core.Interaction.Outcome do
   @spec show_session_info() :: t()
   def show_session_info, do: %__MODULE__{type: :show_session_info, payload: %{}}
 
-  @spec from_command_effects([Tilde.Command.Effect.t()]) :: [t()]
-  def from_command_effects(effects) do
-    Enum.flat_map(effects, fn
-      %Tilde.Command.Effect.NewSession{id: id} -> [open_session(id)]
-      %Tilde.Command.Effect.AttachSession{id: id} -> [open_session(id)]
-      %Tilde.Command.Effect.DetachSession{} -> [open_index()]
-      %Tilde.Command.Effect.ShowSessionInfo{} -> [show_session_info()]
-      _effect -> []
-    end)
-  end
-
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

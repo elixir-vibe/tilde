@@ -17,6 +17,7 @@ defmodule Tilde.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
+      mod: {Tilde.Application, []},
       extra_applications: [:logger, :ssh, :public_key, :crypto]
     ]
   end
@@ -63,7 +64,10 @@ defmodule Tilde.MixProject do
   defp aliases() do
     [
       "assets.build": ["volt.build --tailwind"],
-      "test.browser": ["test --only browser"],
+      "test.browser": [
+        "volt.build --tailwind --no-hash",
+        "cmd mix test --only browser"
+      ],
       ci: [
         "format",
         "compile --warnings-as-errors",
@@ -71,10 +75,12 @@ defmodule Tilde.MixProject do
         "volt.js.check",
         "volt.build --tailwind --no-hash",
         "test",
+        "cmd mix test --only browser",
         "credo --strict",
         "dialyzer",
         "ex_dna --max-clones 0",
-        "reach.check --arch --smells"
+        "reach.check --arch --smells",
+        "xref graph --format cycles --label compile-connected --fail-above 0"
       ]
     ]
   end

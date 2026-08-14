@@ -72,6 +72,8 @@ defmodule Mix.Tasks.Tilde.Demo do
   end
 
   defp configure_endpoint(web_port, host, hmr?) do
+    Application.put_env(:tilde, :demo_code_reloader, true)
+
     Application.put_env(:tilde, Tilde.Demo.Endpoint,
       adapter: Bandit.PhoenixAdapter,
       url: [scheme: "https", host: host, port: 443],

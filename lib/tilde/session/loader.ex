@@ -20,10 +20,7 @@ defmodule Tilde.Session.Loader do
     end
   end
 
-  defp use_loaded_or_new(%Session{events: [], input: %{value: ""}, metadata: metadata}, new_fun)
-       when metadata == %{} do
-    new_fun.()
+  defp use_loaded_or_new(%Session{} = session, new_fun) do
+    if Session.empty?(session), do: new_fun.(), else: session
   end
-
-  defp use_loaded_or_new(%Session{} = session, _new_fun), do: session
 end

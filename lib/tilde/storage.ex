@@ -28,7 +28,7 @@ defmodule Tilde.Storage do
   @spec ensure_session(Session.t()) :: :ok | {:error, term()}
   def ensure_session(%Session{} = session), do: dispatch(:ensure_session, [session])
 
-  @doc "Appends one canonical session event to durable storage."
+  @doc "Appends one canonically sequenced event after the session has been ensured."
   @spec append_event(Session.t(), Event.t()) :: :ok | {:error, term()}
   def append_event(%Session{} = session, %Event{} = event) do
     if EventPolicy.persist?(event) do

@@ -1,7 +1,7 @@
 defmodule Tilde.Index.View do
   @moduledoc "Semantic widget composition for the console index."
 
-  alias Tilde.Core.Index
+  alias Tilde.Index
 
   @shortcuts [
     %{key: "↑/↓", label: "select"},

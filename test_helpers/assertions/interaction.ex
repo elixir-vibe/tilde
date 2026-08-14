@@ -3,8 +3,9 @@ defmodule TildeTest.InteractionAssertions do
 
   import ExUnit.Assertions
 
-  alias Tilde.Core.{Index, Session}
+  alias Tilde.Core.Session
   alias Tilde.Core.Interaction.Outcome
+  alias Tilde.Index
 
   @type result ::
           {:cont, Index.t() | Session.t(), [Outcome.t()]}

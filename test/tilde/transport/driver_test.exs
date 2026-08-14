@@ -14,7 +14,7 @@ defmodule TildeDriverTest do
       test "typing slash shows suggestions, tab completes, and enter executes", %{state: state} do
         state = Driver.type(state, "/")
 
-        suggest = Driver.session(state) |> Tilde.Core.Session.command_suggestions()
+        suggest = Driver.session(state) |> Tilde.Session.Suggestions.command_suggestions()
         [first, second | _rest] = suggest.items
 
         state =
@@ -55,7 +55,7 @@ defmodule TildeDriverTest do
 
         selected =
           Driver.session(state)
-          |> Tilde.Core.Session.command_suggestions()
+          |> Tilde.Session.Suggestions.command_suggestions()
           |> Tilde.Core.Suggest.selected()
 
         state = Driver.type(state, String.replace_prefix(selected.label, "/", ""))

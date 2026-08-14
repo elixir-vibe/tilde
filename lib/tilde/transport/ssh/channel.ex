@@ -13,27 +13,26 @@ defmodule Tilde.Transport.SSH.Channel do
   alias Tilde.Command, as: SlashCommand
 
   alias Tilde.Core.{
-    Controller,
-    Index,
     Interaction,
     Keys,
     Palette,
     Review,
     Session,
-    Shortcuts,
     Workspace
   }
 
-  alias Tilde.Core.Interaction.Outcome
-  alias Tilde.Runtime.{WorkspaceFiles, WorkspaceReview}
+  alias Tilde.Index
+  alias Tilde.Session.Controller
   alias Tilde.Session.Registry, as: SessionRegistry
   alias Tilde.Session.ReviewState
   alias Tilde.Session.Server, as: SessionServer
+  alias Tilde.Session.Suggestions
   alias Tilde.Transport.SSH.Delta
   alias Tilde.Transport.SSH.Interaction, as: SSHInteraction
   alias Tilde.Transport.SSH.LocalPrompt
   alias Tilde.Transport.SSH.Outcome, as: SSHOutcome
   alias Tilde.Transport.SSH.Rendering
+  alias Tilde.Workbench
 
   defstruct connection_ref: nil,
             channel_id: nil,
@@ -53,6 +52,7 @@ defmodule Tilde.Transport.SSH.Channel do
             active_symbol_line: nil,
             file_scroll_line: nil,
             review: nil,
+            review_open?: true,
             active_review_comment_id: nil,
             palette: nil
 
@@ -75,6 +75,7 @@ defmodule Tilde.Transport.SSH.Channel do
           active_symbol_line: pos_integer() | nil,
           file_scroll_line: pos_integer() | nil,
           review: Review.t() | nil,
+          review_open?: boolean(),
           active_review_comment_id: String.t() | nil,
           palette: Palette.t() | nil
         }
@@ -87,21 +88,19 @@ defmodule Tilde.Transport.SSH.Channel do
     session_mode = Keyword.get(opts, :session_mode, :private)
 
     session = Keyword.get_lazy(opts, :session, &Tilde.Demo.Live.demo_session/0)
-    workspace = WorkspaceFiles.workspace(session)
 
-    {:ok,
-     %__MODULE__{
-       width: Keyword.get(opts, :width, 100),
-       height: Keyword.get(opts, :height, 30),
-       session: session,
-       index: Index.new(),
-       session_server: session_server,
-       session_mode: session_mode,
-       session_id: session.id,
-       workspace: workspace,
-       review: WorkspaceReview.review(workspace, session),
-       palette: Palette.new()
-     }}
+    state =
+      %__MODULE__{
+        width: Keyword.get(opts, :width, 100),
+        height: Keyword.get(opts, :height, 30),
+        index: Index.new(),
+        session_server: session_server,
+        session_mode: session_mode,
+        session_id: session.id
+      }
+      |> put_workbench(Workbench.new(session))
+
+    {:ok, state}
   end
 
   @impl true
@@ -258,24 +257,16 @@ defmodule Tilde.Transport.SSH.Channel do
       SessionServer.unsubscribe(state.session_server)
     end
 
-    %{
+    state = %{
       state
-      | session: nil,
-        index: Index.new(),
+      | index: Index.new(),
         session_server: nil,
         session_id: nil,
         attached?: false,
-        streaming?: false,
-        workspace: nil,
-        workspace_mode: :chat,
-        workspace_view: :files,
-        open_file: nil,
-        active_symbol_line: nil,
-        file_scroll_line: nil,
-        review: nil,
-        active_review_comment_id: nil,
-        palette: nil
+        streaming?: false
     }
+
+    put_workbench(state, %Workbench{})
   end
 
   defp show_session_info(%__MODULE__{} = state) do
@@ -291,27 +282,9 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp refresh_workbench(%__MODULE__{} = state, %Session{} = session) do
-    workspace =
-      session
-      |> WorkspaceFiles.workspace()
-      |> Workspace.preserve_navigation(state.workspace)
-
-    open_file = refresh_open_file(workspace, state.open_file)
-
-    %{
-      state
-      | workspace: workspace,
-        open_file: open_file,
-        review: WorkspaceReview.review(workspace, session),
-        palette: Palette.refresh(state.palette || Palette.new(), workspace, open_file)
-    }
+    workbench = state |> Workbench.from_map() |> Workbench.refresh(session)
+    put_workbench(state, workbench)
   end
-
-  defp refresh_open_file(%Workspace{} = workspace, %{path: path}) when is_binary(path) do
-    WorkspaceFiles.open_file(workspace, path)
-  end
-
-  defp refresh_open_file(_workspace, _open_file), do: nil
 
   defp apply_keys(%__MODULE__{session_server: nil, index: %Index{}} = state, keys) do
     apply_index_keys(state, keys)
@@ -387,7 +360,7 @@ defmodule Tilde.Transport.SSH.Channel do
   defp shortcut_key(_state, _key), do: nil
 
   defp accept_suggestion_before_submit?(%Session{} = session) do
-    case {Session.command_suggestions(session), SlashCommand.completion(session.input.value)} do
+    case {Suggestions.command_suggestions(session), SlashCommand.completion(session.input.value)} do
       {nil, _completion} ->
         false
 
@@ -400,281 +373,32 @@ defmodule Tilde.Transport.SSH.Channel do
   end
 
   defp apply_shortcut_key(%__MODULE__{} = state, key) do
-    state
-    |> shortcut_scope()
-    |> Shortcuts.match(key)
-    |> apply_shortcut_id(state)
+    {workbench, effects} =
+      state
+      |> Workbench.from_map()
+      |> Workbench.apply_action({:shortcut, key},
+        page_size: max(state.height - 8, 1),
+        scroll_field: :file_scroll_line
+      )
+
+    state = state |> put_workbench(workbench) |> apply_workbench_effects(effects)
+    {:cont, {:cont, state}}
   end
 
-  defp shortcut_scope(%__MODULE__{palette: %Palette{open?: true}}), do: :palette
-  defp shortcut_scope(%__MODULE__{workspace_mode: :file}), do: :buffer
-  defp shortcut_scope(%__MODULE__{workspace_mode: :workspace}), do: :workspace
-  defp shortcut_scope(%__MODULE__{}), do: :chat
+  defp apply_workbench_effects(state, effects) do
+    Enum.reduce(effects, state, fn
+      {:persist_review, review}, %{session_server: server} = state when not is_nil(server) ->
+        session = SessionServer.update_session(server, &ReviewState.put(&1, review))
+        refresh_workbench(state, session)
 
-  defp apply_shortcut_id(nil, state), do: {:cont, {:cont, state}}
-
-  defp apply_shortcut_id("tilde.workspace.view_files", state) do
-    {:cont, {:cont, %{state | workspace_view: :files, workspace_mode: :workspace}}}
-  end
-
-  defp apply_shortcut_id("tilde.workspace.view_symbols", state) do
-    {:cont, {:cont, %{state | workspace_view: :symbols, workspace_mode: :workspace}}}
-  end
-
-  defp apply_shortcut_id("tilde.session.chat", state) do
-    {:cont,
-     {:cont,
-      %{
+      {:persist_review, _review}, state ->
         state
-        | workspace_mode: :chat,
-          open_file: nil,
-          active_symbol_line: nil,
-          file_scroll_line: nil
-      }}}
+    end)
   end
 
-  defp apply_shortcut_id("tilde.review.focus", state), do: {:cont, {:cont, focus_review(state)}}
-
-  defp apply_shortcut_id("tilde.review.toggle_current", state) do
-    {:cont, {:cont, toggle_review_comment(state)}}
+  defp put_workbench(%__MODULE__{} = state, %Workbench{} = workbench) do
+    struct(state, Workbench.to_map(workbench))
   end
-
-  defp apply_shortcut_id("tilde.review.next", state),
-    do: {:cont, {:cont, focus_adjacent_review(state, :next)}}
-
-  defp apply_shortcut_id("tilde.review.previous", state),
-    do: {:cont, {:cont, focus_adjacent_review(state, :previous)}}
-
-  defp apply_shortcut_id("tilde.file.page_up", state),
-    do: {:cont, {:cont, scroll_open_file(state, :up)}}
-
-  defp apply_shortcut_id("tilde.file.page_down", state),
-    do: {:cont, {:cont, scroll_open_file(state, :down)}}
-
-  defp apply_shortcut_id("tilde.workspace.focus_previous", state) do
-    {:cont, {:cont, focus_workspace_file(state, :previous)}}
-  end
-
-  defp apply_shortcut_id("tilde.workspace.focus_next", state) do
-    {:cont, {:cont, focus_workspace_file(state, :next)}}
-  end
-
-  defp apply_shortcut_id("tilde.workspace.open_focused", state) do
-    {:cont, {:cont, open_focused_workspace_file(state)}}
-  end
-
-  defp apply_shortcut_id("tilde.palette.open", state) do
-    palette = Palette.open_files(state.workspace, (state.palette || Palette.new()).query)
-    {:cont, {:cont, %{state | palette: palette}}}
-  end
-
-  defp apply_shortcut_id("tilde.palette.mode_files", state) do
-    {:cont, {:cont, switch_palette_mode(state, :files)}}
-  end
-
-  defp apply_shortcut_id("tilde.palette.mode_symbols", state) do
-    {:cont, {:cont, switch_palette_mode(state, :symbols)}}
-  end
-
-  defp apply_shortcut_id("tilde.palette.close", state) do
-    {:cont, {:cont, %{state | palette: %{state.palette | open?: false}}}}
-  end
-
-  defp apply_shortcut_id("tilde.palette.previous", state) do
-    {:cont, {:cont, %{state | palette: Palette.move(state.palette, :previous)}}}
-  end
-
-  defp apply_shortcut_id("tilde.palette.next", state) do
-    {:cont, {:cont, %{state | palette: Palette.move(state.palette, :next)}}}
-  end
-
-  defp apply_shortcut_id("tilde.palette.accept", state) do
-    {:cont, {:cont, accept_palette(state)}}
-  end
-
-  defp apply_shortcut_id(_shortcut, state), do: {:cont, {:cont, state}}
-
-  defp switch_palette_mode(%__MODULE__{} = state, mode) do
-    %{state | palette: Palette.switch_mode(state.palette, mode, state.workspace, state.open_file)}
-  end
-
-  defp accept_palette(%__MODULE__{palette: %Palette{} = palette} = state) do
-    case Palette.selected_item(palette) do
-      %{action: %{type: :open_file, path: path}} ->
-        open_workspace_file(%{state | palette: palette}, path)
-
-      %{action: %{type: :jump_symbol, line: line}} ->
-        %{
-          state
-          | palette: %{palette | open?: false},
-            workspace_mode: :file,
-            workspace_view: :symbols,
-            active_symbol_line: line,
-            file_scroll_line: nil
-        }
-
-      _item ->
-        state
-    end
-  end
-
-  defp focus_review(%__MODULE__{review: %Review{} = review} = state) do
-    review
-    |> Review.focused_comment_id(state.active_review_comment_id)
-    |> case do
-      nil -> state
-      comment_id -> jump_review_comment(state, comment_id)
-    end
-  end
-
-  defp focus_review(%__MODULE__{} = state), do: state
-
-  defp focus_adjacent_review(%__MODULE__{review: %Review{} = review} = state, direction) do
-    review
-    |> Review.adjacent_comment_id(state.active_review_comment_id, direction)
-    |> case do
-      nil -> state
-      comment_id -> jump_review_comment(state, comment_id)
-    end
-  end
-
-  defp focus_adjacent_review(%__MODULE__{} = state, _direction), do: state
-
-  defp scroll_open_file(%__MODULE__{open_file: %{line_count: line_count}} = state, direction)
-       when line_count > 0 do
-    page_size = file_page_size(state)
-
-    current_line =
-      state.file_scroll_line || centered_start_line(state.active_symbol_line, page_size)
-
-    next_line = scroll_line(current_line, line_count, page_size, direction)
-
-    %{state | workspace_mode: :file, file_scroll_line: next_line}
-  end
-
-  defp scroll_open_file(%__MODULE__{} = state, _direction), do: state
-
-  defp file_page_size(%__MODULE__{height: height}), do: max(height - 8, 1)
-
-  defp centered_start_line(line, page_size) when is_integer(line) and line > 0,
-    do: max(line - div(page_size, 2), 1)
-
-  defp centered_start_line(_line, _page_size), do: 1
-
-  defp scroll_line(current_line, line_count, page_size, :up) do
-    max(current_line - page_size, 1)
-    |> min(max_start_line(line_count, page_size))
-  end
-
-  defp scroll_line(current_line, line_count, page_size, :down) do
-    min(current_line + page_size, max_start_line(line_count, page_size))
-  end
-
-  defp max_start_line(line_count, page_size), do: max(line_count - page_size + 1, 1)
-
-  defp toggle_review_comment(%__MODULE__{review: %Review{} = review} = state) do
-    case active_or_focused_review_comment_id(review, state.active_review_comment_id) do
-      nil -> toggle_review_comment(state)
-      comment_id -> toggle_review_comment(state, comment_id)
-    end
-  end
-
-  defp toggle_review_comment(%__MODULE__{} = state), do: state
-
-  defp active_or_focused_review_comment_id(%Review{} = review, active_comment_id) do
-    if is_binary(active_comment_id) and Review.find_comment(review, active_comment_id) do
-      active_comment_id
-    else
-      Review.focused_comment_id(review, active_comment_id)
-    end
-  end
-
-  defp toggle_review_comment(%__MODULE__{review: %Review{} = review} = state, comment_id) do
-    case Review.find_comment(review, comment_id) do
-      %{status: :open} ->
-        persist_review(state, Review.resolve_comment(review, comment_id), comment_id)
-
-      %{status: :resolved} ->
-        persist_review(state, Review.reopen_comment(review, comment_id), comment_id)
-
-      _comment ->
-        state
-    end
-  end
-
-  defp persist_review(%__MODULE__{session_server: server} = state, %Review{} = review, comment_id)
-       when not is_nil(server) do
-    session = SessionServer.update_session(server, &ReviewState.put(&1, review))
-
-    %{
-      state
-      | session: session,
-        review: ReviewState.load(review, session),
-        active_review_comment_id: comment_id
-    }
-  end
-
-  defp persist_review(%__MODULE__{} = state, %Review{} = review, comment_id) do
-    %{state | review: review, active_review_comment_id: comment_id}
-  end
-
-  defp jump_review_comment(%__MODULE__{review: %Review{} = review} = state, comment_id) do
-    case Review.find_comment(review, comment_id) do
-      %{path: path, line: line, id: id} -> open_workspace_file_at_line(state, path, line, id)
-      nil -> state
-    end
-  end
-
-  defp open_workspace_file_at_line(state, path, line, comment_id) do
-    state
-    |> open_workspace_file(path)
-    |> Map.merge(%{
-      workspace_view: :files,
-      active_symbol_line: line,
-      file_scroll_line: nil,
-      active_review_comment_id: comment_id
-    })
-  end
-
-  defp open_workspace_file(%__MODULE__{workspace: %Workspace{} = workspace} = state, path) do
-    workspace = %{workspace | selected_path: path, focused_path: path}
-
-    %{
-      state
-      | workspace: workspace,
-        palette: %{state.palette | open?: false},
-        workspace_mode: :file,
-        workspace_view: :symbols,
-        open_file: WorkspaceFiles.open_file(workspace, path),
-        active_symbol_line: nil,
-        file_scroll_line: 1,
-        active_review_comment_id: nil
-    }
-  end
-
-  defp focus_workspace_file(%__MODULE__{workspace: %Workspace{} = workspace} = state, direction) do
-    focused_workspace = Workspace.focus_file(workspace, direction)
-
-    if focused_workspace == workspace do
-      state
-    else
-      %{state | workspace: focused_workspace, workspace_mode: :workspace}
-    end
-  end
-
-  defp focus_workspace_file(%__MODULE__{} = state, _direction), do: state
-
-  defp open_focused_workspace_file(%__MODULE__{workspace: %Workspace{} = workspace} = state) do
-    focused_path = workspace.focused_path
-
-    if focused_path in Workspace.visible_file_paths(workspace) do
-      open_workspace_file(state, focused_path)
-    else
-      state
-    end
-  end
-
-  defp open_focused_workspace_file(%__MODULE__{} = state), do: state
 
   defp submit_or_command(server, state) do
     case transport_effects(state.session.input.value, state.session) do
@@ -689,7 +413,7 @@ defmodule Tilde.Transport.SSH.Channel do
   defp transport_effects(input, %Session{} = session) do
     case SlashCommand.parse(input) do
       {:ok, command} ->
-        command |> SlashCommand.run(session, []) |> Outcome.from_command_effects()
+        command |> SlashCommand.run(session, []) |> SlashCommand.effects_to_outcomes()
 
       :error ->
         []

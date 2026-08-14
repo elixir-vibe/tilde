@@ -1,6 +1,9 @@
 defmodule Tilde.DemoRuntimeTransportTest do
   use TildeTest.Case
 
+  alias Tilde.Index
+  alias Tilde.Session.Controller
+
   test "Jidoka runtime reports a missing OpenRouter key before calling the runtime" do
     previous = System.get_env("OPENROUTER_API_KEY")
     System.delete_env("OPENROUTER_API_KEY")
@@ -206,15 +209,15 @@ defmodule Tilde.DemoRuntimeTransportTest do
   end
 
   test "tui controller edits and submits semantic input" do
-    assert {:cont, session} = Tilde.Core.Controller.apply_key(Tilde.session(), {:text, "h"})
-    assert {:cont, session} = Tilde.Core.Controller.apply_key(session, {:text, "i"})
+    assert {:cont, session} = Controller.apply_key(Tilde.session(), {:text, "h"})
+    assert {:cont, session} = Controller.apply_key(session, {:text, "i"})
     assert session.input.value == "hi"
 
-    assert {:cont, session} = Tilde.Core.Controller.apply_key(session, :backspace)
+    assert {:cont, session} = Controller.apply_key(session, :backspace)
     assert session.input.value == "h"
 
-    assert {:cont, session} = Tilde.Core.Controller.apply_key(session, {:text, "!"})
-    assert {:cont, submitted} = Tilde.Core.Controller.apply_key(session, :enter)
+    assert {:cont, session} = Controller.apply_key(session, {:text, "!"})
+    assert {:cont, submitted} = Controller.apply_key(session, :enter)
 
     assert submitted.input.value == ""
     assert [%Block{role: :user, source: "h!"}] = submitted.transcript.blocks
@@ -227,9 +230,9 @@ defmodule Tilde.DemoRuntimeTransportTest do
         Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
       )
 
-    assert {:cont, toggled} = Tilde.Core.Controller.apply_key(session, :toggle_expand)
+    assert {:cont, toggled} = Controller.apply_key(session, :toggle_expand)
     assert [%Block{display: %{expanded?: true}}] = toggled.transcript.blocks
-    assert {:halt, ^toggled} = Tilde.Core.Controller.apply_key(toggled, :quit)
+    assert {:halt, ^toggled} = Controller.apply_key(toggled, :quit)
   end
 
   test "ssh channel initializes semantic demo state" do
@@ -258,16 +261,6 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert rendered =~ "[compaction]"
     assert rendered =~ "Compacted from 1234 tokens (ctrl+o to expand)"
     refute rendered =~ "Summary"
-  end
-
-  test "ssh transport command parser handles session routing commands" do
-    assert Tilde.Transport.SSH.Command.parse("/attach demo") == {:attach, "demo"}
-    assert Tilde.Transport.SSH.Command.parse("/attach Demo Session!") == {:attach, "demo-session"}
-    assert Tilde.Transport.SSH.Command.parse("/attach") == {:attach, "shared"}
-    assert Tilde.Transport.SSH.Command.parse("/detach") == :detach
-    assert Tilde.Transport.SSH.Command.parse("/session") == :session
-    assert Tilde.Transport.SSH.Command.parse("hello") == :submit
-    assert Tilde.Transport.SSH.Command.parse("/clear") == :submit
   end
 
   test "ssh delta classifier detects append-oriented tool updates" do
@@ -332,18 +325,6 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert Tilde.Transport.SSH.Delta.classify(collapsed, expanded) == :redraw
   end
 
-  test "ssh shell applies tui keys to semantic session" do
-    session =
-      Tilde.session()
-      |> Session.append_event(
-        Tilde.tool_started("bash", %{command: "mix test"}, tool_call_id: "tool_1")
-      )
-
-    assert {:cont, toggled} = Tilde.Transport.SSH.Shell.apply_key(session, :toggle_expand)
-    assert [%Block{display: %{expanded?: true}}] = toggled.transcript.blocks
-    assert {:halt, ^toggled} = Tilde.Transport.SSH.Shell.apply_key(toggled, :quit)
-  end
-
   test "ssh channel submits exact slash command suggestions instead of accepting forever" do
     state = attached_ssh_state("ssh-exact-command")
 
@@ -369,7 +350,7 @@ defmodule Tilde.DemoRuntimeTransportTest do
     assert state.session == nil
     assert state.session_id == nil
     refute state.attached?
-    assert %Tilde.Core.Index{} = state.index
+    assert %Index{} = state.index
   end
 
   test "ssh channel opens palette and accepts focused workspace file" do

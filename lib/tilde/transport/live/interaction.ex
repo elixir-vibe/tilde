@@ -1,7 +1,8 @@
 defmodule Tilde.Transport.Live.Interaction do
   @moduledoc "Translates LiveView event names and params into core interactions."
 
-  alias Tilde.Core.{Index, Input, Interaction}
+  alias Tilde.Core.{Input, Interaction}
+  alias Tilde.Index
 
   @spec index(String.t(), map(), Index.t()) :: Interaction.t() | nil
   def index("tilde:input_changed", %{"input" => "n"}, %Index{input: %Input{value: ""}}),

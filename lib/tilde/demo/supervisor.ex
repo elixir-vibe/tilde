@@ -17,8 +17,6 @@ defmodule Tilde.Demo.Supervisor do
     children = [
       {Tilde.Runtime.RateLimit, clean_period: :timer.minutes(1)},
       {Phoenix.PubSub, name: Tilde.Demo.LivePubSub},
-      {Registry, keys: :unique, name: Tilde.Session.Registry},
-      {Tilde.Session.Server, name: Tilde.Session.Server, session: Tilde.Demo.Live.demo_session()},
       Tilde.Demo.Endpoint,
       {Tilde.Transport.SSH.Demo, port: ssh_port, password: password, session_mode: :private}
     ]

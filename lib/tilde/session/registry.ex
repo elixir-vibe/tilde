@@ -6,26 +6,15 @@ defmodule Tilde.Session.Registry do
   creating dynamic atoms for untrusted session ids.
   """
 
-  @doc "Ensures the local session registry is running."
+  @doc "Ensures the supervised local session registry is running."
   @spec ensure_started() :: {:ok, pid()} | {:error, term()}
   def ensure_started do
-    case Process.whereis(__MODULE__) do
-      nil -> start_unlinked()
-      pid -> {:ok, pid}
-    end
-  end
-
-  defp start_unlinked do
-    case Registry.start_link(keys: :unique, name: __MODULE__) do
-      {:ok, pid} ->
-        Process.unlink(pid)
-        {:ok, pid}
-
-      {:error, {:already_started, pid}} ->
-        {:ok, pid}
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, _supervisor} <- Tilde.Session.Supervisor.ensure_started(),
+         pid when is_pid(pid) <- Process.whereis(__MODULE__) do
+      {:ok, pid}
+    else
+      nil -> {:error, :session_registry_not_started}
+      {:error, reason} -> {:error, reason}
     end
   end
 

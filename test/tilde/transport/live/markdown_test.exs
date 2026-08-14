@@ -4,7 +4,11 @@ defmodule Tilde.Transport.Live.MarkdownTest do
   test "thematic breaks use three dimmed lines" do
     block = Block.message("msg_1", :assistant, "Before\n\n---\n\nAfter")
 
-    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
+    html =
+      render_component(&Tilde.Transport.Live.ViewRenderer.cell/1,
+        cell: Tilde.Viewable.to_view(block)
+      )
+
     css = asset_css("components/markdown.css")
 
     assert html =~ "<hr"
@@ -18,7 +22,11 @@ defmodule Tilde.Transport.Live.MarkdownTest do
     block =
       Block.message("msg_1", :assistant, "| name | status |\n| --- | --- |\n| LiveView | ok |")
 
-    html = render_component(&Tilde.Transport.Live.Message.message/1, block: block)
+    html =
+      render_component(&Tilde.Transport.Live.ViewRenderer.cell/1,
+        cell: Tilde.Viewable.to_view(block)
+      )
+
     css = asset_css("components/markdown.css")
 
     assert html =~ "<table>"

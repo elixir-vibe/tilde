@@ -69,11 +69,26 @@ defmodule Tilde.Renderer.TUI.Workbench do
   end
 
   defp stacked_body(state, width, height, opts) do
+    side_height = max(div(height, 10), 3)
+    main_height = max(height - side_height * 2 - 8, 8)
+
     [
       Theme.title("# tilde", opts),
-      section("workspace", render_workspace(state, width, opts), opts),
-      section("main", render_main(state, width, height, opts), opts),
-      section("review", render_review(state, width, opts), opts),
+      section(
+        "workspace",
+        render_workspace(state, width, opts) |> clip_lines(side_height, :first),
+        opts
+      ),
+      section(
+        "main",
+        render_main(state, width, main_height, opts) |> clip_lines(main_height, :last),
+        opts
+      ),
+      section(
+        "review",
+        render_review(state, width, opts) |> clip_lines(side_height, :first),
+        opts
+      ),
       render_footer(state, width, opts),
       render_palette(state, width, opts)
     ]
@@ -192,7 +207,7 @@ defmodule Tilde.Renderer.TUI.Workbench do
     session
     |> TUI.render(
       width: width,
-      height: max(height - 12, 8),
+      height: max(height, 8),
       clear?: false,
       ansi: Keyword.get(opts, :ansi, true)
     )
@@ -307,6 +322,14 @@ defmodule Tilde.Renderer.TUI.Workbench do
 
   defp open_file_path(%FileBuffer{path: path}), do: path
   defp open_file_path(_open_file), do: nil
+
+  defp clip_lines(body, height, :first) do
+    body |> String.split("\n") |> Enum.take(height) |> Enum.join("\n")
+  end
+
+  defp clip_lines(body, height, :last) do
+    body |> String.split("\n") |> Enum.take(-height) |> Enum.join("\n")
+  end
 
   defp maybe_clip(body, height) when is_integer(height) and height > 0 do
     body

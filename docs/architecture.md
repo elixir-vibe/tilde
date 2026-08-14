@@ -13,11 +13,11 @@ Transport raw input
 Tilde.Core.Interaction
   ephemeral user intent: input changed, accept suggestion, submit, interrupt
     ↓
-Core state/controllers
-  Tilde.Core.Index / Tilde.Core.Session / Tilde.Core.Controller
+Application controllers
+  Tilde.Index / Tilde.Session.Controller / Tilde.Session.Suggestions / Tilde.Workbench
     ↓
-Durable session events and command effects
-  Tilde.Core.Event / Tilde.Command.Effect
+Core semantic state and durable effects
+  Tilde.Core.Session / Tilde.Core.Event / Tilde.Command.Effect
     ↓
 Semantic UI composition
   Tilde.Core.Widget / Tilde.Core.Suggest / transcript blocks
@@ -29,6 +29,12 @@ Renderer adapters
 `Tilde.Core.Event` is durable history. `Tilde.Core.Interaction` is not durable;
 it is the shared transport-neutral event model for user intent in both index and
 session mode.
+
+Core modules are pure semantic values and reducers. They do not call application,
+command, storage, runtime, transport, or demo modules. `Tilde.Session.Controller`
+and `Tilde.Session.Suggestions` own command-aware session behavior, while
+`Tilde.Index` owns index navigation behavior. `.reach.exs` enforces this inward
+dependency direction, and CI rejects compile-connected dependency cycles.
 
 ## Session source of truth
 
@@ -44,6 +50,22 @@ session mode.
 Renderers derive output from this state. ANSI escape sequences, DOM nodes,
 terminal cursor movement, and SSH channel details are renderer concerns only.
 
+## Process ownership
+
+`Tilde.Application` starts `Tilde.Session.Supervisor`, which owns the session
+`Registry`, `DynamicSupervisor`, and `Task.Supervisor`. Named session servers are
+started through `Tilde.Session.Server.ensure_started/2`; callers never unlink or
+own those servers themselves. Concurrent attempts to open the same registry name
+converge on one server.
+
+Dynamic session servers are temporary children. A crashed server is removed
+rather than restarted from an obsolete in-memory snapshot; the next connection
+starts it again through `Tilde.Session.Loader`, which restores durable state when
+storage is configured. Agent/LLM work runs under `Tilde.Session.TaskSupervisor`
+and links back to its owning session for cleanup. Unexpected exits and configured
+overall task timeouts become `:assistant_turn_error` events instead of leaving a
+session permanently active.
+
 ## Durable storage
 
 `Tilde.Storage` is the storage boundary. Core session/event modules stay
@@ -57,10 +79,27 @@ Storage tables follow these roles:
 - `tilde_session_blocks` is a searchable projection derived from events.
 - `tilde_session_state` stores resumable draft/input state, not transcript truth.
 
-`Tilde.Core.Event` remains the only semantic event type. `Tilde.Storage.EventPolicy`
-only decides which existing events belong in the durable log. Draft-only
-`:input_changed` events are not stored canonically; the latest draft lives in
-`tilde_session_state`.
+`Tilde.Core.Event` remains the only semantic event type. Every event receives a
+monotonic session `sequence` when appended. The in-memory event log is stored
+newest-first for constant-time append; callers use `Tilde.Core.Session.events/1`
+for chronological replay and `events_since/2` for a bounded persistence suffix.
+`event_count` makes count reads constant-time without traversing the log.
+QuackDB writes the explicit sequence to `event_index`; it never derives order
+with a `max(event_index) + 1` query. `Tilde.Storage.EventPolicy` only decides
+which existing events belong in the
+durable log, so persisted sequences may contain gaps for ephemeral events.
+Draft-only `:input_changed` events are not stored canonically; the latest draft
+lives in `tilde_session_state`.
+
+`Tilde.Storage.EventCodec` writes and reads one versioned JSON-compatible event
+schema with explicit tags for atoms, tuples, binary data, non-string map keys,
+and temporal values. Stored events never contain Erlang external terms.
+
+`Tilde.Session.Persistence` ensures the session row before every changed-state
+write. Configured adapter failures raise `Tilde.Storage.Error`; a session server
+therefore fails rather than returning success for state that was not durably
+stored. Because dynamic session children are temporary, the next connection
+reopens the last durable state through `Tilde.Session.Loader`.
 
 `Tilde.Session.Loader` is the restore boundary for opening sessions. It loads a
 persisted session through `Tilde.Storage.load_session/1` when a storage adapter is
@@ -108,7 +147,7 @@ labels but do not own assistant lifecycle.
 ## Index/home surface
 
 The web root and SSH/TUI entry point are an index/home surface, not a hidden demo
-session. `Tilde.Core.Index` owns input, selection, command suggestions, and real
+session. `Tilde.Index` owns input, selection, command suggestions, and real
 session suggestions from `Tilde.Session.Registry`.
 
 The index is navigation/discovery only. Selecting a session opens that session.
@@ -136,9 +175,23 @@ transport input translation. `Tilde.Transport.Live.Outcome` maps outcomes to
 SSH handlers for local input updates, session attachment, index return, or an
 inline session-info display.
 
-Session prompt key handling can still flow through `Tilde.Core.Controller.apply_key/2`
+Session prompt key handling can still flow through `Tilde.Session.Controller.apply_key/2`
 for decoded `Tilde.Core.Keys` values; transports that already have semantic
 intent should prefer `Controller.apply_interaction/2`.
+
+## Workbench orchestration
+
+`Tilde.Workbench` owns transport-neutral workspace, file, review, palette, and
+shortcut state. LiveView events and decoded SSH keys become workbench actions;
+the reducer returns updated state plus effects. Adapters merge shared fields into
+their native socket/channel state and interpret effects that cross a boundary,
+such as persisting review status through `Tilde.Session.Server`.
+
+The workbench refresh path derives workspace and review projections from the
+latest semantic session while preserving local navigation. `Tilde.Demo.Live` is
+therefore a LiveView/render adapter, and `Tilde.Transport.SSH.Channel` retains SSH
+protocol, local-prompt, and incremental-rendering concerns rather than owning a
+second workspace reducer.
 
 ## Commands
 

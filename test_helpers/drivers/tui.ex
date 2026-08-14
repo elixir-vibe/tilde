@@ -3,7 +3,8 @@ defmodule TildeTest.Driver.TUI do
 
   @behaviour TildeTest.Driver
 
-  alias Tilde.Core.{Controller, Session}
+  alias Tilde.Core.Session
+  alias Tilde.Session.Controller
 
   defstruct session: nil, text: ""
 

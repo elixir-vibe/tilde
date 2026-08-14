@@ -1,7 +1,8 @@
 defmodule Tilde.Transport.SSH.LocalPrompt do
   @moduledoc "Local prompt behavior for SSH clients attached to shared sessions."
 
-  alias Tilde.Core.{Controller, Input, Session}
+  alias Tilde.Core.{Input, Session}
+  alias Tilde.Session.{Controller, Suggestions}
   alias Tilde.Session.Server, as: SessionServer
 
   @type state :: %{session: Session.t()}
@@ -82,10 +83,9 @@ defmodule Tilde.Transport.SSH.LocalPrompt do
 
   defp put_input(%{session: %Session{}} = state, %Input{} = input) do
     session =
-      Session.append_event(
-        state.session,
-        Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})
-      )
+      state.session
+      |> Session.append_event(Tilde.input_changed(input.value, metadata: %{cursor: input.cursor}))
+      |> Suggestions.refresh()
 
     {:cont, {:cont, %{state | session: session}}}
   end

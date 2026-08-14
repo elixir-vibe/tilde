@@ -10,7 +10,10 @@ defmodule Tilde.Transport.Live.ToolTest do
       |> Block.append_stream(:stderr, "warning\n")
       |> Block.finish_tool(:success, %{exit_code: 0})
 
-    html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
+    html =
+      render_component(&Tilde.Transport.Live.ViewRenderer.cell/1,
+        cell: Tilde.Viewable.to_view(tool)
+      )
 
     assert html =~ ~s|class="lines"|
     assert html =~ ~s|class="text muted">stdout|
@@ -27,7 +30,10 @@ defmodule Tilde.Transport.Live.ToolTest do
       |> Block.append_stream(:stdout, "one\ntwo\nthree\nfour\n")
       |> Block.finish_tool(:success, %{exit_code: 0})
 
-    html = render_component(&Tilde.Transport.Live.Tool.tool/1, block: tool)
+    html =
+      render_component(&Tilde.Transport.Live.ViewRenderer.cell/1,
+        cell: Tilde.Viewable.to_view(tool)
+      )
 
     assert html =~ "… 2 more lines"
     assert html =~ "ctrl+o"

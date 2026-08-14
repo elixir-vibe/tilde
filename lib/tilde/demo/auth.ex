@@ -107,11 +107,7 @@ defmodule Tilde.Demo.Auth do
     """
   end
 
-  defp app_css do
-    Volt.static_path(Tilde.Demo.Endpoint, "/assets/css/app.css")
-  rescue
-    RuntimeError -> "/assets/css/app.css"
-  end
+  defp app_css, do: Tilde.Demo.Assets.stylesheet_path()
 
   defp csrf_token, do: Plug.CSRFProtection.get_csrf_token()
 

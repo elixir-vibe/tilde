@@ -3,8 +3,10 @@ defmodule Tilde.Core.Session do
   Semantic console session state.
 
   A session keeps the append-only event log, its reduced transcript, ephemeral
-  widgets, status values, and metadata together. Renderers can subscribe to this
-  state or maintain equivalent assigns in a LiveView process.
+  widgets, status values, and metadata together. The internal log is newest-first
+  for constant-time append; use `events/1` when chronological order is required.
+  Renderers can subscribe to this state or maintain equivalent assigns in a
+  LiveView process.
   """
 
   alias ReqLLM.StreamChunk
@@ -16,14 +18,15 @@ defmodule Tilde.Core.Session do
     BlockList,
     Event,
     Input,
-    Suggest,
     Transcript,
     Widget
   }
 
   @type t :: %__MODULE__{
           id: String.t(),
-          events: [Event.t()],
+          event_log: [Event.t()],
+          event_count: non_neg_integer(),
+          next_event_sequence: non_neg_integer(),
           transcript: Transcript.t(),
           widgets: %{optional(Widget.placement()) => [Widget.t()]},
           statuses: map(),
@@ -33,7 +36,9 @@ defmodule Tilde.Core.Session do
         }
 
   defstruct id: nil,
-            events: [],
+            event_log: [],
+            event_count: 0,
+            next_event_sequence: 0,
             transcript: %Transcript{},
             widgets: %{},
             statuses: %{},
@@ -59,14 +64,48 @@ defmodule Tilde.Core.Session do
     }
   end
 
+  @doc "Returns the event log in chronological order."
+  @spec events(t()) :: [Event.t()]
+  def events(%__MODULE__{event_log: event_log}), do: Enum.reverse(event_log)
+
+  @doc "Returns events at or after a sequence in chronological order."
+  @spec events_since(t(), non_neg_integer()) :: [Event.t()]
+  def events_since(%__MODULE__{event_log: event_log}, sequence)
+      when is_integer(sequence) and sequence >= 0 do
+    event_log
+    |> Enum.take_while(&(&1.sequence >= sequence))
+    |> Enum.reverse()
+  end
+
+  @doc "Returns the latest event, if one exists."
+  @spec latest_event(t()) :: Event.t() | nil
+  def latest_event(%__MODULE__{event_log: [event | _events]}), do: event
+  def latest_event(%__MODULE__{event_log: []}), do: nil
+
+  @doc "Returns whether the session contains no events or resumable state."
+  @spec empty?(t()) :: boolean()
+  def empty?(%__MODULE__{event_log: [], input: %{value: ""}, metadata: metadata}),
+    do: metadata == %{}
+
+  def empty?(%__MODULE__{}), do: false
+
+  @doc "Returns whether an event id exists in the session log."
+  @spec event_id?(t(), String.t()) :: boolean()
+  def event_id?(%__MODULE__{event_log: event_log}, id) when is_binary(id),
+    do: Enum.any?(event_log, &(&1.id == id))
+
   @doc "Appends an event and updates the derived transcript."
   @spec append_event(t(), Event.t()) :: t()
   def append_event(%__MODULE__{} = session, %Event{} = event) do
-    events = session.events ++ [event]
-
+    event = sequence_event(event, session.next_event_sequence, :contiguous)
     session = apply_event_without_log(session, event)
 
-    %{session | events: events}
+    %{
+      session
+      | event_log: [event | session.event_log],
+        event_count: session.event_count + 1,
+        next_event_sequence: event.sequence + 1
+    }
   end
 
   @doc "Appends events in order."
@@ -74,10 +113,22 @@ defmodule Tilde.Core.Session do
   def append_events(%__MODULE__{} = session, []), do: session
 
   def append_events(%__MODULE__{} = session, events) when is_list(events) do
+    {events, next_sequence} =
+      Enum.map_reduce(events, session.next_event_sequence, fn event, sequence ->
+        event = sequence_event(event, sequence, :ordered)
+        {event, event.sequence + 1}
+      end)
+
     updated = Enum.reduce(events, session, &apply_session_event(&2, &1))
     transcript = Transcript.apply_events(events, session.transcript)
 
-    %{updated | events: session.events ++ events, transcript: transcript}
+    %{
+      updated
+      | event_log: Enum.reverse(events, session.event_log),
+        event_count: session.event_count + length(events),
+        next_event_sequence: next_sequence,
+        transcript: transcript
+    }
   end
 
   @doc "Adds or replaces a widget by id in its placement."
@@ -184,59 +235,6 @@ defmodule Tilde.Core.Session do
     update_block(session, block_id, &Block.select_choice(&1, option_id))
   end
 
-  @doc "Returns the active command suggestion widget content."
-  @spec command_suggestions(t()) :: Suggest.t() | nil
-  def command_suggestions(%__MODULE__{} = session) do
-    session
-    |> widgets(:above_input)
-    |> Enum.find_value(fn
-      %Widget{id: "command-suggestions", content: %Suggest{} = suggest} -> suggest
-      _widget -> nil
-    end)
-  end
-
-  @doc "Moves the active command suggestion selection forward."
-  @spec select_next_suggestion(t()) :: t()
-  def select_next_suggestion(%__MODULE__{} = session) do
-    update_command_suggestions(session, &Suggest.next/1)
-  end
-
-  @doc "Moves the active command suggestion selection backward."
-  @spec select_previous_suggestion(t()) :: t()
-  def select_previous_suggestion(%__MODULE__{} = session) do
-    update_command_suggestions(session, &Suggest.previous/1)
-  end
-
-  @doc "Clears active command suggestions."
-  @spec cancel_suggestions(t()) :: t()
-  def cancel_suggestions(%__MODULE__{} = session),
-    do: delete_widget(session, "command-suggestions")
-
-  @doc "Accepts the selected command suggestion into the input draft."
-  @spec accept_suggestion(t()) :: {:ok, t()} | :error
-  def accept_suggestion(%__MODULE__{} = session) do
-    case selected_suggestion_completion(session) do
-      nil -> :error
-      completion -> {:ok, change_input(session, Input.put_value(session.input, completion))}
-    end
-  end
-
-  @doc "Submits the selected command suggestion, or completes it when it needs arguments."
-  @spec submit_suggestion(t()) :: {:ok, t()} | :error
-  def submit_suggestion(%__MODULE__{} = session) do
-    case selected_suggestion_completion(session) do
-      nil ->
-        :error
-
-      completion ->
-        if String.ends_with?(completion, " ") do
-          {:ok, change_input(session, Input.put_value(session.input, completion))}
-        else
-          {:ok, append_event(session, Tilde.input_submitted(completion))}
-        end
-    end
-  end
-
   defp apply_event_without_log(%__MODULE__{} = session, %Event{} = event) do
     session = apply_session_event(session, event)
 
@@ -246,9 +244,7 @@ defmodule Tilde.Core.Session do
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_changed} = event) do
     value = event.text || ""
 
-    session
-    |> put_input(Input.put_value(session.input, value, cursor: input_cursor(event)))
-    |> put_command_suggestions(value)
+    put_input(session, Input.put_value(session.input, value, cursor: input_cursor(event)))
   end
 
   defp apply_session_event(%__MODULE__{} = session, %Event{type: :input_submitted}) do
@@ -325,41 +321,18 @@ defmodule Tilde.Core.Session do
   defp update_status(%__MODULE__{} = session, key, value),
     do: %{session | statuses: Map.put(session.statuses, key, value)}
 
-  defp selected_suggestion_completion(%__MODULE__{} = session) do
-    case command_suggestions(session) do
-      %Suggest{} = suggest -> Tilde.Command.completion(suggest)
-      nil -> nil
-    end
-  end
+  defp sequence_event(%Event{sequence: nil} = event, sequence, _mode),
+    do: %{event | sequence: sequence}
 
-  defp put_command_suggestions(%__MODULE__{} = session, value) do
-    previous_id = command_suggestions(session) && command_suggestions(session).selected_id
+  defp sequence_event(%Event{sequence: sequence} = event, sequence, _mode), do: event
 
-    case Tilde.Command.suggestions(value) do
-      nil ->
-        delete_widget(session, "command-suggestions")
+  defp sequence_event(%Event{sequence: actual} = event, expected, :ordered)
+       when is_integer(actual) and actual > expected,
+       do: event
 
-      suggest ->
-        put_widget(
-          session,
-          Widget.new("command-suggestions", :above_input, Suggest.select_id(suggest, previous_id))
-        )
-    end
-  end
-
-  defp update_command_suggestions(%__MODULE__{} = session, fun) when is_function(fun, 1) do
-    case command_suggestions(session) do
-      %Suggest{} = suggest ->
-        put_widget(session, Widget.new("command-suggestions", :above_input, fun.(suggest)))
-
-      nil ->
-        session
-    end
-  end
-
-  defp change_input(%__MODULE__{} = session, %Input{} = input) do
-    event = Tilde.input_changed(input.value, metadata: %{cursor: input.cursor})
-    append_event(session, event)
+  defp sequence_event(%Event{sequence: actual}, expected, _mode) do
+    raise ArgumentError,
+          "event sequence #{inspect(actual)} does not follow session sequence #{expected}"
   end
 
   defp replace_widget(widgets, %Widget{id: id} = widget) do

@@ -4,6 +4,7 @@ defmodule Tilde.Command do
   """
 
   alias Tilde.Command.Registry
+  alias Tilde.Core.Interaction.Outcome
   alias Tilde.Core.{Session, Suggest}
   alias Tilde.Core.Suggest.Item
 
@@ -116,6 +117,18 @@ defmodule Tilde.Command do
 
       :ok, session ->
         session
+    end)
+  end
+
+  @doc "Converts transport-facing command effects into interaction outcomes."
+  @spec effects_to_outcomes([effect()]) :: [Outcome.t()]
+  def effects_to_outcomes(effects) do
+    Enum.flat_map(effects, fn
+      %Tilde.Command.Effect.NewSession{id: id} -> [Outcome.open_session(id)]
+      %Tilde.Command.Effect.AttachSession{id: id} -> [Outcome.open_session(id)]
+      %Tilde.Command.Effect.DetachSession{} -> [Outcome.open_index()]
+      %Tilde.Command.Effect.ShowSessionInfo{} -> [Outcome.show_session_info()]
+      _effect -> []
     end)
   end
 

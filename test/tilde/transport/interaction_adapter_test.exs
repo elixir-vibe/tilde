@@ -1,7 +1,8 @@
 defmodule Tilde.Transport.InteractionAdapterTest do
   use TildeTest.Case, async: true
 
-  alias Tilde.Core.{Index, Interaction}
+  alias Tilde.Core.Interaction
+  alias Tilde.Index
   alias Tilde.Transport.Live.Interaction, as: LiveInteraction
   alias Tilde.Transport.SSH.Interaction, as: SSHInteraction
 

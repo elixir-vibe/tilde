@@ -1,9 +1,23 @@
+defmodule TildeTest.Driver.Browser.JsLogger do
+  @moduledoc false
+  @behaviour PlaywrightEx.JsLogger
+
+  require Logger
+
+  @impl true
+  def log(level, text, _message) when level in [:warning, :error] do
+    Logger.log(level, "browser: #{inspect(text)}")
+  end
+
+  def log(_level, _text, _message), do: :ok
+end
+
 defmodule TildeTest.Driver.Browser do
   @moduledoc "PlaywrightEx-backed browser driver for JavaScript-level Tilde behavior tests."
 
   import ExUnit.Assertions
 
-  alias PlaywrightEx.{Browser, BrowserContext, Frame, Selector}
+  alias PlaywrightEx.{Browser, BrowserContext, Frame, Page, Selector}
 
   defstruct [:browser_id, :context_id, :page_id, :frame_id, :connection, :demo, :password]
 
@@ -51,6 +65,13 @@ defmodule TildeTest.Driver.Browser do
 
     {:ok, page} = BrowserContext.new_page(context.guid, timeout: timeout, connection: connection)
 
+    {:ok, _subscription} =
+      Page.update_subscription(page.guid,
+        event: :console,
+        timeout: timeout,
+        connection: connection
+      )
+
     state = %__MODULE__{
       browser_id: browser.guid,
       context_id: context.guid,
@@ -66,7 +87,44 @@ defmodule TildeTest.Driver.Browser do
     |> fill("input[name='password']", password)
     |> click("button[type='submit']")
     |> visit("/sessions/browser-test")
-    |> assert_has("body .phx-connected")
+    |> assert_connected()
+  end
+
+  defp assert_connected(%__MODULE__{} = state) do
+    case Frame.wait_for_selector(state.frame_id,
+           selector: "body .phx-connected",
+           timeout: @timeout,
+           connection: state.connection
+         ) do
+      {:ok, _element} ->
+        state
+
+      {:error, error} ->
+        diagnostics =
+          evaluate(
+            state,
+            """
+            ({
+              href: location.href,
+              bodyClass: document.body.className,
+              liveRoots: Array.from(document.querySelectorAll('[data-phx-session]')).map(element => ({
+                id: element.id,
+                className: element.className
+              })),
+              scripts: Array.from(document.scripts).map(script => script.src),
+              resources: performance.getEntriesByType('resource').map(resource => ({
+                name: resource.name,
+                status: resource.responseStatus
+              }))
+            })
+            """
+          )
+
+        flunk(
+          "LiveView did not connect: #{inspect(error, pretty: true)}\n" <>
+            "Browser diagnostics: #{inspect(diagnostics, pretty: true)}"
+        )
+    end
   end
 
   @doc "Visits a path relative to the demo base URL."
@@ -268,13 +326,15 @@ defmodule TildeTest.Driver.Browser do
   end
 
   defp configure_endpoint(port) do
+    Application.put_env(:tilde, :demo_code_reloader, false)
+
     Application.put_env(:tilde, Tilde.Demo.Endpoint,
       adapter: Bandit.PhoenixAdapter,
       url: [scheme: "http", host: "127.0.0.1", port: port],
       check_origin: false,
       http: [ip: {127, 0, 0, 1}, port: port],
       server: true,
-      code_reloader: true,
+      code_reloader: false,
       debug_errors: true,
       secret_key_base: String.duplicate("tilde_browser_test_secret", 4),
       live_view: [signing_salt: "tilde_browser_test_salt"],
@@ -290,7 +350,8 @@ defmodule TildeTest.Driver.Browser do
         case PlaywrightEx.Supervisor.start_link(
                name: TildeTest.Driver.Browser.Playwright,
                timeout: timeout,
-               executable: playwright_executable()
+               executable: playwright_executable(),
+               js_logger: TildeTest.Driver.Browser.JsLogger
              ) do
           {:ok, pid} ->
             Process.unlink(pid)
@@ -347,12 +408,9 @@ defmodule TildeTest.Driver.Browser do
   end
 
   defp cleanup_demo_processes do
-    [
-      Tilde.Session.Registry,
-      Tilde.Session.Server,
-      Tilde.Demo.LivePubSub,
-      Tilde.Runtime.RateLimit
-    ]
+    Tilde.Session.Supervisor.stop_sessions()
+
+    [Tilde.Demo.LivePubSub, Tilde.Runtime.RateLimit]
     |> Enum.each(fn name ->
       if pid = Process.whereis(name) do
         ignore_exit(fn -> GenServer.stop(pid) end)

@@ -8,6 +8,7 @@ defmodule Tilde.Session.AgentLoop.State do
             input_index: nil,
             task: nil,
             ref: nil,
+            timeout_timer: nil,
             block_id: nil,
             runtime: nil,
             queue: []
@@ -17,6 +18,7 @@ defmodule Tilde.Session.AgentLoop.State do
           input_index: pos_integer() | nil,
           task: pid() | nil,
           ref: reference() | nil,
+          timeout_timer: reference() | nil,
           block_id: String.t() | nil,
           runtime: AgentRuntime.t() | nil,
           queue: [Prompt.t()]
@@ -32,21 +34,33 @@ defmodule Tilde.Session.AgentLoop.State do
   def matches_ref?(%__MODULE__{ref: ref}, ref), do: true
   def matches_ref?(%__MODULE__{}, _ref), do: false
 
-  @spec start(t(), Prompt.t(), pid(), reference(), String.t()) :: t()
-  def start(%__MODULE__{} = state, %Prompt{} = prompt, task, ref, block_id) when is_pid(task) do
+  @spec matches_task?(t(), pid(), reference() | nil) :: boolean()
+  def matches_task?(state, task, ref \\ nil)
+
+  def matches_task?(%__MODULE__{active?: true, task: task, ref: ref}, task, ref)
+      when is_pid(task),
+      do: true
+
+  def matches_task?(%__MODULE__{active?: true, task: task}, task, nil) when is_pid(task), do: true
+  def matches_task?(%__MODULE__{}, _task, _ref), do: false
+
+  @spec start(t(), Prompt.t(), pid(), reference(), reference() | nil, String.t()) :: t()
+  def start(%__MODULE__{} = state, %Prompt{} = prompt, task, ref, timeout_timer, block_id)
+      when is_pid(task) do
     %{
       state
       | active?: true,
         input_index: prompt.index,
         task: task,
         ref: ref,
+        timeout_timer: timeout_timer,
         block_id: block_id,
         runtime: nil
     }
   end
 
-  @spec resume(t(), AgentRuntime.t(), pid(), reference(), String.t()) :: t()
-  def resume(%__MODULE__{} = state, %AgentRuntime{} = runtime, task, ref, block_id)
+  @spec resume(t(), AgentRuntime.t(), pid(), reference(), reference() | nil, String.t()) :: t()
+  def resume(%__MODULE__{} = state, %AgentRuntime{} = runtime, task, ref, timeout_timer, block_id)
       when is_pid(task) do
     %{
       state
@@ -54,14 +68,27 @@ defmodule Tilde.Session.AgentLoop.State do
         input_index: runtime.input_index,
         task: task,
         ref: ref,
+        timeout_timer: timeout_timer,
         block_id: block_id,
         runtime: runtime
     }
   end
 
+  @spec task_stopped(t()) :: t()
+  def task_stopped(%__MODULE__{} = state), do: %{state | task: nil, timeout_timer: nil}
+
   @spec clear_active(t()) :: t()
   def clear_active(%__MODULE__{} = state) do
-    %{state | active?: false, input_index: nil, task: nil, ref: nil, block_id: nil, runtime: nil}
+    %{
+      state
+      | active?: false,
+        input_index: nil,
+        task: nil,
+        ref: nil,
+        timeout_timer: nil,
+        block_id: nil,
+        runtime: nil
+    }
   end
 
   @spec put_started_runtime(t(), Jidoka.Event.t()) :: t()

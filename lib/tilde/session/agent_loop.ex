@@ -54,6 +54,43 @@ defmodule Tilde.Session.AgentLoop do
     |> emit_then(emit)
   end
 
+  @doc false
+  @spec handle_task_exit(server_state(), pid(), term(), emit_fun()) :: server_state()
+  def handle_task_exit(state, task, reason, emit) do
+    cond do
+      not State.matches_task?(state.agent_loop, task) ->
+        state
+
+      reason == :normal and AgentRuntime.resumable?(state.agent_loop.runtime) ->
+        cancel_task_timer(state.agent_loop.timeout_timer)
+        put_agent_loop(state, State.task_stopped(state.agent_loop))
+
+      true ->
+        failure = {:agent_task_exit, reason}
+
+        state
+        |> update_session(fn session ->
+          session
+          |> Session.append_event(Tilde.assistant_done(llm_error_message(failure)))
+          |> Session.append_event(
+            Tilde.assistant_turn_error(failure, block_id: state.agent_loop.block_id)
+          )
+        end)
+        |> clear_runtime()
+        |> emit_then(emit)
+        |> maybe_start_pending(emit)
+    end
+  end
+
+  @doc false
+  @spec shutdown(server_state()) :: :ok
+  def shutdown(state) do
+    cancel_checkpoint(state.agent_loop.runtime)
+    cancel_task(state.agent_loop.task)
+    cancel_task_timer(state.agent_loop.timeout_timer)
+    :ok
+  end
+
   @spec handle_stream_event(server_state(), Jidoka.Event.t(), emit_fun()) :: server_state()
   def handle_stream_event(state, %Jidoka.Event{event: :turn_started} = event, _emit) do
     state
@@ -219,8 +256,12 @@ defmodule Tilde.Session.AgentLoop do
       |> emit_then(emit)
 
     {:ok, task} = start_task(state, parent, ref, prompt.text)
+    timeout_timer = start_task_timer(state, parent, ref, task)
 
-    put_agent_loop(state, State.start(state.agent_loop, prompt, task, ref, block_id))
+    put_agent_loop(
+      state,
+      State.start(state.agent_loop, prompt, task, ref, timeout_timer, block_id)
+    )
   end
 
   defp resume(state, %AgentRuntime{} = runtime, emit) do
@@ -237,19 +278,33 @@ defmodule Tilde.Session.AgentLoop do
 
     runtime = %{runtime | block_id: block_id}
     {:ok, task} = start_resume_task(state, parent, ref, runtime)
+    timeout_timer = start_task_timer(state, parent, ref, task)
 
     state
-    |> put_agent_loop(State.resume(state.agent_loop, runtime, task, ref, block_id))
+    |> put_agent_loop(State.resume(state.agent_loop, runtime, task, ref, timeout_timer, block_id))
     |> sync_runtime_metadata()
   end
 
   defp start_task(%{session: %Session{}} = state, parent, ref, prompt) when is_pid(parent) do
-    Task.start(fn -> stream_to_parent(state, parent, ref, prompt) end)
+    Task.Supervisor.start_child(Tilde.Session.TaskSupervisor, fn ->
+      Process.link(parent)
+      stream_to_parent(state, parent, ref, prompt)
+    end)
   end
 
   defp start_resume_task(%{session: %Session{}} = state, parent, ref, %AgentRuntime{} = runtime)
        when is_pid(parent) do
-    Task.start(fn -> resume_to_parent(state, parent, ref, runtime) end)
+    Task.Supervisor.start_child(Tilde.Session.TaskSupervisor, fn ->
+      Process.link(parent)
+      resume_to_parent(state, parent, ref, runtime)
+    end)
+  end
+
+  defp start_task_timer(%{agent_task_timeout_ms: :infinity}, _parent, _ref, _task), do: nil
+
+  defp start_task_timer(%{agent_task_timeout_ms: timeout}, parent, ref, task)
+       when is_integer(timeout) and timeout > 0 do
+    Process.send_after(parent, {:tilde_agent_timeout, ref, task}, timeout)
   end
 
   defp stream_to_parent(%{session: %Session{} = session} = state, parent, ref, prompt) do
@@ -325,10 +380,19 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp clear_runtime(state) do
+    cancel_task_timer(state.agent_loop.timeout_timer)
+
     state
     |> put_agent_loop(State.clear_active(state.agent_loop))
     |> sync_runtime_metadata()
   end
+
+  defp cancel_task_timer(timer) when is_reference(timer) do
+    Process.cancel_timer(timer, async: false, info: false)
+    :ok
+  end
+
+  defp cancel_task_timer(nil), do: :ok
 
   defp emit_tool_started(state, %ToolEvent{} = event, emit) do
     state
@@ -450,22 +514,23 @@ defmodule Tilde.Session.AgentLoop do
   end
 
   defp assistant_block_id(%Session{} = session) do
-    "msg_assistant_#{length(session.events) + 1}"
+    "msg_assistant_#{session.event_count + 1}"
   end
 
   defp new_input_submitted?(%Session{} = previous, %Session{} = session) do
-    case List.last(session.events) do
+    case Session.latest_event(session) do
       %Event{type: :input_submitted, id: id} -> not event_id?(previous, id)
       _event -> false
     end
   end
 
   defp event_id?(%Session{} = session, id) do
-    Enum.any?(session.events, &(&1.id == id))
+    Session.event_id?(session, id)
   end
 
   defp latest_input_submission(%Session{} = session) do
-    session.events
+    session
+    |> Session.events()
     |> Enum.with_index(1)
     |> Enum.reverse()
     |> Enum.find(fn {%Event{type: type}, _index} -> type == :input_submitted end)

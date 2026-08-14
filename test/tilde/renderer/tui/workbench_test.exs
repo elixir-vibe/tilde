@@ -60,6 +60,36 @@ defmodule Tilde.Renderer.TUI.WorkbenchTest do
     assert rendered =~ "open file"
   end
 
+  test "keeps the main prompt visible when narrow side panes contain many files" do
+    files =
+      Enum.map(1..60, fn index ->
+        WorkspaceFile.new(path: "lib/file_#{index}.ex", git_status: :modified)
+      end)
+
+    session =
+      Tilde.session()
+      |> Session.append_event(Tilde.input_changed("/"))
+      |> Tilde.Session.Suggestions.refresh()
+
+    rendered =
+      %{
+        session: session,
+        workspace: Workspace.new(files: files),
+        workspace_mode: :chat,
+        workspace_view: :files,
+        open_file: nil,
+        review: Review.new(),
+        active_review_comment_id: nil,
+        palette: Palette.new()
+      }
+      |> Workbench.render(80, 30, ansi: false)
+      |> IO.iodata_to_binary()
+      |> strip_ansi()
+
+    assert rendered =~ "commands"
+    assert rendered =~ "/help"
+  end
+
   test "renders buffer footer actions with dynamic review state" do
     workspace =
       Workspace.new(

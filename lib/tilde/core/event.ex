@@ -25,6 +25,7 @@ defmodule Tilde.Core.Event do
 
   @type t :: %__MODULE__{
           id: String.t(),
+          sequence: non_neg_integer() | nil,
           type: type(),
           at: DateTime.t() | nil,
           block_id: String.t() | nil,
@@ -42,6 +43,7 @@ defmodule Tilde.Core.Event do
         }
 
   defstruct id: nil,
+            sequence: nil,
             type: nil,
             at: nil,
             block_id: nil,
@@ -64,6 +66,7 @@ defmodule Tilde.Core.Event do
 
     struct!(__MODULE__,
       id: Map.get(attrs, :id, unique_id(type)),
+      sequence: Map.get(attrs, :sequence),
       type: type,
       at: Map.get(attrs, :at),
       block_id: Map.get(attrs, :block_id),

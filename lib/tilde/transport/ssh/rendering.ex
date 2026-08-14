@@ -1,7 +1,8 @@
 defmodule Tilde.Transport.SSH.Rendering do
   @moduledoc "Pure SSH/TUI rendering helpers for normal-screen channel output."
 
-  alias Tilde.Core.{Block, Index, Input, Session}
+  alias Tilde.Core.{Block, Input, Session}
+  alias Tilde.Index
   alias Tilde.Index.View, as: IndexView
   alias Tilde.Renderer.TUI
   alias Tilde.Renderer.TUI.{ViewRenderer, WidgetRenderer, Workbench}
